@@ -8,50 +8,7 @@ import numpy as np
 
 from ortools.sat.python import cp_model
 
-
-class Constraint:
-    pass
-
-class MinIndividualRankConstraint(Constraint):
-
-    def __init__(self, rankings, min_rank):
-        self.rankings = rankings
-        self.min_rank = min_rank
-
-    def apply(self, model, block_assigned, residents, blocks, rotations):
-
-        for res in residents:
-            res_obj = 0
-            for blk in blocks:
-                for rot in rotations:
-                    if res in self.rankings and rot in self.rankings[res]:
-                        res_obj += (
-                            self.rankings[res][rot] *
-                            block_assigned[res, blk, rot]
-                        )
-            model.Add(res_obj < self.min_rank)
-
-
-class GroupCountPerResident(Constraint):
-
-    def __init__(self, rotations_in_group, n_min, n_max):
-
-        self.rotations_in_group = rotations_in_group
-        self.n_min = n_min
-        self.n_max = n_max
-
-    def apply(self, model, block_assigned, all_residents, all_blocks, all_rotations):
-
-        for res in all_residents:
-            ct = 0
-
-            for blk in all_blocks:
-                for rot in self.rotations_in_group:
-                    ct += block_assigned[(res, blk, rot)]
-
-            model.Add(ct >= self.n_min)
-            model.Add(ct <= self.n_max)
-
+from sched import csts
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Process some integers.')
@@ -343,20 +300,6 @@ def generate_solver(config, residents, blocks, rotations, groups, rankings):
                 r_tot = sum(block_assigned[(resident, block, rotation)] for block in blocks)
                 model.Add(r_tot != ct)
 
-    for res, params in config['residents'].items():
-        if not params:
-            continue
-        if 'pin_rotation' in params:
-            for pinned_rotation, pinned_blocks in params['pin_rotation'].items():
-                for pinned_block in pinned_blocks:
-                    model.Add(
-                        block_assigned[res, pinned_block, pinned_rotation] == 1
-                    )
-                if len(pinned_blocks) == 0:
-                    model.Add(
-                        sum(block_assigned[res, block, pinned_rotation] for block in blocks) >= 1
-                    )
-
     # Each resident must work some rotation each block
     for res in residents:
         for block in blocks:
@@ -407,6 +350,25 @@ def process_config(config):
     return residents, blocks, rotations, rankings, groups
 
 
+def generate_resident_constraints(
+        config, block_assigned, model, residents, blocks, rotations,
+        rankings, groups):
+
+    cst_list = []
+
+    for res, params in config['residents'].items():
+        if not params:
+            continue
+
+        if 'pin_rotation' in params:
+            for pinned_rotation, pinned_blocks in params['pin_rotation'].items():
+                cst_list.append(
+                    csts.PinnedRotationConstraint(res, pinned_blocks, pinned_rotation)
+                )
+
+    return cst_list
+
+
 def generate_constraints_from_configs(
         config, block_assigned, model, residents, blocks, rotations,
         rankings, groups):
@@ -416,7 +378,7 @@ def generate_constraints_from_configs(
     for cst in config['group_constraints']:
         if cst['kind'] == 'group_count_per_resident':
             constraints.append(
-                GroupCountPerResident(
+                csts.GroupCountPerResident(
                     rotations_in_group=resolve_group(cst['group'], config['rotations']),
                     n_min=cst['count'][0], n_max=cst['count'][1])
             )
@@ -436,24 +398,29 @@ def main():
         config, residents, blocks, rotations, rankings, groups
     )
 
-    constraints = generate_constraints_from_configs(
+    cst_list = generate_constraints_from_configs(
         config, block_assigned, model, residents, blocks, rotations,
         rankings, groups)
 
+    cst_list.extend(
+        generate_resident_constraints(
+            config, block_assigned, model, residents, blocks, rotations,
+            rankings, groups
+        )
+    )
+
     if args.min_individual_rank is not None:
-        constraints.append(
-            MinIndividualRankConstraint(rankings, args.min_individual_rank)
+        cst_list.append(
+            csts.MinIndividualRankConstraint(rankings, args.min_individual_rank)
         )
 
-    for cst in constraints:
+    for cst in cst_list:
         cst.apply(model, block_assigned, residents, blocks, rotations)
 
     # Creates the solver and solve.
     solver = cp_model.CpSolver()
     solver.parameters.linearization_level = 2
 
-    print(args.objective)
-    print(args.objective == 'rank_sum_objective')
     if args.objective == 'rank_sum_objective':
         obj = rank_sum_objective(block_assigned, rankings, residents, blocks, rotations)
         model.Minimize(obj)
