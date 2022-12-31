@@ -6,14 +6,13 @@ from ortools.sat.python import cp_model
 
 class BlockSchedulePartialSolutionPrinter(cp_model.CpSolverSolutionCallback):
 
-    def __init__(self, block_assigned, residents, blocks, rotations, limit, outfile):
+    def __init__(self, block_assigned, residents, blocks, rotations, outfile):
         cp_model.CpSolverSolutionCallback.__init__(self)
         self._block_assigned = block_assigned
         self._residents = residents
         self._blocks = blocks
         self._rotations = rotations
         self._solution_count = 0
-        self._solution_limit = limit
 
         self._outfile = outfile
 

@@ -89,7 +89,7 @@ def add_group_count_per_resident_constraint(
         model.Add(ct <= n_max)
 
 
-def generate_solver(config, residents, blocks, rotations, groups, rankings):
+def generate_model(residents, blocks, rotations, groups, rankings, constraints):
 
     model = cp_model.CpModel()
 
@@ -106,6 +106,9 @@ def generate_solver(config, residents, blocks, rotations, groups, rankings):
         for block in blocks:
             model.AddExactlyOne(
                 block_assigned[(res, block, rot)] for rot in rotations)
+
+    for cst in constraints:
+        cst.apply(model, block_assigned, residents, blocks, rotations)
 
     return block_assigned, model
 
@@ -268,6 +271,41 @@ def generate_constraints_from_configs(config):
 
     return constraints
 
+
+def run_optimizer(model, objective_fn, solution_printer=None,  n_processes=None):
+
+    if n_processes is None:
+        n_processes = 1
+
+    # Creates the solver and solve.
+    solver = cp_model.CpSolver()
+    solver.parameters.linearization_level = 2
+
+    model.Minimize(objective_fn)
+    solver.parameters.enumerate_all_solutions = False
+    solver.parameters.num_search_workers = n_processes
+
+    # solver.parameters.enumerate_all_solutions = True
+
+    solver.Solve(model, solution_printer)
+    # solver.SearchForAllSolutions(model, solution_printer)
+
+    return solver
+
+
+def run_enumerator(model, solution_printer=None):
+
+    solver = cp_model.CpSolver()
+    solver.parameters.linearization_level = 2
+
+    model.Minimize(objective_fn)
+    solver.parameters.enumerate_all_solutions = True
+
+    solver.SearchForAllSolutions(model, solution_printer)
+
+    return solver
+
+
 def main():
 
     args = parse_args()
@@ -275,48 +313,45 @@ def main():
     with open(args.config, 'r') as f:
         config = yaml.safe_load(f)
 
-    cst_list = generate_constraints_from_configs(config)
-
     residents, blocks, rotations, rankings, groups = process_config(config)
-
-    block_assigned, model = generate_solver(
-        config, residents, blocks, rotations, rankings, groups
-    )
+    cst_list = generate_constraints_from_configs(config)
 
     if args.min_individual_rank is not None:
         cst_list.append(
             csts.MinIndividualRankConstraint(rankings, args.min_individual_rank)
         )
 
-    for cst in cst_list:
-        cst.apply(model, block_assigned, residents, blocks, rotations)
-
-    # Creates the solver and solve.
-    solver = cp_model.CpSolver()
-    solver.parameters.linearization_level = 2
-
-    if args.objective == 'rank_sum_objective':
-        obj = rank_sum_objective(block_assigned, rankings, residents, blocks, rotations)
-        model.Minimize(obj)
-        solver.parameters.enumerate_all_solutions = False
-        solver.parameters.num_search_workers = args.n_processes
-    else:
-        assert False
-        solver.parameters.enumerate_all_solutions = True
-
-    solution_limit = args.n_solutions
-    solution_printer = io.BlockSchedulePartialSolutionPrinter(
-        block_assigned,
-        residents,
-        blocks,
-        rotations,
-        solution_limit,
-        outfile=args.results
+    block_assigned, model = generate_model(
+        residents, blocks, rotations, rankings, groups, cst_list
     )
 
-    solver.Solve(model, solution_printer)
-    # solver.Solve(model, cp_model.ObjectiveSolutionPrinter())
-    # solver.SearchForAllSolutions(model, solution_printer)
+    if args.objective == 'rank_sum_objective':
+        objective_fn = rank_sum_objective(block_assigned, rankings, residents, blocks, rotations)
+
+        solver = run_optimizer(
+            model,
+            objective_fn,
+            solution_printer=io.BlockSchedulePartialSolutionPrinter(
+                block_assigned,
+                residents,
+                blocks,
+                rotations,
+                outfile=args.results
+            ),
+            n_processes=args.n_processes
+        )
+    else:
+        raise NotImplementedError("Still working on enumerator mode.")
+        solver = run_enumerator(
+            model,
+            solution_printer=io.BlockSchedulePartialSolutionPrinter(
+                block_assigned,
+                residents,
+                blocks,
+                rotations,
+                outfile=args.results
+            ),
+        )
 
     # Statistics.
     # print('\nStatistics')
