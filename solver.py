@@ -1,14 +1,12 @@
 import math
-import datetime
 import argparse
 import csv
 
 import yaml
-import numpy as np
 
 from ortools.sat.python import cp_model
 
-from sched import csts
+from sched import csts, io
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Process some integers.')
@@ -91,124 +89,6 @@ def add_group_count_per_resident_constraint(
         model.Add(ct <= n_max)
 
 
-def add_prerequisite_constraint(model, block_assigned, residents, blocks,
-                                rotation, prerequisites):
-
-    for resident in residents:
-        for i in range(len(blocks)):
-            rot_is_assigned = block_assigned[(resident, blocks[i], rotation)]
-
-            for prereq in prerequisites:
-                n_prereq_instances = 0
-                for j in range(0, i):
-                    n_prereq_instances += block_assigned[(resident, blocks[j], prereq)]
-
-                model.Add(n_prereq_instances >= 1).OnlyEnforceIf(rot_is_assigned)
-
-
-def add_must_be_followed_by_constraint(model, block_assigned, residents, blocks,
-                                       rotation, following_rotations):
-
-    for a_block, b_block in zip(blocks[0:-1], blocks[1:]):
-        for resident in residents:
-            a = block_assigned[(resident, a_block, rotation)]
-
-            n_electives = 0
-
-            for elective in following_rotations:
-                n_electives += block_assigned[(resident, b_block, elective)]
-
-            model.Add(
-                n_electives > 0
-            ).OnlyEnforceIf(a)
-
-
-def add_must_be_paired_constraint(model, block_assigned, residents, blocks,
-                                  rot_name):
-
-    for resident in residents:
-        for b1, b2, b3 in zip(blocks[:-2], blocks[1:-1], blocks[2:]):
-            n_flanking = (
-                block_assigned[(resident, b1, rot_name)] +
-                block_assigned[(resident, b3, rot_name)]
-            )
-
-            model.Add(
-                n_flanking == 1
-            ).OnlyEnforceIf(block_assigned[(resident, b2, rot_name)])
-
-        #  the above constraint leaves off the edges.
-        b1 = blocks[0]
-        b2 = blocks[1]
-
-        model.Add(
-            block_assigned[(resident, b2, rot_name)] == 1
-        ).OnlyEnforceIf(block_assigned[(resident, b1, rot_name)])
-
-        b1 = blocks[-1]
-        b2 = blocks[-2]
-
-        model.Add(
-            block_assigned[(resident, b2, rot_name)] == 1
-        ).OnlyEnforceIf(block_assigned[(resident, b1, rot_name)])
-
-
-class BlockSchedulePartialSolutionPrinter(cp_model.CpSolverSolutionCallback):
-
-    def __init__(self, block_assigned, residents, blocks, rotations, limit, outfile):
-        cp_model.CpSolverSolutionCallback.__init__(self)
-        self._block_assigned = block_assigned
-        self._residents = residents
-        self._blocks = blocks
-        self._rotations = rotations
-        self._solution_count = 0
-        self._solution_limit = limit
-
-        self._outfile = outfile
-
-        self._column_width = max(
-            max(len(b) for b in blocks),
-            max(len(r) for r in rotations)
-        )
-
-    def on_solution_callback(self):
-        self._solution_count += 1
-
-        rows = [[''] + self._residents]
-        for block in self._blocks:
-            row = [block]
-            for resident in self._residents:
-                for rotation in self._rotations:
-                    if self.Value(self._block_assigned[(resident, block, rotation)]):
-                        row.append(self._rotations.index(rotation))
-            rows.append(row)
-
-        # with open(self._outfile % self._solution_count, 'w') as f:
-        #     writer = csv.writer(f, delimiter=',')
-        #     for row in rows:
-        #         writer.writerow(row)
-
-        a = np.array([r[1:] for r in rows[1:]], dtype='int16')
-        fname = self._outfile.replace('csv', 'npz') % 0
-
-
-        if self._solution_count == 1:
-            a_full = a
-        else:
-            a_full = np.load(fname)['a']
-            a_full = np.dstack([a_full, a])
-
-        np.savez(fname, a=a_full)
-
-        print(f"Solution {self._solution_count:02d} at {datetime.datetime.now()} w objective value {self.ObjectiveValue()}")
-
-        # if self._solution_count >= self._solution_limit:
-        #     self.StopSearch()
-
-    def solution_count(self):
-        return self._solution_count
-
-
 def generate_solver(config, residents, blocks, rotations, groups, rankings):
 
     model = cp_model.CpModel()
@@ -220,85 +100,6 @@ def generate_solver(config, residents, blocks, rotations, groups, rankings):
             for rot in rotations:
                 block_assigned[(resident, block, rot)] = model.NewBoolVar(
                     f'block_assigned-r{resident}-b{block}-{rot}')
-
-    for block, params in config['blocks'].items():
-        if not params:
-            continue
-
-        for key in params:
-            if key in rotations:
-                bval = params[key]
-                if not bval:
-                    for resident in residents:
-                        model.Add(block_assigned[(resident, block, key)] == 0)
-                else:
-                    print(f"In {block}, {key}: Yes has no effect")
-            if key in groups:
-                grp = resolve_group(key, config['rotations'])
-                bval = params[key]
-
-                if not bval:
-                    for grp_memb in grp:
-                        for resident in residents:
-                            model.Add(block_assigned[(resident, block, grp_memb)] == 0)
-                else:
-                    print(f"In {block}, {key}: Yes has no effect")
-
-    for rotation, params in config['rotations'].items():
-
-        if not params:
-            continue
-        if 'coverage' in params:
-            rmin, rmax = handle_count_specification(
-                params['coverage'], len(blocks))
-
-            for block, rmin, rmax in zip(blocks, rmin, rmax):
-                # r_tot is the total number of residents on this rotation for this block
-                r_tot = sum(block_assigned[(res, block, rotation)] for res in residents)
-                model.Add(r_tot >= rmin)
-                model.Add(r_tot <= rmax)
-        if 'must_be_followed_by' in params:
-            following_rotations = []
-            for key in params['must_be_followed_by']:
-                if key in config['rotations']:
-                    following_rotations.append(key)
-                else:
-                    following_rotations.extend(
-                        resolve_group(key, config['rotations']))
-
-            add_must_be_followed_by_constraint(
-                model, block_assigned, residents, blocks,
-                rotation=rotation,
-                following_rotations=following_rotations
-            )
-
-        if 'prerequisite' in params:
-            add_prerequisite_constraint(
-                model, block_assigned, residents, blocks,
-                rotation=rotation, prerequisites=params['prerequisite']
-            )
-
-        if params.get('always_paired', False):
-            add_must_be_paired_constraint(
-                model, block_assigned, residents, blocks,
-                rot_name=rotation
-            )
-
-        if 'rot_count' in params:
-            rmin, rmax = handle_count_specification(
-                params['rot_count'], len(residents))
-
-            for resident, rmin, rmax in zip(residents, rmin, rmax):
-                r_tot = sum(block_assigned[(resident, block, rotation)] for block in blocks)
-                model.Add(r_tot >= rmin)
-                model.Add(r_tot <= rmax)
-
-        if 'not_rot_count' in params:
-            ct = params['not_rot_count']
-
-            for resident in residents:
-                r_tot = sum(block_assigned[(resident, block, rotation)] for block in blocks)
-                model.Add(r_tot != ct)
 
     # Each resident must work some rotation each block
     for res in residents:
@@ -350,9 +151,7 @@ def process_config(config):
     return residents, blocks, rotations, rankings, groups
 
 
-def generate_resident_constraints(
-        config, block_assigned, model, residents, blocks, rotations,
-        rankings, groups):
+def generate_resident_constraints(config):
 
     cst_list = []
 
@@ -369,11 +168,95 @@ def generate_resident_constraints(
     return cst_list
 
 
-def generate_constraints_from_configs(
-        config, block_assigned, model, residents, blocks, rotations,
-        rankings, groups):
+def generate_rotation_constraints(config):
 
     constraints = []
+
+    for rotation, params in config['rotations'].items():
+
+        if not params:
+            continue
+        if 'coverage' in params:
+            rmin, rmax = handle_count_specification(params['coverage'], len(config['blocks']))
+            constraints.append(csts.RotationCoverageConstraint(rotation, rmin, rmax))
+        if 'must_be_followed_by' in params:
+            following_rotations = []
+            for key in params['must_be_followed_by']:
+                if key in config['rotations']:
+                    following_rotations.append(key)
+                else:
+                    following_rotations.extend(
+                        resolve_group(key, config['rotations']))
+
+            constraints.append(csts.MustBeFollowedByRotationConstraint(
+                rotation=rotation, following_rotations=following_rotations
+            ))
+
+        if 'prerequisite' in params:
+            constraints.append(csts.PrerequisiteRotationConstraint(
+                rotation=rotation, prerequisites=params['prerequisite']
+            ))
+
+        if params.get('always_paired', False):
+            constraints.append(
+                csts.AlwaysPairedRotationConstraint(rotation)
+            )
+
+        if 'rot_count' in params:
+            rmin, rmax = handle_count_specification(
+                params['rot_count'], len(config['residents']))
+            constraints.append(
+                csts.RotationCountConstraint(rotation, rmin, rmax)
+            )
+
+        if 'not_rot_count' in params:
+            ct = params['not_rot_count']
+            constraints.append(
+                csts.RotationCountNotConstraint(rotation, ct)
+            )
+
+    return constraints
+
+
+def generate_block_constraints(config):
+
+    constraints = []
+
+    for block, params in config['blocks'].items():
+        if not params:
+            continue
+
+        for key in params:
+            if key in config['rotations']:
+                bval = params[key]
+                if not bval:
+                    constraints.append(
+                        BanRotationBlockConstraint(block, rotation=key)
+                    )
+                else:
+                    print(f"In {block}, {key}: Yes has no effect")
+            if key in config['groups']:
+                grp = resolve_group(key, config['rotations'])
+                bval = params[key]
+
+                if not bval:
+                    for grp_memb in grp:
+                        constraints.append(
+                            BanRotationBlockConstraint(block, rotation=grp_memb)
+                        )
+                else:
+                    print(f"In {block}, {key}: Yes has no effect")
+
+    return constraints
+
+
+def generate_constraints_from_configs(config):
+
+    constraints = []
+
+    constraints.extend(generate_rotation_constraints(config))
+
+    constraints.extend(generate_resident_constraints(config))
 
     for cst in config['group_constraints']:
         if cst['kind'] == 'group_count_per_resident':
@@ -392,21 +275,12 @@ def main():
     with open(args.config, 'r') as f:
         config = yaml.safe_load(f)
 
+    cst_list = generate_constraints_from_configs(config)
+
     residents, blocks, rotations, rankings, groups = process_config(config)
 
     block_assigned, model = generate_solver(
         config, residents, blocks, rotations, rankings, groups
-    )
-
-    cst_list = generate_constraints_from_configs(
-        config, block_assigned, model, residents, blocks, rotations,
-        rankings, groups)
-
-    cst_list.extend(
-        generate_resident_constraints(
-            config, block_assigned, model, residents, blocks, rotations,
-            rankings, groups
-        )
     )
 
     if args.min_individual_rank is not None:
@@ -430,9 +304,8 @@ def main():
         assert False
         solver.parameters.enumerate_all_solutions = True
 
-    # Display the first five solutions.
     solution_limit = args.n_solutions
-    solution_printer = BlockSchedulePartialSolutionPrinter(
+    solution_printer = io.BlockSchedulePartialSolutionPrinter(
         block_assigned,
         residents,
         blocks,

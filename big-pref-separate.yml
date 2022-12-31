@@ -185,6 +185,7 @@ rotations:
   SICU-E4:
     groups: [selective,]
     rot_count: [2, 2]
+    always_paired: Yes
   GI:
     groups: [selective, medicine]
     rot_count: [0, 1]
@@ -246,7 +247,7 @@ rotations:
     rot_count: [0, 2]
   NWH Med Days:
     groups: [medicine, nwh]
-    rot_count: [0, 4]
+    rot_count: [0, 2]
   NWH MICU:
     groups: [medicine, nwh]
     rot_count: [0, 4]

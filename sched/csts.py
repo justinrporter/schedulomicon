@@ -1,10 +1,120 @@
 class Constraint:
     pass
 
+class BanRotationBlockConstraint(Constraint):
+
+    def __init__(self, block, rotation):
+        self.block = block
+        self.rotation = rotation
+
+    def apply(self, model, block_assigned, residents, blocks, rotations):
+
+        for resident in residents:
+            model.Add(block_assigned[(resident, self.block, self.rotation)] == 0)
+
+
+class RotationCoverageConstraint(Constraint):
+
+    def __repr__(self):
+        return "RotationCoverageConstraint(%s,%s,%s)" % (
+             self.rotation, self.rmin, self.rmax)
+
+    def __init__(self, rotation, rmin, rmax):
+        self.rotation = rotation
+        self.rmin = rmin
+        self.rmax = rmax
+
+    def apply(self, model, block_assigned, residents, blocks, rotations):
+
+        for block, rmin, rmax in zip(blocks, self.rmin, self.rmax):
+            # r_tot is the total number of residents on this rotation for this block
+            r_tot = sum(block_assigned[(res, block, self.rotation)] for res in residents)
+            model.Add(r_tot >= rmin)
+            model.Add(r_tot <= rmax)
+
+
+class PrerequisiteRotationConstraint(Constraint):
+
+    def __init__(self, rotation, prerequisites):
+        self.rotation = rotation
+        self.prerequisites = prerequisites
+
+    def apply(self, model, block_assigned, residents, blocks, rotations):
+
+        add_prerequisite_constraint(
+            model, block_assigned, residents, blocks,
+            rotation=self.rotation, prerequisites=self.prerequisites
+        )
+
+
+class AlwaysPairedRotationConstraint(Constraint):
+
+    def __repr__(self):
+        return "AlwaysPairedRotationConstraint(%s)" % (
+             self.rotation)
+
+    def __init__(self, rotation):
+        self.rotation = rotation
+
+    def apply(self, model, block_assigned, residents, blocks, rotations):
+
+        add_must_be_paired_constraint(
+            model, block_assigned, residents, blocks,
+            rot_name=self.rotation
+        )
+
+
+class MustBeFollowedByRotationConstraint(Constraint):
+
+    def __repr__(self):
+        return "RotationMustBeFollowedByConstraint(%s,%s)" % (
+             self.rotation, self.following_rotations)
+
+    def __init__(self, rotation, following_rotations):
+        self.rotation = rotation
+        self.following_rotations = following_rotations
+
+    def apply(self, model, block_assigned, residents, blocks, rotations):
+
+        add_must_be_followed_by_constraint(
+            model, block_assigned, residents, blocks,
+            rotation=self.rotation,
+            following_rotations=self.following_rotations
+        )
+
+
+class RotationCountConstraint(Constraint):
+
+    def __init__(self, rotation, n_min, n_max):
+        self.rotation = rotation
+        self.n_min = n_min
+        self.n_max = n_max
+
+    def apply(self, model, block_assigned, residents, blocks, rotations):
+
+        for resident, nmin, nmax in zip(residents, self.n_min, self.n_max):
+            r_tot = sum(block_assigned[(resident, block, self.rotation)] for block in blocks)
+            model.Add(r_tot >= nmin)
+            model.Add(r_tot <= nmax)
+
+class RotationCountNotConstraint(Constraint):
+
+    def __init__(self, rotation, ct):
+        self.rotation = rotation
+        self.ct = ct
+
+    def apply(self, model, block_assigned, residents, blocks, rotations):
+
+        for resident in residents:
+            r_tot = sum(block_assigned[(resident, block, self.rotation)] for block in blocks)
+            model.Add(r_tot != self.ct)
+
+
 class PinnedRotationConstraint(Constraint):
 
     def __repr__(self):
-        return "PinnedRotationConstraint(%s,%s,%s)" % (self.resident, self.pinned_blocks, self.pinned_rotation)
+        return "%s(%s,%s,%s)" % (
+            self.__class__, self.resident, self.pinned_blocks, self.pinned_rotation)
 
     def __init__(self, resident, pinned_blocks, pinned_rotation):
 
@@ -51,6 +161,10 @@ class MinIndividualRankConstraint(Constraint):
 
 class GroupCountPerResident(Constraint):
 
+    def __repr__(self):
+        return "GroupCountPerResident(%s,%s,%s)" % (
+             self.rotations_in_group, self.n_min, self.n_max)
+
     def __init__(self, rotations_in_group, n_min, n_max):
 
         self.rotations_in_group = rotations_in_group
@@ -68,3 +182,65 @@ class GroupCountPerResident(Constraint):
 
             model.Add(ct >= self.n_min)
             model.Add(ct <= self.n_max)
+
+
+def add_must_be_paired_constraint(model, block_assigned, residents, blocks,
+                                  rot_name):
+
+    for resident in residents:
+        for b1, b2, b3 in zip(blocks[:-2], blocks[1:-1], blocks[2:]):
+            n_flanking = (
+                block_assigned[(resident, b1, rot_name)] +
+                block_assigned[(resident, b3, rot_name)]
+            )
+
+            model.Add(
+                n_flanking == 1
+            ).OnlyEnforceIf(block_assigned[(resident, b2, rot_name)])
+
+        #  the above constraint leaves off the edges.
+        b1 = blocks[0]
+        b2 = blocks[1]
+
+        model.Add(
+            block_assigned[(resident, b2, rot_name)] == 1
+        ).OnlyEnforceIf(block_assigned[(resident, b1, rot_name)])
+
+        b1 = blocks[-1]
+        b2 = blocks[-2]
+
+        model.Add(
+            block_assigned[(resident, b2, rot_name)] == 1
+        ).OnlyEnforceIf(block_assigned[(resident, b1, rot_name)])
+
+
+def add_prerequisite_constraint(model, block_assigned, residents, blocks,
+                                rotation, prerequisites):
+
+    for resident in residents:
+        for i in range(len(blocks)):
+            rot_is_assigned = block_assigned[(resident, blocks[i], rotation)]
+
+            for prereq in prerequisites:
+                n_prereq_instances = 0
+                for j in range(0, i):
+                    n_prereq_instances += block_assigned[(resident, blocks[j], prereq)]
+
+                model.Add(n_prereq_instances >= 1).OnlyEnforceIf(rot_is_assigned)
+
+
+def add_must_be_followed_by_constraint(model, block_assigned, residents, blocks,
+                                       rotation, following_rotations):
+
+    for a_block, b_block in zip(blocks[0:-1], blocks[1:]):
+        for resident in residents:
+            a = block_assigned[(resident, a_block, rotation)]
+
+            n_electives = 0
+
+            for elective in following_rotations:
+                n_electives += block_assigned[(resident, b_block, elective)]
+
+            model.Add(
+                n_electives > 0
+            ).OnlyEnforceIf(a)
