@@ -1,6 +1,86 @@
 class Constraint:
     pass
 
+
+class BackupRequiredOnBlockBackupConstraint(Constraint):
+
+    def __init__(self, block, n_residents_needed):
+        self.block = block
+        self.n_residents_needed = n_residents_needed
+
+    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
+        ct = 0
+        for resident in residents:
+            ct += block_backup[(resident, self.block)]
+        model.Add(ct == self.n_residents_needed)
+
+
+class RotationBackupCountConstraint(Constraint):
+
+    def __init__(self, rotation, count):
+        self.rotation = rotation
+        self.count = count
+
+    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
+
+        backup_vars = {}
+        for resident in residents:
+            for block in blocks:
+                backup_vars[(resident, block)] = model.NewBoolVar(
+                    'backup_r%s_b%s_%s' % (resident, block, self.rotation))
+
+        for resident in residents:
+            for block in blocks:
+                model.AddImplication(
+                    block_backup[(resident, block)],
+                    backup_vars[(resident, block)]
+                ).OnlyEnforceIf(block_assigned[(resident, block, self.rotation)])
+
+                model.AddImplication(
+                    block_assigned[(resident, block, self.rotation)],
+                    backup_vars[(resident, block)]
+                ).OnlyEnforceIf(block_backup[(resident, block)])
+
+                model.AddImplication(
+                    block_assigned[(resident, block, self.rotation)].Not(),
+                    backup_vars[(resident, block)].Not()
+                )
+
+                model.AddImplication(
+                    block_backup[(resident, block)].Not(),
+                    backup_vars[(resident, block)].Not()
+                )
+
+        ct = 0
+        for block in blocks:
+            for resident in residents:
+                ct += backup_vars[(resident, block)]
+
+        model.Add(ct <= self.count)
+
+
+class BackupEligibleBlocksBackupConstraint(Constraint):
+
+    def __init__(self, backup_eligible):
+        self.backup_eligible = {k: 1 if v else 0 for k, v in backup_eligible.items()}
+
+    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
+
+        # slacks = [model.NewBoolVar('slack_%i' % b) for b in all_bins]
+
+        for resident in residents:
+            for block in blocks:
+                for rotation in rotations:
+                    # if a resident is assigned to a rotation on a block
+                    # backup_eligible must be 1 for block_backup to be 1
+
+                    block_is_assigned = block_assigned[(resident, block, rotation)]
+
+                    model.Add(
+                        self.backup_eligible[rotation] >= block_backup[(resident, block)]) \
+                            .OnlyEnforceIf(block_is_assigned)
+
+
 class BanRotationBlockConstraint(Constraint):
 
     def __init__(self, block, rotation):

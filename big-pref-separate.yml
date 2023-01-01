@@ -138,74 +138,77 @@ rotations:
     groups: [elective]
     rot_count: [0, 1]
   ARC:
-    groups: [elective,]
+    groups: [elective, backup_eligible]
+    rot_count: [0, 1]
+  Blood Bank:
+    groups: [elective, backup_eligible]
     rot_count: [0, 1]
   Chronic Pain:
-    groups: [elective,]
+    groups: [elective, backup_eligible]
     rot_count: [0, 1]
   Podcast:
-    groups: [elective,]
+    groups: [elective, backup_eligible]
     rot_count: [0, 1]
   Dermatology:
-    groups: [elective,]
+    groups: [elective, backup_eligible]
     rot_count: [0, 1]
   Hospital Admin:
-    groups: [elective,]
+    groups: [elective, backup_eligible]
     rot_count: [0, 1]
   ACT:
-    groups: [elective,]
+    groups: [elective, backup_eligible]
     rot_count: [0, 1]
   QA:
-    groups: [elective,]
+    groups: [elective, backup_eligible]
     rot_count: [0, 1]
   NORA:
-    groups: [elective,]
+    groups: [elective, backup_eligible]
     rot_count: [0, 1]
   Psych CS:
-    groups: [elective,]
+    groups: [elective, backup_eligible]
     rot_count: [0, 1]
   Res as Teach:
-    groups: [elective,]
+    groups: [elective, backup_eligible]
     rot_count: [0, 1]
   Self-Design:
-    groups: [elective,]
+    groups: [elective, backup_eligible]
     rot_count: [0, 2]
   Sim:
-    groups: [elective,]
+    groups: [elective, backup_eligible]
     rot_count: [0, 1]
   PRIME:
     groups: [elective,]
     rot_count: [0, 1]
   Cards:
-    groups: [selective, medicine]
+    groups: [selective, medicine, backup_eligible]
     rot_count: [0, 1]
   CCU:
-    groups: [selective, medicine]
+    groups: [selective, medicine, backup_eligible]
     rot_count: [0, 1]
   SICU-E4:
     groups: [selective,]
     rot_count: [2, 2]
     always_paired: Yes
   GI:
-    groups: [selective, medicine]
+    groups: [selective, medicine, backup_eligible]
     rot_count: [0, 1]
   GIFT:
-    groups: [selective,]
+    groups: [selective, backup_eligible]
     rot_count: [0, 1]
   Heme/Onc:
-    groups: [selective, medicine]
+    groups: [selective, medicine, backup_eligible]
     rot_count: [0, 1]
   ID:
-    groups: [selective, medicine]
+    groups: [selective, medicine, backup_eligible]
     rot_count: [0, 1]
   NICU:
     groups: [selective,]
     rot_count: [0, 1]
   Nephrology:
-    groups: [selective, medicine]
+    groups: [selective, medicine, backup_eligible]
     rot_count: [0, 1]
   Neurology:
-    groups: [selective, medicine]
+    groups: [selective, medicine, backup_eligible]
     rot_count: [0, 1]
   PICU:
     groups: [selective,]
@@ -224,7 +227,7 @@ rotations:
     groups: [medicine]
     rot_count: [2, 2]
     coverage:
-      min: [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 0, 0, 0, 0, 0, 0]
+      min: [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 0, 0, 0, 0, 0]
       # min: 0
       max: 6
     must_be_followed_by: [elective, Vacation, MGH ED, Nephrology, Neurology, Cards, GI, SDU, Heme/Onc]
@@ -263,6 +266,8 @@ rotations:
     must_be_followed_by: [Anesthesia, Tutorial]
     prerequisite: [Pre-Tutorial]
   Anesthesia:
+    groups: [backup_eligible]
+    backup_count: 4  # the total number of backups that can be of this rot type
     must_be_followed_by: [Anesthesia]
 blocks:
   Block 1: {Pre-Tutorial: No}
@@ -291,7 +296,7 @@ blocks:
   Block 24: {Pre-Tutorial: No}
   Block 25: {}
   Block 26: {Pre-Tutorial: No}
-  Block 1 (Next AY): {}
+  Block 1 (Next AY): {backup_required: No}
 group_constraints:
   - kind: group_count_per_resident
     group: medicine

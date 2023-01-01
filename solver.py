@@ -1,6 +1,5 @@
 import math
 import argparse
-import csv
 
 import yaml
 
@@ -111,6 +110,23 @@ def generate_model(residents, blocks, rotations, groups, rankings, constraints):
         cst.apply(model, block_assigned, residents, blocks, rotations)
 
     return block_assigned, model
+
+
+def generate_backup(model, residents, blocks, n_backup_blocks):
+
+    block_backup = {}
+    for resident in residents:
+        for block in blocks:
+            block_backup[(resident, block)] = model.NewBoolVar(
+                f'backup_assigned-r{resident}-b{block}')
+
+    for resident in residents:
+        ct = 0
+        for block in blocks:
+            ct += block_backup[(resident, block)]
+        model.Add(ct == n_backup_blocks)
+
+    return block_backup
 
 
 def rank_sum_objective(block_assigned, rankings, residents, blocks, rotations):
@@ -252,6 +268,36 @@ def generate_block_constraints(config):
 
     return constraints
 
+def generate_backup_constraints(
+    config, n_residents_needed=2, backup_group_name='backup_eligible'):
+
+    constraints = []
+
+    for block, blk_params in config['blocks'].items():
+        if blk_params.get('backup_required', True):
+            constraints.append(
+                csts.BackupRequiredOnBlockBackupConstraint(
+                    block=block,
+                    n_residents_needed=n_residents_needed
+                )
+            )
+
+    for rotation, rot_params in config['rotations'].items():
+        if 'backup_count' in rot_params:
+            ct = int(rot_params['backup_count'])
+            constraints.append(
+                csts.RotationBackupCountConstraint(rotation, ct)
+            )
+
+    backup_eligible = {}
+    for rotation, rot_params in config['rotations'].items():
+        backup_eligible[rotation] = backup_group_name in rot_params.get('groups', {})
+    constraints.append(
+        csts.BackupEligibleBlocksBackupConstraint(backup_eligible)
+    )
+
+    return constraints
+
 
 def generate_constraints_from_configs(config):
 
@@ -314,6 +360,11 @@ def main():
         config = yaml.safe_load(f)
 
     residents, blocks, rotations, rankings, groups = process_config(config)
+
+    print("Residents:", len(residents))
+    print("Blocks:", len(blocks))
+    print("Rotations:", len(rotations))
+
     cst_list = generate_constraints_from_configs(config)
 
     if args.min_individual_rank is not None:
@@ -325,12 +376,17 @@ def main():
         residents, blocks, rotations, rankings, groups, cst_list
     )
 
+    block_backup = generate_backup(model, residents, blocks, n_backup_blocks=2)
+    for c in generate_backup_constraints(config):
+        c.apply(model, block_assigned, residents, blocks, rotations, block_backup)
+
     solution_printer = io.BlockSchedulePartialSolutionPrinter(
         block_assigned,
+        block_backup,
         residents,
         blocks,
         rotations,
-        outfile=args.results
+        outfile=args.results,
     )
 
     if args.objective == 'rank_sum_objective':
