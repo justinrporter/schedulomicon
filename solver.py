@@ -325,32 +325,28 @@ def main():
         residents, blocks, rotations, rankings, groups, cst_list
     )
 
+    solution_printer = io.BlockSchedulePartialSolutionPrinter(
+        block_assigned,
+        residents,
+        blocks,
+        rotations,
+        outfile=args.results
+    )
+
     if args.objective == 'rank_sum_objective':
         objective_fn = rank_sum_objective(block_assigned, rankings, residents, blocks, rotations)
 
         solver = run_optimizer(
             model,
             objective_fn,
-            solution_printer=io.BlockSchedulePartialSolutionPrinter(
-                block_assigned,
-                residents,
-                blocks,
-                rotations,
-                outfile=args.results
-            ),
+            solution_printer=solution_printer,
             n_processes=args.n_processes
         )
     else:
         raise NotImplementedError("Still working on enumerator mode.")
         solver = run_enumerator(
             model,
-            solution_printer=io.BlockSchedulePartialSolutionPrinter(
-                block_assigned,
-                residents,
-                blocks,
-                rotations,
-                outfile=args.results
-            ),
+            solution_printer=solution_printer
         )
 
     # Statistics.
