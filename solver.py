@@ -18,10 +18,18 @@ def parse_args():
     )
 
     parser.add_argument(
-        '--coverage-min', default=None
+        '--coverage-min', default=None,
+        help="A CSV file specifying coverage minima for each block " +\
+            "(column) and rotation (row)."
     )
     parser.add_argument(
-        '--coverage-max', default=None
+        '--coverage-max', default=None,
+        help="A CSV file specifying coverage maxima for each block " +\
+            "(column) and rotation (row)."
+    )
+    parser.add_argument(
+        '--rotation-pins', default=None,
+        help='A csv file specifying rotations to pin'
     )
 
     parser.add_argument(
@@ -376,6 +384,26 @@ def coverage_constraints_from_csv(fname, rmin_or_rmax):
     return constraints
 
 
+def pin_constraints_from_csv(fname):
+
+    coverage_pins = pd.read_csv(fname, header=0, index_col=0, comment='#')
+
+    constraints = []
+    for block, rot_dict in coverage_pins.to_dict().items():
+        for resident, rotation in rot_dict.items():
+            if hasattr(rotation, '__len__'):
+                # TODO: it sucks this is hard-coded
+                if block == "Rotation(s) Somewhere":
+                    constraints.append(
+                        csts.PinnedRotationConstraint(resident, [], rotation)
+                    )
+                else:
+                    constraints.append(
+                        csts.PinnedRotationConstraint(resident, [block], rotation)
+                    )
+
+    return constraints
+
 def main():
 
     args = parse_args()
@@ -398,6 +426,10 @@ def main():
     if args.coverage_max:
         cst_list.extend(
             coverage_constraints_from_csv(args.coverage_max, 'rmax')
+        )
+    if args.rotation_pins:
+        cst_list.extend(
+            pin_constraints_from_csv(args.rotation_pins)
         )
 
     if args.min_individual_rank is not None:
@@ -442,11 +474,11 @@ def main():
 
     # Statistics.
     # print('\nStatistics')
-    # print('  - conflicts      : %i' % solver.NumConflicts())
-    # print('  - branches       : %i' % solver.NumBranches())
+    print('  - conflicts      : %i' % solver.NumConflicts())
+    print('  - branches       : %i' % solver.NumBranches())
     print('  - wall time      : %f s' % solver.WallTime())
     print('  - solutions found: %i' % solution_printer.solution_count())
-    # print('  - objective value: %i' % solver.ObjectiveValue())
+    print('  - objective value: %i' % solver.ObjectiveValue())
 
 
 if __name__ == '__main__':

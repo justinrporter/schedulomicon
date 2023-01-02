@@ -1,144 +1,108 @@
 residents:
-  Justin:
-    pin_rotation:
-      Vacation CBY: [Block 6, Block 17]
-      PRIME CBY: [Block 3]
+  Abbott, Megan:
     rankings:
       selective: [Cardiology (DOM) CBY, SDU CBY, Infectious Disease (DOM) CBY, NICU CBY, CCU (DOM) CBY, Neurology (DOM) CBY, GIFT CBY, SICU-E4 CBY, Nephrology (DOM) CBY, Gastroenterology (DOM) CBY, Peds Surg, Heme/Onc (DOM) CBY, PICU CBY]
-      elective: [Inpatient Addiction (DOM) CBY, Depth of Anesthesia CBY, Self-Design CBY, Dermatology (DOM) CBY, QA, ARC CBY, Hospital Admin (DOM) CBY, PRIME CBY, Simulation (DOM) CBY, Chronic Pain CBY, NORA QI CBY, Psychiatry Consults (DOM) CBY, Resident as Teacher (DOM) CBY]
-  Nick:
-    pin_rotation:
-      Vacation CBY: [Block 14, Block 21]
+      elective: [Inpatient Addiction (DOM) CBY, Depth of Anesthesia CBY, Self-Design CBY, Dermatology (DOM) CBY, QA, ARC CBY, Hospital Admin (DOM) CBY, Simulation (DOM) CBY, Chronic Pain CBY, NORA QI CBY, Psychiatry Consults (DOM) CBY, Resident as Teacher (DOM) CBY]
+  Achen, Zachary:
     rankings:
       selective: [PICU CBY, Gastroenterology (DOM) CBY, Peds Surg, SICU-E4 CBY, Nephrology (DOM) CBY, Neurology (DOM) CBY, GIFT CBY, Cardiology (DOM) CBY, Infectious Disease (DOM) CBY, CCU (DOM) CBY, SDU CBY, NICU CBY, Heme/Onc (DOM) CBY]
-      elective: [Inpatient Addiction (DOM) CBY, Depth of Anesthesia CBY, QA, Psychiatry Consults (DOM) CBY, Dermatology (DOM) CBY, Simulation (DOM) CBY, Hospital Admin (DOM) CBY, Resident as Teacher (DOM) CBY, NORA QI CBY, Self-Design CBY, Chronic Pain CBY, PRIME CBY, ARC CBY]
-  Rachel:
-    pin_rotation:
-      Vacation CBY: [Block 6, Block 14]
+      elective: [Inpatient Addiction (DOM) CBY, Depth of Anesthesia CBY, QA, Psychiatry Consults (DOM) CBY, Dermatology (DOM) CBY, Simulation (DOM) CBY, Hospital Admin (DOM) CBY, Resident as Teacher (DOM) CBY, NORA QI CBY, Self-Design CBY, Chronic Pain CBY, ARC CBY]
+  Andrew, Caroline:
     rankings:
       selective: [Gastroenterology (DOM) CBY, NICU CBY, SICU-E4 CBY, Infectious Disease (DOM) CBY, Heme/Onc (DOM) CBY, PICU CBY, Neurology (DOM) CBY, Peds Surg, Nephrology (DOM) CBY, SDU CBY, GIFT CBY, CCU (DOM) CBY, Cardiology (DOM) CBY]
-      elective: [Simulation (DOM) CBY, PRIME CBY, QA, Self-Design CBY, NORA QI CBY, Psychiatry Consults (DOM) CBY, Hospital Admin (DOM) CBY, Chronic Pain CBY, ARC CBY, Depth of Anesthesia CBY, Resident as Teacher (DOM) CBY, Inpatient Addiction (DOM) CBY, Dermatology (DOM) CBY]
-  Andy:
-    pin_rotation:
-      Vacation CBY: [Block 8, Block 24]
+      elective: [Simulation (DOM) CBY, QA, Self-Design CBY, NORA QI CBY, Psychiatry Consults (DOM) CBY, Hospital Admin (DOM) CBY, Chronic Pain CBY, ARC CBY, Depth of Anesthesia CBY, Resident as Teacher (DOM) CBY, Inpatient Addiction (DOM) CBY, Dermatology (DOM) CBY]
+  Butler, Caley:
     rankings:
       selective: [PICU CBY, GIFT CBY, Gastroenterology (DOM) CBY, SDU CBY, CCU (DOM) CBY, Nephrology (DOM) CBY, Peds Surg, Cardiology (DOM) CBY, Heme/Onc (DOM) CBY, NICU CBY, Infectious Disease (DOM) CBY, Neurology (DOM) CBY, SICU-E4 CBY]
-      elective: [Chronic Pain CBY, PRIME CBY, Resident as Teacher (DOM) CBY, Psychiatry Consults (DOM) CBY, Inpatient Addiction (DOM) CBY, NORA QI CBY, ARC CBY, Self-Design CBY, Simulation (DOM) CBY, Depth of Anesthesia CBY, Hospital Admin (DOM) CBY, QA, Dermatology (DOM) CBY]
-  Neil:
-    pin_rotation:
-      Vacation CBY: [Block 14, Block 20]
+      elective: [Chronic Pain CBY, Resident as Teacher (DOM) CBY, Psychiatry Consults (DOM) CBY, Inpatient Addiction (DOM) CBY, NORA QI CBY, ARC CBY, Self-Design CBY, Simulation (DOM) CBY, Depth of Anesthesia CBY, Hospital Admin (DOM) CBY, QA, Dermatology (DOM) CBY]
+  Curtis, Jack:
     rankings:
       selective: [NICU CBY, Gastroenterology (DOM) CBY, Peds Surg, GIFT CBY, Heme/Onc (DOM) CBY, Neurology (DOM) CBY, SICU-E4 CBY, CCU (DOM) CBY, PICU CBY, Cardiology (DOM) CBY, Infectious Disease (DOM) CBY, Nephrology (DOM) CBY, SDU CBY]
-      elective: [QA, Psychiatry Consults (DOM) CBY, ARC CBY, NORA QI CBY, Hospital Admin (DOM) CBY, Simulation (DOM) CBY, Chronic Pain CBY, PRIME CBY, Self-Design CBY, Resident as Teacher (DOM) CBY, Depth of Anesthesia CBY, Dermatology (DOM) CBY, Inpatient Addiction (DOM) CBY]
-  Leah:
-    pin_rotation:
-      Vacation CBY: [Block 12, Block 24]
+      elective: [QA, Psychiatry Consults (DOM) CBY, ARC CBY, NORA QI CBY, Hospital Admin (DOM) CBY, Simulation (DOM) CBY, Chronic Pain CBY, Self-Design CBY, Resident as Teacher (DOM) CBY, Depth of Anesthesia CBY, Dermatology (DOM) CBY, Inpatient Addiction (DOM) CBY]
+  DeWitt, Derek:
     rankings:
       selective: [Infectious Disease (DOM) CBY, GIFT CBY, Nephrology (DOM) CBY, Gastroenterology (DOM) CBY, Neurology (DOM) CBY, NICU CBY, PICU CBY, Heme/Onc (DOM) CBY, SDU CBY, Peds Surg, CCU (DOM) CBY, Cardiology (DOM) CBY, SICU-E4 CBY]
-      elective: [ARC CBY, Resident as Teacher (DOM) CBY, Inpatient Addiction (DOM) CBY, NORA QI CBY, Hospital Admin (DOM) CBY, Self-Design CBY, Chronic Pain CBY, Psychiatry Consults (DOM) CBY, QA, Dermatology (DOM) CBY, Depth of Anesthesia CBY, PRIME CBY, Simulation (DOM) CBY]
-  Jack:
-    pin_rotation:
-      Vacation CBY: [Block 14, Block 19]
+      elective: [ARC CBY, Resident as Teacher (DOM) CBY, Inpatient Addiction (DOM) CBY, NORA QI CBY, Hospital Admin (DOM) CBY, Self-Design CBY, Chronic Pain CBY, Psychiatry Consults (DOM) CBY, QA, Dermatology (DOM) CBY, Depth of Anesthesia CBY, Simulation (DOM) CBY]
+  Falkson, Samuel:
     rankings:
       selective: [Peds Surg, PICU CBY, Neurology (DOM) CBY, CCU (DOM) CBY, NICU CBY, Gastroenterology (DOM) CBY, SDU CBY, SICU-E4 CBY, Infectious Disease (DOM) CBY, Nephrology (DOM) CBY, Heme/Onc (DOM) CBY, GIFT CBY, Cardiology (DOM) CBY]
-      elective: [PRIME CBY, Chronic Pain CBY, Simulation (DOM) CBY, Hospital Admin (DOM) CBY, Depth of Anesthesia CBY, NORA QI CBY, ARC CBY, Psychiatry Consults (DOM) CBY, Inpatient Addiction (DOM) CBY, QA, Resident as Teacher (DOM) CBY, Self-Design CBY, Dermatology (DOM) CBY]
-  Sam:
-    pin_rotation:
-      # Self-Design CBY: [Block 21, Block 22]
-      Vacation CBY: [Block 12, Block 23]
+      elective: [Chronic Pain CBY, Simulation (DOM) CBY, Hospital Admin (DOM) CBY, Depth of Anesthesia CBY, NORA QI CBY, ARC CBY, Psychiatry Consults (DOM) CBY, Inpatient Addiction (DOM) CBY, QA, Resident as Teacher (DOM) CBY, Self-Design CBY, Dermatology (DOM) CBY]
+  Freedman, Isaac:
     rankings:
       selective: [Heme/Onc (DOM) CBY, Cardiology (DOM) CBY, NICU CBY, Nephrology (DOM) CBY, Neurology (DOM) CBY, SDU CBY, Infectious Disease (DOM) CBY, GIFT CBY, SICU-E4 CBY, Peds Surg, Gastroenterology (DOM) CBY, CCU (DOM) CBY, PICU CBY]
-      elective: [ARC CBY, QA, Chronic Pain CBY, Depth of Anesthesia CBY, Hospital Admin (DOM) CBY, NORA QI CBY, PRIME CBY, Dermatology (DOM) CBY, Psychiatry Consults (DOM) CBY, Resident as Teacher (DOM) CBY, Inpatient Addiction (DOM) CBY, Self-Design CBY, Simulation (DOM) CBY]
-  Teo:
-    pin_rotation:
-      Vacation CBY: [Block 8, Block 17]
+      elective: [ARC CBY, QA, Chronic Pain CBY, Depth of Anesthesia CBY, Hospital Admin (DOM) CBY, NORA QI CBY, Dermatology (DOM) CBY, Psychiatry Consults (DOM) CBY, Resident as Teacher (DOM) CBY, Inpatient Addiction (DOM) CBY, Self-Design CBY, Simulation (DOM) CBY]
+  Friedman, Daniel:
     rankings:
       selective: [SICU-E4 CBY, Infectious Disease (DOM) CBY, PICU CBY, Neurology (DOM) CBY, Peds Surg, Cardiology (DOM) CBY, GIFT CBY, Gastroenterology (DOM) CBY, NICU CBY, Nephrology (DOM) CBY, Heme/Onc (DOM) CBY, CCU (DOM) CBY, SDU CBY]
-      elective: [QA, NORA QI CBY, Chronic Pain CBY, Psychiatry Consults (DOM) CBY, Simulation (DOM) CBY, Dermatology (DOM) CBY, ARC CBY, Resident as Teacher (DOM) CBY, Depth of Anesthesia CBY, Self-Design CBY, Hospital Admin (DOM) CBY, PRIME CBY, Inpatient Addiction (DOM) CBY]
-  Agustin:
-    pin_rotation:
-      Vacation CBY: [Block 6, Block 12]
+      elective: [QA, NORA QI CBY, Chronic Pain CBY, Psychiatry Consults (DOM) CBY, Simulation (DOM) CBY, Dermatology (DOM) CBY, ARC CBY, Resident as Teacher (DOM) CBY, Depth of Anesthesia CBY, Self-Design CBY, Hospital Admin (DOM) CBY, Inpatient Addiction (DOM) CBY]
+  Guest, Lauren:
     rankings:
       selective: [Nephrology (DOM) CBY, GIFT CBY, Cardiology (DOM) CBY, PICU CBY, Neurology (DOM) CBY, Gastroenterology (DOM) CBY, Heme/Onc (DOM) CBY, Infectious Disease (DOM) CBY, SDU CBY, NICU CBY, SICU-E4 CBY, Peds Surg, CCU (DOM) CBY]
-      elective: [ARC CBY, Self-Design CBY, Dermatology (DOM) CBY, Resident as Teacher (DOM) CBY, Simulation (DOM) CBY, Depth of Anesthesia CBY, Psychiatry Consults (DOM) CBY, PRIME CBY, QA, Inpatient Addiction (DOM) CBY, NORA QI CBY, Chronic Pain CBY, Hospital Admin (DOM) CBY]
-  Daniel:
-    pin_rotation:
-      Vacation CBY: [Block 10, Block 20]
+      elective: [ARC CBY, Self-Design CBY, Dermatology (DOM) CBY, Resident as Teacher (DOM) CBY, Simulation (DOM) CBY, Depth of Anesthesia CBY, Psychiatry Consults (DOM) CBY, QA, Inpatient Addiction (DOM) CBY, NORA QI CBY, Chronic Pain CBY, Hospital Admin (DOM) CBY]
+  Harris, Zechariah:
     rankings:
       selective: [Gastroenterology (DOM) CBY, Heme/Onc (DOM) CBY, NICU CBY, SICU-E4 CBY, Nephrology (DOM) CBY, Infectious Disease (DOM) CBY, Peds Surg, Cardiology (DOM) CBY, GIFT CBY, PICU CBY, CCU (DOM) CBY, Neurology (DOM) CBY, SDU CBY]
-      elective: [Inpatient Addiction (DOM) CBY, Depth of Anesthesia CBY, Psychiatry Consults (DOM) CBY, Simulation (DOM) CBY, PRIME CBY, ARC CBY, NORA QI CBY, Hospital Admin (DOM) CBY, Chronic Pain CBY, Self-Design CBY, Dermatology (DOM) CBY, Resident as Teacher (DOM) CBY, QA]
-  Zachary:
-    pin_rotation:
-      Vacation CBY: [Block 14, Block 20]
+      elective: [Inpatient Addiction (DOM) CBY, Depth of Anesthesia CBY, Psychiatry Consults (DOM) CBY, Simulation (DOM) CBY, ARC CBY, NORA QI CBY, Hospital Admin (DOM) CBY, Chronic Pain CBY, Self-Design CBY, Dermatology (DOM) CBY, Resident as Teacher (DOM) CBY, QA]
+  Jn Pierre, Carl:
     rankings:
       selective: [Cardiology (DOM) CBY, Infectious Disease (DOM) CBY, NICU CBY, SDU CBY, CCU (DOM) CBY, Neurology (DOM) CBY, Peds Surg, Gastroenterology (DOM) CBY, SICU-E4 CBY, PICU CBY, Heme/Onc (DOM) CBY, Nephrology (DOM) CBY, GIFT CBY]
-      elective: [NORA QI CBY, Simulation (DOM) CBY, Depth of Anesthesia CBY, Resident as Teacher (DOM) CBY, Dermatology (DOM) CBY, Inpatient Addiction (DOM) CBY, PRIME CBY, Psychiatry Consults (DOM) CBY, Self-Design CBY, QA, ARC CBY, Hospital Admin (DOM) CBY, Chronic Pain CBY]
-  Brian:
-    pin_rotation:
-      Vacation CBY: [Block 12, Block 20]
+      elective: [NORA QI CBY, Simulation (DOM) CBY, Depth of Anesthesia CBY, Resident as Teacher (DOM) CBY, Dermatology (DOM) CBY, Inpatient Addiction (DOM) CBY, Psychiatry Consults (DOM) CBY, Self-Design CBY, QA, ARC CBY, Hospital Admin (DOM) CBY, Chronic Pain CBY]
+  Kumar, Nicolas:
     rankings:
       selective: [NICU CBY, PICU CBY, Cardiology (DOM) CBY, Peds Surg, Heme/Onc (DOM) CBY, Neurology (DOM) CBY, Nephrology (DOM) CBY, SICU-E4 CBY, CCU (DOM) CBY, SDU CBY, Gastroenterology (DOM) CBY, Infectious Disease (DOM) CBY, GIFT CBY]
-      elective: [Chronic Pain CBY, NORA QI CBY, Simulation (DOM) CBY, ARC CBY, Psychiatry Consults (DOM) CBY, Hospital Admin (DOM) CBY, QA, Inpatient Addiction (DOM) CBY, Resident as Teacher (DOM) CBY, Self-Design CBY, PRIME CBY, Dermatology (DOM) CBY, Depth of Anesthesia CBY]
-  Lauren:
+      elective: [Chronic Pain CBY, NORA QI CBY, Simulation (DOM) CBY, ARC CBY, Psychiatry Consults (DOM) CBY, Hospital Admin (DOM) CBY, QA, Inpatient Addiction (DOM) CBY, Resident as Teacher (DOM) CBY, Self-Design CBY, Dermatology (DOM) CBY, Depth of Anesthesia CBY]
+  Lee, Leah:
     rankings:
       selective: [GIFT CBY, PICU CBY, Nephrology (DOM) CBY, SICU-E4 CBY, Peds Surg, Gastroenterology (DOM) CBY, Heme/Onc (DOM) CBY, Infectious Disease (DOM) CBY, Cardiology (DOM) CBY, Neurology (DOM) CBY, CCU (DOM) CBY, SDU CBY, NICU CBY]
       elective: [Inpatient Addiction (DOM) CBY, Psychiatry Consults (DOM) CBY, Depth of Anesthesia CBY, Simulation (DOM) CBY, NORA QI CBY, Self-Design CBY, QA, Hospital Admin (DOM) CBY, Chronic Pain CBY, Dermatology (DOM) CBY, Resident as Teacher (DOM) CBY, ARC CBY, PRIME CBY]
-  Isaac:
-    pin_rotation:
-      PRIME CBY: [Block 3]
+  Lemon-Riggs, Dlorean:
     rankings:
       selective: [CCU (DOM) CBY, SDU CBY, Peds Surg, PICU CBY, NICU CBY, Nephrology (DOM) CBY, Cardiology (DOM) CBY, Gastroenterology (DOM) CBY, Neurology (DOM) CBY, Heme/Onc (DOM) CBY, SICU-E4 CBY, GIFT CBY, Infectious Disease (DOM) CBY]
-      elective: [Hospital Admin (DOM) CBY, Depth of Anesthesia CBY, ARC CBY, Inpatient Addiction (DOM) CBY, Self-Design CBY, QA, NORA QI CBY, Resident as Teacher (DOM) CBY, Psychiatry Consults (DOM) CBY, Dermatology (DOM) CBY, PRIME CBY, Simulation (DOM) CBY, Chronic Pain CBY]
-  Zechariah:
-    pin_rotation:
-      Community Outreach: [Block 18]
+      elective: [Hospital Admin (DOM) CBY, Depth of Anesthesia CBY, ARC CBY, Inpatient Addiction (DOM) CBY, Self-Design CBY, QA, NORA QI CBY, Resident as Teacher (DOM) CBY, Psychiatry Consults (DOM) CBY, Dermatology (DOM) CBY, Simulation (DOM) CBY, Chronic Pain CBY]
+  Lo, Brian:
     rankings:
       selective: [Neurology (DOM) CBY, NICU CBY, Gastroenterology (DOM) CBY, Cardiology (DOM) CBY, Heme/Onc (DOM) CBY, SDU CBY, GIFT CBY, Infectious Disease (DOM) CBY, SICU-E4 CBY, CCU (DOM) CBY, Peds Surg, Nephrology (DOM) CBY, PICU CBY]
-      elective: [Depth of Anesthesia CBY, PRIME CBY, Psychiatry Consults (DOM) CBY, ARC CBY, Chronic Pain CBY, Dermatology (DOM) CBY, Hospital Admin (DOM) CBY, Self-Design CBY, Inpatient Addiction (DOM) CBY, Simulation (DOM) CBY, Resident as Teacher (DOM) CBY, NORA QI CBY, QA]
-  Dlorean:
-    pin_rotation:
-      Community Outreach: [Block 18]
+      elective: [Depth of Anesthesia CBY, Psychiatry Consults (DOM) CBY, ARC CBY, Chronic Pain CBY, Dermatology (DOM) CBY, Hospital Admin (DOM) CBY, Self-Design CBY, Inpatient Addiction (DOM) CBY, Simulation (DOM) CBY, Resident as Teacher (DOM) CBY, NORA QI CBY, QA]
+  Mills, Emily:
     rankings:
       selective: [Nephrology (DOM) CBY, SDU CBY, Cardiology (DOM) CBY, Neurology (DOM) CBY, SICU-E4 CBY, Heme/Onc (DOM) CBY, Infectious Disease (DOM) CBY, GIFT CBY, Peds Surg, PICU CBY, Gastroenterology (DOM) CBY, CCU (DOM) CBY, NICU CBY]
-      elective: [Simulation (DOM) CBY, Psychiatry Consults (DOM) CBY, Self-Design CBY, Inpatient Addiction (DOM) CBY, NORA QI CBY, Hospital Admin (DOM) CBY, Resident as Teacher (DOM) CBY, Dermatology (DOM) CBY, PRIME CBY, ARC CBY, QA, Depth of Anesthesia CBY, Chronic Pain CBY]
-  Yang:
-    pin_rotation:
-      Vacation CBY: [Block 25, Block 26]
+      elective: [Simulation (DOM) CBY, Psychiatry Consults (DOM) CBY, Self-Design CBY, Inpatient Addiction (DOM) CBY, NORA QI CBY, Hospital Admin (DOM) CBY, Resident as Teacher (DOM) CBY, Dermatology (DOM) CBY, ARC CBY, QA, Depth of Anesthesia CBY, Chronic Pain CBY]
+  Oneto, Agustin:
     rankings:
       selective: [Peds Surg, Gastroenterology (DOM) CBY, GIFT CBY, Neurology (DOM) CBY, Nephrology (DOM) CBY, CCU (DOM) CBY, SDU CBY, NICU CBY, Infectious Disease (DOM) CBY, Cardiology (DOM) CBY, SICU-E4 CBY, PICU CBY, Heme/Onc (DOM) CBY]
-      elective: [Inpatient Addiction (DOM) CBY, Simulation (DOM) CBY, PRIME CBY, Chronic Pain CBY, Self-Design CBY, Depth of Anesthesia CBY, ARC CBY, Hospital Admin (DOM) CBY, Dermatology (DOM) CBY, QA, NORA QI CBY, Resident as Teacher (DOM) CBY, Psychiatry Consults (DOM) CBY]
-  R19:
+      elective: [Inpatient Addiction (DOM) CBY, Simulation (DOM) CBY, Chronic Pain CBY, Self-Design CBY, Depth of Anesthesia CBY, ARC CBY, Hospital Admin (DOM) CBY, Dermatology (DOM) CBY, QA, NORA QI CBY, Resident as Teacher (DOM) CBY, Psychiatry Consults (DOM) CBY]
+  Padilla, Rachel:
     rankings:
       selective: [PICU CBY, GIFT CBY, Gastroenterology (DOM) CBY, SDU CBY, SICU-E4 CBY, Neurology (DOM) CBY, Infectious Disease (DOM) CBY, Nephrology (DOM) CBY, Cardiology (DOM) CBY, Peds Surg, NICU CBY, CCU (DOM) CBY, Heme/Onc (DOM) CBY]
-      elective: [Simulation (DOM) CBY, Inpatient Addiction (DOM) CBY, NORA QI CBY, Self-Design CBY, Psychiatry Consults (DOM) CBY, ARC CBY, Depth of Anesthesia CBY, PRIME CBY, Hospital Admin (DOM) CBY, Dermatology (DOM) CBY, Chronic Pain CBY, QA, Resident as Teacher (DOM) CBY]
-  R20:
+      elective: [Simulation (DOM) CBY, Inpatient Addiction (DOM) CBY, NORA QI CBY, Self-Design CBY, Psychiatry Consults (DOM) CBY, ARC CBY, Depth of Anesthesia CBY, Hospital Admin (DOM) CBY, Dermatology (DOM) CBY, Chronic Pain CBY, QA, Resident as Teacher (DOM) CBY]
+  Porter, Justin:
     rankings:
       selective: [SICU-E4 CBY, Gastroenterology (DOM) CBY, Nephrology (DOM) CBY, Cardiology (DOM) CBY, SDU CBY, Infectious Disease (DOM) CBY, Neurology (DOM) CBY, CCU (DOM) CBY, GIFT CBY, NICU CBY, PICU CBY, Peds Surg, Heme/Onc (DOM) CBY]
-      elective: [NORA QI CBY, Self-Design CBY, PRIME CBY, Depth of Anesthesia CBY, Inpatient Addiction (DOM) CBY, Psychiatry Consults (DOM) CBY, ARC CBY, QA, Simulation (DOM) CBY, Resident as Teacher (DOM) CBY, Dermatology (DOM) CBY, Hospital Admin (DOM) CBY, Chronic Pain CBY]
-  R21:
+      elective: [NORA QI CBY, Self-Design CBY, Depth of Anesthesia CBY, Inpatient Addiction (DOM) CBY, Psychiatry Consults (DOM) CBY, ARC CBY, QA, Simulation (DOM) CBY, Resident as Teacher (DOM) CBY, Dermatology (DOM) CBY, Hospital Admin (DOM) CBY, Chronic Pain CBY]
+  Pulice, Teo:
     rankings:
       selective: [Neurology (DOM) CBY, GIFT CBY, CCU (DOM) CBY, SICU-E4 CBY, Gastroenterology (DOM) CBY, Nephrology (DOM) CBY, Infectious Disease (DOM) CBY, NICU CBY, SDU CBY, Heme/Onc (DOM) CBY, Peds Surg, Cardiology (DOM) CBY, PICU CBY]
-      elective: [Chronic Pain CBY, ARC CBY, Psychiatry Consults (DOM) CBY, Dermatology (DOM) CBY, NORA QI CBY, Inpatient Addiction (DOM) CBY, Simulation (DOM) CBY, Depth of Anesthesia CBY, QA, Self-Design CBY, PRIME CBY, Resident as Teacher (DOM) CBY, Hospital Admin (DOM) CBY]
-  R22:
+      elective: [Chronic Pain CBY, ARC CBY, Psychiatry Consults (DOM) CBY, Dermatology (DOM) CBY, NORA QI CBY, Inpatient Addiction (DOM) CBY, Simulation (DOM) CBY, Depth of Anesthesia CBY, QA, Self-Design CBY, Resident as Teacher (DOM) CBY, Hospital Admin (DOM) CBY]
+  Rens, Neil:
     rankings:
       selective: [CCU (DOM) CBY, Heme/Onc (DOM) CBY, Nephrology (DOM) CBY, Gastroenterology (DOM) CBY, PICU CBY, Neurology (DOM) CBY, SICU-E4 CBY, GIFT CBY, SDU CBY, Peds Surg, Cardiology (DOM) CBY, Infectious Disease (DOM) CBY, NICU CBY]
-      elective: [QA, Psychiatry Consults (DOM) CBY, Inpatient Addiction (DOM) CBY, Simulation (DOM) CBY, Self-Design CBY, ARC CBY, PRIME CBY, Depth of Anesthesia CBY, Dermatology (DOM) CBY, Chronic Pain CBY, Resident as Teacher (DOM) CBY, Hospital Admin (DOM) CBY, NORA QI CBY]
-  R23:
+      elective: [QA, Psychiatry Consults (DOM) CBY, Inpatient Addiction (DOM) CBY, Simulation (DOM) CBY, Self-Design CBY, ARC CBY, Depth of Anesthesia CBY, Dermatology (DOM) CBY, Chronic Pain CBY, Resident as Teacher (DOM) CBY, Hospital Admin (DOM) CBY, NORA QI CBY]
+  Siemens, Andrew:
     rankings:
       selective: [PICU CBY, NICU CBY, Nephrology (DOM) CBY, Heme/Onc (DOM) CBY, Gastroenterology (DOM) CBY, Cardiology (DOM) CBY, CCU (DOM) CBY, SICU-E4 CBY, GIFT CBY, Infectious Disease (DOM) CBY, Neurology (DOM) CBY, Peds Surg, SDU CBY]
-      elective: [Self-Design CBY, ARC CBY, Psychiatry Consults (DOM) CBY, Dermatology (DOM) CBY, NORA QI CBY, Depth of Anesthesia CBY, Chronic Pain CBY, Inpatient Addiction (DOM) CBY, Simulation (DOM) CBY, Resident as Teacher (DOM) CBY, QA, PRIME CBY, Hospital Admin (DOM) CBY]
-  R24:
+      elective: [Self-Design CBY, ARC CBY, Psychiatry Consults (DOM) CBY, Dermatology (DOM) CBY, NORA QI CBY, Depth of Anesthesia CBY, Chronic Pain CBY, Inpatient Addiction (DOM) CBY, Simulation (DOM) CBY, Resident as Teacher (DOM) CBY, QA, Hospital Admin (DOM) CBY]
+  Suriani, JR, Robert:
     rankings:
       selective: [NICU CBY, Cardiology (DOM) CBY, Heme/Onc (DOM) CBY, Nephrology (DOM) CBY, PICU CBY, Gastroenterology (DOM) CBY, GIFT CBY, Peds Surg, Infectious Disease (DOM) CBY, SICU-E4 CBY, Neurology (DOM) CBY, CCU (DOM) CBY, SDU CBY]
-      elective: [Resident as Teacher (DOM) CBY, PRIME CBY, Simulation (DOM) CBY, Depth of Anesthesia CBY, Inpatient Addiction (DOM) CBY, Dermatology (DOM) CBY, Hospital Admin (DOM) CBY, Chronic Pain CBY, QA, NORA QI CBY, Psychiatry Consults (DOM) CBY, Self-Design CBY, ARC CBY]
-  R25:
+      elective: [Resident as Teacher (DOM) CBY, Simulation (DOM) CBY, Depth of Anesthesia CBY, Inpatient Addiction (DOM) CBY, Dermatology (DOM) CBY, Hospital Admin (DOM) CBY, Chronic Pain CBY, QA, NORA QI CBY, Psychiatry Consults (DOM) CBY, Self-Design CBY, ARC CBY]
+  Yang, Isabelle:
     rankings:
       selective: [Heme/Onc (DOM) CBY, Nephrology (DOM) CBY, SICU-E4 CBY, Cardiology (DOM) CBY, Infectious Disease (DOM) CBY, CCU (DOM) CBY, SDU CBY, PICU CBY, Gastroenterology (DOM) CBY, Peds Surg, GIFT CBY, NICU CBY, Neurology (DOM) CBY]
-      elective: [Chronic Pain CBY, Resident as Teacher (DOM) CBY, Dermatology (DOM) CBY, ARC CBY, QA, Hospital Admin (DOM) CBY, Psychiatry Consults (DOM) CBY, Self-Design CBY, PRIME CBY, Simulation (DOM) CBY, Inpatient Addiction (DOM) CBY, NORA QI CBY, Depth of Anesthesia CBY]
-  R26:
+      elective: [Chronic Pain CBY, Resident as Teacher (DOM) CBY, Dermatology (DOM) CBY, ARC CBY, QA, Hospital Admin (DOM) CBY, Psychiatry Consults (DOM) CBY, Self-Design CBY, Simulation (DOM) CBY, Inpatient Addiction (DOM) CBY, NORA QI CBY, Depth of Anesthesia CBY]
+  Yi, Yangtian:
     rankings:
       selective: [GIFT CBY, NICU CBY, Neurology (DOM) CBY, CCU (DOM) CBY, Cardiology (DOM) CBY, PICU CBY, SDU CBY, Peds Surg, Heme/Onc (DOM) CBY, Infectious Disease (DOM) CBY, Nephrology (DOM) CBY, Gastroenterology (DOM) CBY, SICU-E4 CBY]
-      elective: [Resident as Teacher (DOM) CBY, PRIME CBY, Chronic Pain CBY, Depth of Anesthesia CBY, Dermatology (DOM) CBY, QA, NORA QI CBY, Self-Design CBY, ARC CBY, Psychiatry Consults (DOM) CBY, Simulation (DOM) CBY, Inpatient Addiction (DOM) CBY, Hospital Admin (DOM) CBY]
+      elective: [Resident as Teacher (DOM) CBY, Chronic Pain CBY, Depth of Anesthesia CBY, Dermatology (DOM) CBY, QA, NORA QI CBY, Self-Design CBY, ARC CBY, Psychiatry Consults (DOM) CBY, Simulation (DOM) CBY, Inpatient Addiction (DOM) CBY, Hospital Admin (DOM) CBY]
 rotations:
   Acute Pain CBY:
     rot_count: [1, 1]
