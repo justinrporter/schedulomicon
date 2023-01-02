@@ -22,6 +22,7 @@ class BlockSchedulePartialSolutionPrinter(BaseSolutionPrinter):
 
     def __init__(
             self, block_assigned, block_backup, residents, blocks, rotations, outfile,
+            solution_limit=Ellipsis
             ):
 
         super().__init__(block_assigned, block_backup, residents, blocks, rotations)
@@ -34,6 +35,8 @@ class BlockSchedulePartialSolutionPrinter(BaseSolutionPrinter):
         )
 
         self._solution_count = 0
+        self._time_to_first_solution = None
+        self._solution_limit = solution_limit
 
     def on_solution_callback(self):
         self._solution_count += 1
@@ -72,7 +75,7 @@ class BlockSchedulePartialSolutionPrinter(BaseSolutionPrinter):
         a = np.array([r[1:] for r in rows[1:]]) #, dtype='int16')
         print(a.T)
 
-        print("Anesthesia+", np.count_nonzero(a == "Anesthesia+"))
+        print("Anesthesia CBY+", np.count_nonzero(a == "Anesthesia CBY+"))
 
         # fname = self._outfile.replace('csv', 'npz') % 0
 
@@ -86,8 +89,10 @@ class BlockSchedulePartialSolutionPrinter(BaseSolutionPrinter):
 
         print(f"Solution {self._solution_count:02d} at {datetime.datetime.now()} w objective value {self.ObjectiveValue()}")
 
-        # if self._solution_count >= self._solution_limit:
-        #     self.StopSearch()
+        if (self._solution_limit is not Ellipsis) and \
+           (self._solution_count >= self._solution_limit):
+            self.StopSearch()
+
 
     def solution_count(self):
         return self._solution_count

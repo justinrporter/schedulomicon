@@ -96,21 +96,42 @@ class BanRotationBlockConstraint(Constraint):
 class RotationCoverageConstraint(Constraint):
 
     def __repr__(self):
-        return "RotationCoverageConstraint(%s,%s,%s)" % (
-             self.rotation, self.rmin, self.rmax)
+        return "RotationCoverageConstraint(%s,%s,%s,%s)" % (
+             self.rotation, self.blocks, self.rmin, self.rmax)
 
-    def __init__(self, rotation, rmin, rmax):
+    def __init__(self, rotation, blocks=Ellipsis, rmin=None, rmax=None):
         self.rotation = rotation
+        self.blocks = blocks
         self.rmin = rmin
         self.rmax = rmax
 
+        assert self.rmax is not None or self.rmin is not None
+
     def apply(self, model, block_assigned, residents, blocks, rotations):
 
-        for block, rmin, rmax in zip(blocks, self.rmin, self.rmax):
+        # ellipsis just means all blocks
+        if self.blocks is Ellipsis:
+            apply_to_blocks = blocks
+        else:
+            apply_to_blocks = self.blocks
+
+        if not hasattr(self.rmin, '__len__'):
+            rmin_list = [self.rmin]*len(apply_to_blocks)
+        else:
+            rmin_list = self.rmin
+
+        if not hasattr(self.rmax, '__len__'):
+            rmax_list = [self.rmax]*len(apply_to_blocks)
+        else:
+            rmax_list = self.rmax
+
+        for block, rmin, rmax in zip(apply_to_blocks, rmin_list, rmax_list):
             # r_tot is the total number of residents on this rotation for this block
             r_tot = sum(block_assigned[(res, block, self.rotation)] for res in residents)
-            model.Add(r_tot >= rmin)
-            model.Add(r_tot <= rmax)
+            if rmin is not None and rmin > 0:
+                model.Add(r_tot >= rmin)
+            if rmax is not None:
+                model.Add(r_tot <= rmax)
 
 
 class PrerequisiteRotationConstraint(Constraint):
@@ -267,6 +288,9 @@ class GroupCountPerResident(Constraint):
 def add_must_be_paired_constraint(model, block_assigned, residents, blocks,
                                   rot_name):
 
+    # slide a window of size 3 across the blocks
+    # only one of the flanking rotations can be rot_name
+    # and that cst is only applied if the middle block is also rot_name
     for resident in residents:
         for b1, b2, b3 in zip(blocks[:-2], blocks[1:-1], blocks[2:]):
             n_flanking = (

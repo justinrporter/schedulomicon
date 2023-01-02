@@ -1,9 +1,11 @@
+import datetime
 import math
 import argparse
-
 import yaml
 
 from ortools.sat.python import cp_model
+import pandas as pd
+import numpy as np
 
 from sched import csts, io
 
@@ -13,6 +15,13 @@ def parse_args():
     parser.add_argument(
         '--config', required=True,
         help='A YAML file specifying the schedule to solve for.'
+    )
+
+    parser.add_argument(
+        '--coverage-min', default=None
+    )
+    parser.add_argument(
+        '--coverage-max', default=None
     )
 
     parser.add_argument(
@@ -26,7 +35,7 @@ def parse_args():
     )
 
     parser.add_argument(
-        '-n', '--n_solutions', default=1, type=int,
+        '-n', '--n_solutions', default=Ellipsis, type=int,
         help='The number of solutions to search for.'
     )
 
@@ -197,7 +206,7 @@ def generate_rotation_constraints(config):
             continue
         if 'coverage' in params:
             rmin, rmax = handle_count_specification(params['coverage'], len(config['blocks']))
-            constraints.append(csts.RotationCoverageConstraint(rotation, rmin, rmax))
+            constraints.append(csts.RotationCoverageConstraint(rotation, rmin=rmin, rmax=rmax))
         if 'must_be_followed_by' in params:
             following_rotations = []
             for key in params['must_be_followed_by']:
@@ -318,7 +327,7 @@ def generate_constraints_from_configs(config):
     return constraints
 
 
-def run_optimizer(model, objective_fn, solution_printer=None,  n_processes=None):
+def run_optimizer(model, objective_fn, solution_printer=None, n_processes=None):
 
     if n_processes is None:
         n_processes = 1
@@ -352,6 +361,21 @@ def run_enumerator(model, solution_printer=None):
     return solver
 
 
+def coverage_constraints_from_csv(fname, rmin_or_rmax):
+    coverage_min = pd.read_csv(fname, header=0, index_col=0, comment='#')
+
+    constraints = []
+    for block, rot_dict in coverage_min.to_dict().items():
+        for rot, ct in rot_dict.items():
+            if not np.isnan(ct):
+                constraints.append(
+                    csts.RotationCoverageConstraint(
+                        rotation=rot, blocks=[block], **{rmin_or_rmax: int(ct)})
+                )
+
+    return constraints
+
+
 def main():
 
     args = parse_args()
@@ -366,6 +390,15 @@ def main():
     print("Rotations:", len(rotations))
 
     cst_list = generate_constraints_from_configs(config)
+
+    if args.coverage_min:
+        cst_list.extend(
+            coverage_constraints_from_csv(args.coverage_min, 'rmin')
+        )
+    if args.coverage_max:
+        cst_list.extend(
+            coverage_constraints_from_csv(args.coverage_max, 'rmax')
+        )
 
     if args.min_individual_rank is not None:
         cst_list.append(
@@ -387,8 +420,10 @@ def main():
         blocks,
         rotations,
         outfile=args.results,
+        solution_limit=args.n_solutions
     )
 
+    print(datetime.datetime.now())
     if args.objective == 'rank_sum_objective':
         objective_fn = rank_sum_objective(block_assigned, rankings, residents, blocks, rotations)
 
@@ -396,7 +431,7 @@ def main():
             model,
             objective_fn,
             solution_printer=solution_printer,
-            n_processes=args.n_processes
+            n_processes=args.n_processes,
         )
     else:
         raise NotImplementedError("Still working on enumerator mode.")
