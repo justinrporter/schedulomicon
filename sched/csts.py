@@ -260,30 +260,48 @@ class MinIndividualRankConstraint(Constraint):
             model.Add(res_obj < self.min_rank)
 
 
-class GroupCountPerResident(Constraint):
+class GroupCountPerResidentPerWindow(Constraint):
 
     def __repr__(self):
         return "GroupCountPerResident(%s,%s,%s)" % (
              self.rotations_in_group, self.n_min, self.n_max)
 
-    def __init__(self, rotations_in_group, n_min, n_max):
+    def __init__(self, rotations_in_group, n_min, n_max, window_size):
 
         self.rotations_in_group = rotations_in_group
         self.n_min = n_min
         self.n_max = n_max
+        self.window = window_size
 
     def apply(self, model, block_assigned, all_residents, all_blocks, all_rotations):
 
+        n_blocks = len(all_blocks)
+        n_full_windows = n_blocks - self.window - 1
+
         for res in all_residents:
-            ct = 0
 
-            for blk in all_blocks:
-                for rot in self.rotations_in_group:
-                    ct += block_assigned[(res, blk, rot)]
+            for i in range(n_full_windows):
+                ct = 0
 
-            model.Add(ct >= self.n_min)
-            model.Add(ct <= self.n_max)
+                for blk in all_blocks[ i : self.window + i ]:
 
+                    for rot in self.rotations_in_group:
+                        ct += block_assigned[(res, blk, rot)]
+
+                model.Add(ct >= self.n_min)
+                model.Add(ct <= self.n_max)
+
+        # Must also apply edge cases (the last window, which is not a full window)
+
+        ct = 0
+
+        for blk in all_blocks[ - (self.window - 1) :  ]:
+
+            for rot in self.rotations_in_group:
+                ct += block_assigned[(res, blk, rot)]
+
+        model.Add(ct >= self.n_min)
+        model.Add(ct <= self.n_max)
 
 def add_must_be_paired_constraint(model, block_assigned, residents, blocks,
                                   rot_name):

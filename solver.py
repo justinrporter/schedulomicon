@@ -60,6 +60,7 @@ def parse_args():
 
     return args
 
+
 def handle_count_specification(count_config, n_items):
 
     if 'min' in count_config and 'max' in count_config:
@@ -70,6 +71,7 @@ def handle_count_specification(count_config, n_items):
         rmax = expand_to_length_if_needed(count_config[1], n_items)
 
     return rmin, rmax
+
 
 def expand_to_length_if_needed(var, length):
 
@@ -285,6 +287,7 @@ def generate_block_constraints(config):
 
     return constraints
 
+
 def generate_backup_constraints(
     config, n_residents_needed=2, backup_group_name='backup_eligible'):
 
@@ -325,11 +328,17 @@ def generate_constraints_from_configs(config):
     constraints.extend(generate_resident_constraints(config))
 
     for cst in config['group_constraints']:
-        if cst['kind'] == 'group_count_per_resident':
+        if cst['kind'] == 'all_group_count_per_resident':
             constraints.append(
-                csts.GroupCountPerResident(
+                csts.GroupCountPerResidentPerWindow(
                     rotations_in_group=resolve_group(cst['group'], config['rotations']),
-                    n_min=cst['count'][0], n_max=cst['count'][1])
+                    n_min=cst['count'][0], n_max=cst['count'][1], window_size = len(config['blocks']))
+            )
+        if cst['kind'] == 'window_group_count_per_resident':
+            constraints.append(
+                csts.GroupCountPerResidentPerWindow(
+                    rotations_in_group=resolve_group(cst['group'], config['rotations']),
+                    n_min=cst['count'][0], n_max=cst['count'][1], window_size = cst['window_size'])
             )
 
     return constraints
@@ -403,6 +412,7 @@ def pin_constraints_from_csv(fname):
                     )
 
     return constraints
+
 
 def main():
 

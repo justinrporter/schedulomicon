@@ -275,18 +275,22 @@ blocks:
   Block 26: {Pre-Tutorial: No}
   Block 27: {backup_required: No}
 group_constraints:
-  # - kind: group_count_per_resident
+  # - kind: all_group_count_per_resident
   #   group: medicine
   #   count: [6, 12]
-  # - kind: group_count_per_resident
+  # - kind: all_group_count_per_resident
   #   group: selective
   #   count: [2, 8]
-  - kind: group_count_per_resident
+  - kind: all_group_count_per_resident
     group: nwh
     count: [3, 6]
-  - kind: group_count_per_resident
+  - kind: all_group_count_per_resident
     group: surgery
     count: [2, 26]
-  - kind: group_count_per_resident
+  - kind: all_group_count_per_resident
     group: ward
     count: [13, 16]
+  - kind: window_group_count_per_resident
+    group: tough
+    count: [0, 2]
+    window_size: 3
