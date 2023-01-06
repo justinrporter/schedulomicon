@@ -276,7 +276,7 @@ class GroupCountPerResidentPerWindow(Constraint):
     def apply(self, model, block_assigned, all_residents, all_blocks, all_rotations):
 
         n_blocks = len(all_blocks)
-        n_full_windows = n_blocks - self.window - 1
+        n_full_windows = n_blocks - self.window + 1
 
         for res in all_residents:
 
