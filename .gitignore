@@ -1,0 +1,4 @@
+.ipynb_checkpoints/
+*sched.sublime-workspace
+sftp-config.json
+__pycache__
