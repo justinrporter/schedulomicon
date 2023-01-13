@@ -31,6 +31,10 @@ def parse_args():
         '--rotation-pins', default=None,
         help='A csv file specifying rotations to pin'
     )
+    parser.add_argument(
+        '--rankings', default=None,
+        help='A csv file with rankings of each resident for each rotation'
+    )
 
     parser.add_argument(
         '--results', required=True,
@@ -146,14 +150,39 @@ def generate_backup(model, residents, blocks, n_backup_blocks):
     return block_backup
 
 
-def rank_sum_objective(block_assigned, rankings, residents, blocks, rotations):
+def rank_sum_objective_old(block_assigned, rankings, residents, blocks, rotations):
+
+    # at least one resident from `residents` should appear in rankings dict
+    assert any([res in residents for res in rankings.keys()])
+
+    # at least one non-empty rankings dict for one of the residents
+    assert any([rankings[res] for res in residents])
 
     obj = 0
     for res in residents:
         for blk in blocks:
             for rot in rotations:
                 if res in rankings and rot in rankings[res]:
-                    obj += rankings[res][rot] * block_assigned[res, blk, rot]
+                    # print('rankings', res, rot, rankings[res][rot], type(rankings[res][rot]))
+                    obj += int(rankings[res][rot]) * block_assigned[res, blk, rot]
+                else:
+                    obj += 0
+
+    return obj
+
+def rank_sum_objective_new(block_assigned, rankings, residents, blocks, rotations):
+
+    # at least one resident from `residents` should appear in rankings dict
+    assert any([res in residents for res in rankings.keys()])
+
+    # at least one non-empty rankings dict for one of the residents
+    assert any([rankings[res] for res in residents])
+
+    obj = 0
+    for resident, rnk in rankings.items():
+        for rotation, score in rnk.items():
+            for block in blocks:
+                obj += score * block_assigned[(resident, block, rotation)]
 
     return obj
 
@@ -348,12 +377,11 @@ def run_optimizer(model, objective_fn, solution_printer=None, n_processes=None):
     solver.parameters.enumerate_all_solutions = False
     solver.parameters.num_search_workers = n_processes
 
-    # solver.parameters.enumerate_all_solutions = True
+    status = solver.Solve(model, solution_printer)
 
-    solver.Solve(model, solution_printer)
-    # solver.SearchForAllSolutions(model, solution_printer)
+    status = ["UNKNOWN", "MODEL_INVALID", "FEASIBLE", "INFEASIBLE", "OPTIMAL"][status]
 
-    return solver
+    return status, solver
 
 
 def run_enumerator(model, solution_printer=None):
@@ -383,6 +411,23 @@ def coverage_constraints_from_csv(fname, rmin_or_rmax):
 
     return constraints
 
+
+def rankings_from_csv(fname):
+    ranking_df = pd.read_csv(fname, header=0, index_col=0, comment='#')
+
+    # TODO: sucks
+    del ranking_df['SICU-E4 CBY (additional)']
+    del ranking_df['Medical Writing CBY']
+
+    ranking_df[ranking_df == 1] = -2
+    ranking_df[ranking_df == 2] = -1
+    ranking_df[ranking_df == 3] = 5
+
+    for c in ranking_df.columns:
+        ranking_df[c] = ranking_df[c].fillna(0)
+        ranking_df[c] = ranking_df[c].astype(int)
+
+    return ranking_df.T.to_dict()
 
 def pin_constraints_from_csv(fname):
 
@@ -457,9 +502,23 @@ def main():
 
     print(datetime.datetime.now())
     if args.objective == 'rank_sum_objective':
-        objective_fn = rank_sum_objective(block_assigned, rankings, residents, blocks, rotations)
+        if args.rankings is not None:
+            for k, v in rankings.items():
+                assert not v
+            rankings = rankings_from_csv(args.rankings)
 
-        solver = run_optimizer(
+            for res, rnk in rankings.items():
+                for rot in rnk:
+                    assert rot in rotations, f"{rot} not in rotations"
+
+            objective_fn = rank_sum_objective_new(block_assigned, rankings, residents, blocks, rotations)
+        else:
+            objective_fn = rank_sum_objective_old(block_assigned, rankings, residents, blocks, rotations)
+
+
+
+        model.ExportToFile("issue2779.pb.txt")
+        status, solver = run_optimizer(
             model,
             objective_fn,
             solution_printer=solution_printer,
@@ -467,13 +526,14 @@ def main():
         )
     else:
         raise NotImplementedError("Still working on enumerator mode.")
-        solver = run_enumerator(
+        status, solver = run_enumerator(
             model,
             solution_printer=solution_printer
         )
 
     # Statistics.
-    # print('\nStatistics')
+    print("status:", status)
+    print('\nStatistics')
     print('  - conflicts      : %i' % solver.NumConflicts())
     print('  - branches       : %i' % solver.NumBranches())
     print('  - wall time      : %f s' % solver.WallTime())
