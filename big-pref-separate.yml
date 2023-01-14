@@ -242,7 +242,7 @@ rotations:
     prerequisite: [Pre-Tutorial, Tutorial 1]
   Anesthesia CBY:
     groups: [backup_eligible]
-    backup_count: 4  # the total number of backups that can be of this rot type
+    backup_count: 2  # the total number of backups that can be of this rot type
     must_be_followed_by: [Anesthesia CBY]
     prerequisite: [Pre-Tutorial, Tutorial 1, Tutorial 2]
 blocks:
@@ -280,7 +280,7 @@ group_constraints:
   #   count: [6, 12]
   - kind: all_group_count_per_resident
     group: elective
-    count: [1, 26]
+    count: [2, 26]
   - kind: all_group_count_per_resident
     group: nwh
     count: [3, 6]
@@ -289,7 +289,7 @@ group_constraints:
     count: [2, 4]
   - kind: all_group_count_per_resident
     group: ward
-    count: [11, 16]
+    count: [10, 16]
   - kind: window_group_count_per_resident
     group: tough
     count: [0, 2]
