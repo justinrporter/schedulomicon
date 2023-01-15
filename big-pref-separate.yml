@@ -294,3 +294,6 @@ group_constraints:
     group: tough
     count: [0, 2]
     window_size: 3
+  - kind: time_to_first
+    group: medicine
+    window_size: 8

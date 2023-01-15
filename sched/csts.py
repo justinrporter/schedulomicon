@@ -259,7 +259,19 @@ class MinIndividualRankConstraint(Constraint):
                         )
             model.Add(res_obj < self.min_rank)
 
+class TimeToFirstConstraint(Constraint):
 
+    def __init__(self, rotations_in_group, window_size):
+        self.rotations_in_group = rotations_in_group
+        self.window_size = window_size
+    
+    def apply(self, model, block_assigned, all_residents, all_blocks, all_rotations):
+        for res in all_residents:
+            count = 0
+            for blk in all_blocks[:self.window_size]:
+                for rot in self.rotations_in_group:
+                    count += block_assigned[(res, blk, rot)]
+            model.Add(count >= 1)
 class GroupCountPerResidentPerWindow(Constraint):
 
     def __repr__(self):
@@ -293,15 +305,15 @@ class GroupCountPerResidentPerWindow(Constraint):
 
         # Must also apply edge cases (the last window, which is not a full window)
 
-        ct = 0
+            ct = 0
 
-        for blk in all_blocks[ - (self.window - 1) :  ]:
+            for blk in all_blocks[ - (self.window - 1) :  ]:
 
-            for rot in self.rotations_in_group:
-                ct += block_assigned[(res, blk, rot)]
+                for rot in self.rotations_in_group:
+                    ct += block_assigned[(res, blk, rot)]
 
-        model.Add(ct >= self.n_min)
-        model.Add(ct <= self.n_max)
+            model.Add(ct >= self.n_min)
+            model.Add(ct <= self.n_max)
 
 def add_must_be_paired_constraint(model, block_assigned, residents, blocks,
                                   rot_name):

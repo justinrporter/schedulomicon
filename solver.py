@@ -370,6 +370,12 @@ def generate_constraints_from_configs(config):
                     n_min=cst['count'][0], n_max=cst['count'][1], window_size = cst['window_size'])
             )
 
+        if cst['kind'] == 'time_to_first':
+            constraints.append(
+                csts.TimeToFirstConstraint(
+                    rotations_in_group=resolve_group(cst['group'], config['rotations']), 
+                    window_size = cst['window_size'])
+            )
     return constraints
 
 
