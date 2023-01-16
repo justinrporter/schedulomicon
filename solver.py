@@ -1,15 +1,17 @@
+import sys
 import datetime
 import math
 import argparse
 import yaml
 
-from ortools.sat.python import cp_model
+from functools import partial
+
 import pandas as pd
 import numpy as np
 
-from sched import csts, io
+from sched import csts, io, solve
 
-def parse_args():
+def parse_args(argv):
     parser = argparse.ArgumentParser(description='Process some integers.')
 
     parser.add_argument(
@@ -65,7 +67,7 @@ def parse_args():
         '--min-individual-rank', type=int, default=None
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     return args
 
@@ -114,48 +116,6 @@ def add_group_count_per_resident_constraint(
 
         model.Add(ct >= n_min)
         model.Add(ct <= n_max)
-
-
-def generate_model(residents, blocks, rotations, groups, rankings, constraints):
-
-    model = cp_model.CpModel()
-
-    # Creates shift variables.
-    block_assigned = {}
-    for resident in residents:
-        for block in blocks:
-            for rot in rotations:
-                block_assigned[(resident, block, rot)] = model.NewBoolVar(
-                    f'block_assigned-r{resident}-b{block}-{rot}')
-
-    # Each resident must work some rotation each block
-    for res in residents:
-        for block in blocks:
-            model.AddExactlyOne(
-                block_assigned[(res, block, rot)] for rot in rotations)
-
-    for cst in constraints:
-        cst.apply(model, block_assigned, residents, blocks, rotations)
-
-    return block_assigned, model
-
-
-def generate_backup(model, residents, blocks, n_backup_blocks):
-
-    block_backup = {}
-    for resident in residents:
-        for block in blocks:
-            block_backup[(resident, block)] = model.NewBoolVar(
-                f'backup_assigned-r{resident}-b{block}')
-
-    for resident in residents:
-        ct = 0
-        for block in blocks:
-            ct += block_backup[(resident, block)]
-        model.Add(ct == n_backup_blocks)
-
-    return block_backup
-
 
 def rank_sum_objective_old(block_assigned, rankings, residents, blocks, rotations):
 
@@ -384,42 +344,9 @@ def generate_constraints_from_configs(config):
     return constraints
 
 
-def run_optimizer(model, objective_fn, solution_printer=None, n_processes=None):
+def main(argv):
 
-    if n_processes is None:
-        n_processes = 1
-
-    # Creates the solver and solve.
-    solver = cp_model.CpSolver()
-    solver.parameters.linearization_level = 2
-
-    model.Minimize(objective_fn)
-    solver.parameters.enumerate_all_solutions = False
-    solver.parameters.num_search_workers = n_processes
-
-    status = solver.Solve(model, solution_printer)
-
-    status = ["UNKNOWN", "MODEL_INVALID", "FEASIBLE", "INFEASIBLE", "OPTIMAL"][status]
-
-    return status, solver
-
-
-def run_enumerator(model, solution_printer=None):
-
-    solver = cp_model.CpSolver()
-    solver.parameters.linearization_level = 2
-
-    model.Minimize(objective_fn)
-    solver.parameters.enumerate_all_solutions = True
-
-    solver.SearchForAllSolutions(model, solution_printer)
-
-    return solver
-
-
-def main():
-
-    args = parse_args()
+    args = parse_args(argv)
 
     with open(args.config, 'r') as f:
         config = yaml.safe_load(f)
@@ -434,10 +361,6 @@ def main():
         for res, rnk in rankings.items():
             for rot in rnk:
                 assert rot in rotations, f"{rot} not in rotations"
-
-    print("Residents:", len(residents))
-    print("Blocks:", len(blocks))
-    print("Rotations:", len(rotations))
 
     cst_list = generate_constraints_from_configs(config)
 
@@ -459,49 +382,28 @@ def main():
             csts.MinIndividualRankConstraint(rankings, args.min_individual_rank)
         )
 
-    block_assigned, model = generate_model(
-        residents, blocks, rotations, rankings, groups, cst_list
-    )
-
-    block_backup = generate_backup(model, residents, blocks, n_backup_blocks=2)
     for c in generate_backup_constraints(config):
-        c.apply(model, block_assigned, residents, blocks, rotations, block_backup)
+        cst_list.append(c)
 
-    solution_printer = io.BlockSchedulePartialSolutionPrinter(
-        block_assigned,
-        block_backup,
-        residents,
-        blocks,
-        rotations,
-        rankings=rankings,
-        outfile=args.results,
-        solution_limit=args.n_solutions
+    print("Residents:", len(residents))
+    print("Blocks:", len(blocks))
+    print("Rotations:", len(rotations))
+
+    solve.solve(
+        residents, blocks, rotations, rankings, groups, cst_list,
+        soln_printer=partial(
+            io.BlockSchedulePartialSolutionPrinter,
+            rankings=rankings,
+            outfile=args.results,
+            solution_limit=args.n_solutions
+        ),
+        objective_fn=(
+            rank_sum_objective_new if args.objective == 'rank_sum_objective'
+            else None
+        ),
+        dump_model=args.dump_model,
+        n_processes=args.n_processes
     )
-
-    print('Starting search:', datetime.datetime.now())
-    if args.objective == 'rank_sum_objective':
-
-        objective_fn = rank_sum_objective_new(block_assigned, rankings, residents, blocks, rotations)
-
-        if args.dump_model is not None:
-            model.ExportToFile(args.dump_model)
-
-        status, solver = run_optimizer(
-            model,
-            objective_fn,
-            solution_printer=solution_printer,
-            n_processes=args.n_processes,
-        )
-    else:
-        raise NotImplementedError("Still working on enumerator mode.")
-
-        if args.dump_model is not None:
-            model.ExportToFile(args.dump_model)
-
-        status, solver = run_enumerator(
-            model,
-            solution_printer=solution_printer
-        )
 
     # Statistics.
     print("status:", status)
@@ -515,4 +417,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    main(sys.argv[1:])

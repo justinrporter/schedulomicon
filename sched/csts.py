@@ -87,7 +87,7 @@ class BanRotationBlockConstraint(Constraint):
         self.block = block
         self.rotation = rotation
 
-    def apply(self, model, block_assigned, residents, blocks, rotations):
+    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
 
         for resident in residents:
             model.Add(block_assigned[(resident, self.block, self.rotation)] == 0)
@@ -107,7 +107,7 @@ class RotationCoverageConstraint(Constraint):
 
         assert self.rmax is not None or self.rmin is not None
 
-    def apply(self, model, block_assigned, residents, blocks, rotations):
+    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
 
         # ellipsis just means all blocks
         if self.blocks is Ellipsis:
@@ -140,7 +140,7 @@ class PrerequisiteRotationConstraint(Constraint):
         self.rotation = rotation
         self.prerequisites = prerequisites
 
-    def apply(self, model, block_assigned, residents, blocks, rotations):
+    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
 
         add_prerequisite_constraint(
             model, block_assigned, residents, blocks,
@@ -157,7 +157,7 @@ class AlwaysPairedRotationConstraint(Constraint):
     def __init__(self, rotation):
         self.rotation = rotation
 
-    def apply(self, model, block_assigned, residents, blocks, rotations):
+    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
 
         add_must_be_paired_constraint(
             model, block_assigned, residents, blocks,
@@ -175,7 +175,7 @@ class MustBeFollowedByRotationConstraint(Constraint):
         self.rotation = rotation
         self.following_rotations = following_rotations
 
-    def apply(self, model, block_assigned, residents, blocks, rotations):
+    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
 
         add_must_be_followed_by_constraint(
             model, block_assigned, residents, blocks,
@@ -191,7 +191,7 @@ class RotationCountConstraint(Constraint):
         self.n_min = n_min
         self.n_max = n_max
 
-    def apply(self, model, block_assigned, residents, blocks, rotations):
+    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
 
         for resident, nmin, nmax in zip(residents, self.n_min, self.n_max):
             r_tot = sum(block_assigned[(resident, block, self.rotation)] for block in blocks)
@@ -204,7 +204,7 @@ class RotationCountNotConstraint(Constraint):
         self.rotation = rotation
         self.ct = ct
 
-    def apply(self, model, block_assigned, residents, blocks, rotations):
+    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
 
         for resident in residents:
             r_tot = sum(block_assigned[(resident, block, self.rotation)] for block in blocks)
@@ -223,7 +223,7 @@ class PinnedRotationConstraint(Constraint):
         self.pinned_blocks = pinned_blocks
         self.pinned_rotation = pinned_rotation
 
-    def apply(self, model, block_assigned, residents, blocks, rotations):
+    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
         # if the block to pin is unspecified, the rotation is assigned to the
         # resident somewhere in the schedule
         if len(self.pinned_blocks) == 0:
@@ -246,7 +246,7 @@ class MinIndividualRankConstraint(Constraint):
         self.rankings = rankings
         self.min_rank = min_rank
 
-    def apply(self, model, block_assigned, residents, blocks, rotations):
+    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
 
         for res in residents:
             res_obj = 0
@@ -266,13 +266,15 @@ class TimeToFirstConstraint(Constraint):
         self.rotations_in_group = rotations_in_group
         self.window_size = window_size
     
-    def apply(self, model, block_assigned, all_residents, all_blocks, all_rotations):
+    def apply(self, model, block_assigned, all_residents, all_blocks, all_rotations, block_backup):
         for res in all_residents:
             count = 0
             for blk in all_blocks[:self.window_size]:
                 for rot in self.rotations_in_group:
                     count += block_assigned[(res, blk, rot)]
             model.Add(count >= 1)
+
+
 class GroupCountPerResidentPerWindow(Constraint):
 
     def __repr__(self):
@@ -286,7 +288,7 @@ class GroupCountPerResidentPerWindow(Constraint):
         self.n_max = n_max
         self.window = window_size
 
-    def apply(self, model, block_assigned, all_residents, all_blocks, all_rotations):
+    def apply(self, model, block_assigned, all_residents, all_blocks, all_rotations, block_backup):
 
         n_blocks = len(all_blocks)
         n_full_windows = n_blocks - self.window + 1

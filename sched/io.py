@@ -115,7 +115,6 @@ class BlockSchedulePartialSolutionPrinter(BaseSolutionPrinter):
         # for row in score_table:
         #     print('['+','.join([str(i) for i in row])+'],')
 
-
         if (self._solution_limit is not Ellipsis) and \
            (self._solution_count >= self._solution_limit):
             self.StopSearch()
