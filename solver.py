@@ -42,6 +42,11 @@ def parse_args():
     )
 
     parser.add_argument(
+        '--dump-model', default=None,
+        help='A file to dump the final model to (immediatly prior to solving).'
+    )
+
+    parser.add_argument(
         '-p', '--n_processes', default=1, type=int,
         help='The number of search workers for OR-Tools to use.'
     )
@@ -473,12 +478,14 @@ def main():
         solution_limit=args.n_solutions
     )
 
-    print(datetime.datetime.now())
+    print('Starting search:', datetime.datetime.now())
     if args.objective == 'rank_sum_objective':
 
         objective_fn = rank_sum_objective_new(block_assigned, rankings, residents, blocks, rotations)
 
-        # model.ExportToFile("issue2779.pb.txt")
+        if args.dump_model is not None:
+            model.ExportToFile(args.dump_model)
+
         status, solver = run_optimizer(
             model,
             objective_fn,
@@ -487,6 +494,10 @@ def main():
         )
     else:
         raise NotImplementedError("Still working on enumerator mode.")
+
+        if args.dump_model is not None:
+            model.ExportToFile(args.dump_model)
+
         status, solver = run_enumerator(
             model,
             solution_printer=solution_printer
@@ -500,6 +511,7 @@ def main():
     print('  - wall time      : %f s' % solver.WallTime())
     print('  - solutions found: %i' % solution_printer.solution_count())
     print('  - objective value: %i' % solver.ObjectiveValue())
+    print("Best solution at ", args.results % solution_printer.solution_count())
 
 
 if __name__ == '__main__':

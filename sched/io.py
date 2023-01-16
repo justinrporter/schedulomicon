@@ -64,6 +64,8 @@ class BlockSchedulePartialSolutionPrinter(BaseSolutionPrinter):
     def on_solution_callback(self):
         self._solution_count += 1
 
+        print(f"Solution {self._solution_count:02d} at {datetime.datetime.now()} w objective value {self.ObjectiveValue()}")
+
         rows = [[''] + self._residents]
         for block in self._blocks:
             row = [block]
@@ -107,10 +109,12 @@ class BlockSchedulePartialSolutionPrinter(BaseSolutionPrinter):
             for row in score_table:
                 writer.writerow(row)
 
-        for row in score_table:
-            print('['+','.join([str(i) for i in row])+'],')
+            print("  - worst resident utility:", max([sum(row[1:]) for row in score_table]))
+            print("  - best resident utility:", min([sum(row[1:]) for row in score_table]))
 
-        print(f"Solution {self._solution_count:02d} at {datetime.datetime.now()} w objective value {self.ObjectiveValue()}")
+        # for row in score_table:
+        #     print('['+','.join([str(i) for i in row])+'],')
+
 
         if (self._solution_limit is not Ellipsis) and \
            (self._solution_count >= self._solution_limit):
