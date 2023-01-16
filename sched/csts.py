@@ -1,6 +1,7 @@
 class Constraint:
-    pass
 
+    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
+        pass
 
 class BackupRequiredOnBlockBackupConstraint(Constraint):
 
@@ -9,6 +10,9 @@ class BackupRequiredOnBlockBackupConstraint(Constraint):
         self.n_residents_needed = n_residents_needed
 
     def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
+
+        super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
+
         ct = 0
         for resident in residents:
             ct += block_backup[(resident, self.block)]
@@ -22,6 +26,8 @@ class RotationBackupCountConstraint(Constraint):
         self.count = count
 
     def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
+
+        super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
 
         backup_vars = {}
         for resident in residents:
@@ -66,7 +72,7 @@ class BackupEligibleBlocksBackupConstraint(Constraint):
 
     def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
 
-        # slacks = [model.NewBoolVar('slack_%i' % b) for b in all_bins]
+        super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
 
         for resident in residents:
             for block in blocks:
@@ -89,6 +95,8 @@ class BanRotationBlockConstraint(Constraint):
 
     def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
 
+        super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
+
         for resident in residents:
             model.Add(block_assigned[(resident, self.block, self.rotation)] == 0)
 
@@ -108,6 +116,8 @@ class RotationCoverageConstraint(Constraint):
         assert self.rmax is not None or self.rmin is not None
 
     def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
+
+        super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
 
         # ellipsis just means all blocks
         if self.blocks is Ellipsis:
@@ -142,6 +152,8 @@ class PrerequisiteRotationConstraint(Constraint):
 
     def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
 
+        super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
+
         add_prerequisite_constraint(
             model, block_assigned, residents, blocks,
             rotation=self.rotation, prerequisites=self.prerequisites
@@ -158,6 +170,8 @@ class AlwaysPairedRotationConstraint(Constraint):
         self.rotation = rotation
 
     def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
+
+        super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
 
         add_must_be_paired_constraint(
             model, block_assigned, residents, blocks,
@@ -177,6 +191,8 @@ class MustBeFollowedByRotationConstraint(Constraint):
 
     def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
 
+        super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
+
         add_must_be_followed_by_constraint(
             model, block_assigned, residents, blocks,
             rotation=self.rotation,
@@ -193,6 +209,8 @@ class RotationCountConstraint(Constraint):
 
     def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
 
+        super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
+
         for resident, nmin, nmax in zip(residents, self.n_min, self.n_max):
             r_tot = sum(block_assigned[(resident, block, self.rotation)] for block in blocks)
             model.Add(r_tot >= nmin)
@@ -205,6 +223,8 @@ class RotationCountNotConstraint(Constraint):
         self.ct = ct
 
     def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
+
+        super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
 
         for resident in residents:
             r_tot = sum(block_assigned[(resident, block, self.rotation)] for block in blocks)
@@ -224,6 +244,9 @@ class PinnedRotationConstraint(Constraint):
         self.pinned_rotation = pinned_rotation
 
     def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
+
+        super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
+
         # if the block to pin is unspecified, the rotation is assigned to the
         # resident somewhere in the schedule
         if len(self.pinned_blocks) == 0:
@@ -248,6 +271,8 @@ class MinIndividualRankConstraint(Constraint):
 
     def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
 
+        super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
+
         for res in residents:
             res_obj = 0
             for rot in rotations:
@@ -267,6 +292,9 @@ class TimeToFirstConstraint(Constraint):
         self.window_size = window_size
     
     def apply(self, model, block_assigned, all_residents, all_blocks, all_rotations, block_backup):
+
+        super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
+
         for res in all_residents:
             count = 0
             for blk in all_blocks[:self.window_size]:
@@ -289,6 +317,8 @@ class GroupCountPerResidentPerWindow(Constraint):
         self.window = window_size
 
     def apply(self, model, block_assigned, all_residents, all_blocks, all_rotations, block_backup):
+
+        super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
 
         n_blocks = len(all_blocks)
         n_full_windows = n_blocks - self.window + 1
