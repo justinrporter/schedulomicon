@@ -389,7 +389,7 @@ def main(argv):
     print("Blocks:", len(blocks))
     print("Rotations:", len(rotations))
 
-    solve.solve(
+    solver, solution_printer = solve.solve(
         residents, blocks, rotations, rankings, groups, cst_list,
         soln_printer=partial(
             io.BlockSchedulePartialSolutionPrinter,

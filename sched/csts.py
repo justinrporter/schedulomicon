@@ -1,3 +1,5 @@
+import itertools
+
 class Constraint:
 
     def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
@@ -211,10 +213,19 @@ class RotationCountConstraint(Constraint):
 
         super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
 
-        for resident, nmin, nmax in zip(residents, self.n_min, self.n_max):
+        n_min = self.n_min
+        n_max = self.n_max
+
+        if not hasattr(n_min, '__len__'):
+            n_min = itertools.repeat(n_min)
+        if not hasattr(n_max, '__len__'):
+            n_max = itertools.repeat(n_max)
+
+        for resident, nmin, nmax in zip(residents, n_min, n_max):
             r_tot = sum(block_assigned[(resident, block, self.rotation)] for block in blocks)
             model.Add(r_tot >= nmin)
             model.Add(r_tot <= nmax)
+
 
 class RotationCountNotConstraint(Constraint):
 

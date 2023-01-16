@@ -79,8 +79,7 @@ def run_enumerator(model, solution_printer=None):
 
 def solve(
         residents, blocks, rotations, rankings, groups, cst_list, soln_printer,
-        objective_fn, dump_model, n_processes
-
+        objective_fn, n_processes, dump_model=None
     ):
 
     block_assigned, model = generate_model(
@@ -125,3 +124,5 @@ def solve(
             model,
             solution_printer=solution_printer
         )
+
+    return solver, solution_printer
