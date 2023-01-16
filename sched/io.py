@@ -1,8 +1,12 @@
 import csv
 import datetime
+
 import numpy as np
+import pandas as pd
 
 from ortools.sat.python import cp_model
+
+from . import csts
 
 
 class BaseSolutionPrinter(cp_model.CpSolverSolutionCallback):
@@ -18,10 +22,28 @@ class BaseSolutionPrinter(cp_model.CpSolverSolutionCallback):
         self._rotations = rotations
 
 
+def compute_score_table(rankings, block_assigned, residents, blocks, rotations):
+
+    score_table = []
+    for res in residents:
+        score_row = [res, ]
+        for blk in blocks:
+            score_row.append(0)
+            for rot in rotations:
+                score_row[-1] += (
+                    rankings.get(res, {}).get(rot, 0) *
+                    block_assigned[(res, blk, rot)]
+                )
+        score_table.append(score_row)
+
+    return score_table
+
+
 class BlockSchedulePartialSolutionPrinter(BaseSolutionPrinter):
 
     def __init__(
             self, block_assigned, block_backup, residents, blocks, rotations, outfile,
+            rankings,
             solution_limit=Ellipsis
             ):
 
@@ -37,6 +59,7 @@ class BlockSchedulePartialSolutionPrinter(BaseSolutionPrinter):
         self._solution_count = 0
         self._time_to_first_solution = None
         self._solution_limit = solution_limit
+        self._rankings = rankings
 
     def on_solution_callback(self):
         self._solution_count += 1
@@ -63,29 +86,29 @@ class BlockSchedulePartialSolutionPrinter(BaseSolutionPrinter):
             backup_array.append(
                 [self.Value(self._block_backup[(resident, block)]) for block in self._blocks]
             )
-            print(
-                ''.join(['+' if self.Value(self._block_backup[(resident, block)]) else '-'
-                         for block in self._blocks])
-             )
-        print(np.array(backup_array).shape)
-        print(np.array(backup_array).sum(axis=1))
-        print(np.array(backup_array).sum(axis=0))
+            # print(
+            #     ''.join(['+' if self.Value(self._block_backup[(resident, block)]) else '-'
+            #              for block in self._blocks])
+            #  )
 
         ll = [r[1:] for r in rows[1:]]
         a = np.array([r[1:] for r in rows[1:]]) #, dtype='int16')
-        print(a.T)
+        # print(a.T)
 
-        print("Anesthesia CBY+", np.count_nonzero(a == "Anesthesia CBY+"))
+        score_table = compute_score_table(
+            self._rankings,
+            {k: self.Value(v) for k, v in self._block_assigned.items()},
+            self._residents, self._blocks, self._rotations
+        )
 
-        # fname = self._outfile.replace('csv', 'npz') % 0
+        with open(self._outfile.replace('.npz', '-scores.csv') % self._solution_count, 'w') as f:
+            writer = csv.writer(f, delimiter=',')
+            writer.writerow(['']+self._blocks)
+            for row in score_table:
+                writer.writerow(row)
 
-        # if self._solution_count == 1:
-        #     a_full = a
-        # else:
-        #     a_full = np.load(fname)['a']
-        #     a_full = np.dstack([a_full, a])
-
-        # np.savez(fname, a=a_full)
+        for row in score_table:
+            print('['+','.join([str(i) for i in row])+'],')
 
         print(f"Solution {self._solution_count:02d} at {datetime.datetime.now()} w objective value {self.ObjectiveValue()}")
 
@@ -96,3 +119,57 @@ class BlockSchedulePartialSolutionPrinter(BaseSolutionPrinter):
 
     def solution_count(self):
         return self._solution_count
+
+
+def coverage_constraints_from_csv(fname, rmin_or_rmax):
+    coverage_min = pd.read_csv(fname, header=0, index_col=0, comment='#')
+
+    constraints = []
+    for block, rot_dict in coverage_min.to_dict().items():
+        for rot, ct in rot_dict.items():
+            if not np.isnan(ct):
+                constraints.append(
+                    csts.RotationCoverageConstraint(
+                        rotation=rot, blocks=[block], **{rmin_or_rmax: int(ct)})
+                )
+
+    return constraints
+
+
+def pin_constraints_from_csv(fname):
+
+    coverage_pins = pd.read_csv(fname, header=0, index_col=0, comment='#')
+
+    constraints = []
+    for block, rot_dict in coverage_pins.to_dict().items():
+        for resident, rotation in rot_dict.items():
+            if hasattr(rotation, '__len__'):
+                # TODO: it sucks this is hard-coded
+                if block == "Rotation(s) Somewhere":
+                    constraints.append(
+                        csts.PinnedRotationConstraint(resident, [], rotation)
+                    )
+                else:
+                    constraints.append(
+                        csts.PinnedRotationConstraint(resident, [block], rotation)
+                    )
+
+    return constraints
+
+
+def rankings_from_csv(fname):
+    ranking_df = pd.read_csv(fname, header=0, index_col=0, comment='#')
+
+    # TODO: sucks
+    del ranking_df['SICU-E4 CBY (additional)']
+    del ranking_df['Medical Writing CBY']
+
+    ranking_df[ranking_df == 1] = -2
+    ranking_df[ranking_df == 2] = -1
+    ranking_df[ranking_df == 3] = 5
+
+    for c in ranking_df.columns:
+        ranking_df[c] = ranking_df[c].fillna(0)
+        ranking_df[c] = ranking_df[c].astype(int)
+
+    return ranking_df.T.to_dict()

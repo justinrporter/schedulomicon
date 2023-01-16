@@ -250,14 +250,15 @@ class MinIndividualRankConstraint(Constraint):
 
         for res in residents:
             res_obj = 0
-            for blk in blocks:
-                for rot in rotations:
-                    if res in self.rankings and rot in self.rankings[res]:
+            for rot in rotations:
+                if res in self.rankings and rot in self.rankings[res]:
+                    for blk in blocks:
                         res_obj += (
                             self.rankings[res][rot] *
                             block_assigned[res, blk, rot]
                         )
-            model.Add(res_obj < self.min_rank)
+
+            model.Add(res_obj <= self.min_rank)
 
 
 class GroupCountPerResidentPerWindow(Constraint):

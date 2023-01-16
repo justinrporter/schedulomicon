@@ -406,59 +406,6 @@ def run_enumerator(model, solution_printer=None):
     return solver
 
 
-def coverage_constraints_from_csv(fname, rmin_or_rmax):
-    coverage_min = pd.read_csv(fname, header=0, index_col=0, comment='#')
-
-    constraints = []
-    for block, rot_dict in coverage_min.to_dict().items():
-        for rot, ct in rot_dict.items():
-            if not np.isnan(ct):
-                constraints.append(
-                    csts.RotationCoverageConstraint(
-                        rotation=rot, blocks=[block], **{rmin_or_rmax: int(ct)})
-                )
-
-    return constraints
-
-
-def rankings_from_csv(fname):
-    ranking_df = pd.read_csv(fname, header=0, index_col=0, comment='#')
-
-    # TODO: sucks
-    del ranking_df['SICU-E4 CBY (additional)']
-    del ranking_df['Medical Writing CBY']
-
-    ranking_df[ranking_df == 1] = -2
-    ranking_df[ranking_df == 2] = -1
-    ranking_df[ranking_df == 3] = 5
-
-    for c in ranking_df.columns:
-        ranking_df[c] = ranking_df[c].fillna(0)
-        ranking_df[c] = ranking_df[c].astype(int)
-
-    return ranking_df.T.to_dict()
-
-def pin_constraints_from_csv(fname):
-
-    coverage_pins = pd.read_csv(fname, header=0, index_col=0, comment='#')
-
-    constraints = []
-    for block, rot_dict in coverage_pins.to_dict().items():
-        for resident, rotation in rot_dict.items():
-            if hasattr(rotation, '__len__'):
-                # TODO: it sucks this is hard-coded
-                if block == "Rotation(s) Somewhere":
-                    constraints.append(
-                        csts.PinnedRotationConstraint(resident, [], rotation)
-                    )
-                else:
-                    constraints.append(
-                        csts.PinnedRotationConstraint(resident, [block], rotation)
-                    )
-
-    return constraints
-
-
 def main():
 
     args = parse_args()
@@ -468,6 +415,15 @@ def main():
 
     residents, blocks, rotations, rankings, groups = process_config(config)
 
+    if args.rankings is not None:
+        for k, v in rankings.items():
+            assert not v
+        rankings = io.rankings_from_csv(args.rankings)
+
+        for res, rnk in rankings.items():
+            for rot in rnk:
+                assert rot in rotations, f"{rot} not in rotations"
+
     print("Residents:", len(residents))
     print("Blocks:", len(blocks))
     print("Rotations:", len(rotations))
@@ -476,15 +432,15 @@ def main():
 
     if args.coverage_min:
         cst_list.extend(
-            coverage_constraints_from_csv(args.coverage_min, 'rmin')
+            io.coverage_constraints_from_csv(args.coverage_min, 'rmin')
         )
     if args.coverage_max:
         cst_list.extend(
-            coverage_constraints_from_csv(args.coverage_max, 'rmax')
+            io.coverage_constraints_from_csv(args.coverage_max, 'rmax')
         )
     if args.rotation_pins:
         cst_list.extend(
-            pin_constraints_from_csv(args.rotation_pins)
+            io.pin_constraints_from_csv(args.rotation_pins)
         )
 
     if args.min_individual_rank is not None:
@@ -506,28 +462,17 @@ def main():
         residents,
         blocks,
         rotations,
+        rankings=rankings,
         outfile=args.results,
         solution_limit=args.n_solutions
     )
 
     print(datetime.datetime.now())
     if args.objective == 'rank_sum_objective':
-        if args.rankings is not None:
-            for k, v in rankings.items():
-                assert not v
-            rankings = rankings_from_csv(args.rankings)
 
-            for res, rnk in rankings.items():
-                for rot in rnk:
-                    assert rot in rotations, f"{rot} not in rotations"
+        objective_fn = rank_sum_objective_new(block_assigned, rankings, residents, blocks, rotations)
 
-            objective_fn = rank_sum_objective_new(block_assigned, rankings, residents, blocks, rotations)
-        else:
-            objective_fn = rank_sum_objective_old(block_assigned, rankings, residents, blocks, rotations)
-
-
-
-        model.ExportToFile("issue2779.pb.txt")
+        # model.ExportToFile("issue2779.pb.txt")
         status, solver = run_optimizer(
             model,
             objective_fn,
