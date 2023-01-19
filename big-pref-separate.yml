@@ -214,7 +214,7 @@ rotations:
     rot_count: [0, 4]
     always_paired: Yes
   NWH Surgery CBY:
-    groups: [surgery, nwh, ward]
+    groups: [surgery, nwh, ward, tough]
     rot_count: [0, 4]
     not_rot_count: 2
     always_paired: Yes

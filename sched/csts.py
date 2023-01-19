@@ -302,13 +302,13 @@ class TimeToFirstConstraint(Constraint):
         self.rotations_in_group = rotations_in_group
         self.window_size = window_size
     
-    def apply(self, model, block_assigned, all_residents, all_blocks, all_rotations, block_backup):
+    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
 
         super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
 
-        for res in all_residents:
+        for res in residents:
             count = 0
-            for blk in all_blocks[:self.window_size]:
+            for blk in blocks[:self.window_size]:
                 for rot in self.rotations_in_group:
                     count += block_assigned[(res, blk, rot)]
             model.Add(count >= 1)
@@ -327,19 +327,19 @@ class GroupCountPerResidentPerWindow(Constraint):
         self.n_max = n_max
         self.window = window_size
 
-    def apply(self, model, block_assigned, all_residents, all_blocks, all_rotations, block_backup):
+    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
 
         super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
 
-        n_blocks = len(all_blocks)
+        n_blocks = len(blocks)
         n_full_windows = n_blocks - self.window + 1
 
-        for res in all_residents:
+        for res in residents:
 
             for i in range(n_full_windows):
                 ct = 0
 
-                for blk in all_blocks[ i : self.window + i ]:
+                for blk in blocks[ i : self.window + i ]:
 
                     for rot in self.rotations_in_group:
                         ct += block_assigned[(res, blk, rot)]
@@ -351,7 +351,7 @@ class GroupCountPerResidentPerWindow(Constraint):
 
             ct = 0
 
-            for blk in all_blocks[ - (self.window - 1) :  ]:
+            for blk in blocks[ - (self.window - 1) :  ]:
 
                 for rot in self.rotations_in_group:
                     ct += block_assigned[(res, blk, rot)]
