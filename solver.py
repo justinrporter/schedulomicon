@@ -229,15 +229,10 @@ def generate_rotation_constraints(config):
                 rotation=rotation, prerequisites=params['prerequisite']
             ))
 
-        if params.get('cool_down', 0) != 0:
-            if params.get('always_paired', False):
-                constraints.append(
-                    csts.CoolDownConstraint(rotation, window_size = params.get('cool_down') + 2, count = [0,2])
-                )
-            else: 
-                constraints.append(
-                    csts.CoolDownConstraint(rotation, window_size = params.get('cool_down') + 1, count = [0,1], suppress_for = "Yi, Yangtian")
-                )
+        if 'cool_down' in params:
+            constraints.append(
+                csts.CoolDownConstraint.from_yml_dict(rotation, params)
+            )
 
         if params.get('always_paired', False):
             constraints.append(
@@ -399,7 +394,7 @@ def main(argv):
     print("Blocks:", len(blocks))
     print("Rotations:", len(rotations))
 
-    solver, solution_printer = solve.solve(
+    status, solver, solution_printer = solve.solve(
         residents, blocks, rotations, rankings, groups, cst_list,
         soln_printer=partial(
             io.BlockSchedulePartialSolutionPrinter,

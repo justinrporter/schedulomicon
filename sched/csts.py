@@ -204,11 +204,42 @@ class MustBeFollowedByRotationConstraint(Constraint):
 
 class CoolDownConstraint(Constraint):
 
+    ALLOWED_YAML_OPTIONS = ['window', 'count', 'suppress_for']
+
+    @staticmethod
+    def from_yml_dict(rotation, params):
+
+        assert 'cool_down' in params
+        for k in params['cool_down']:
+            assert k in CoolDownConstraint.ALLOWED_YAML_OPTIONS, \
+                (f'Option "{k}" on {rotation} not allowed (allowed options '
+                 f'are {CoolDownConstraint.ALLOWED_YAML_OPTIONS})')
+
+        # Expected format:
+        # cool_down:
+        #   window: 2
+        #   count: 1
+        #   exclude_for: ["Yi, Yangtian"]
+
+        window_size = params['cool_down'].get('window')
+        count = params['cool_down'].get('count', 1)
+        suppress_for = params['cool_down'].get('suppress_for', [])
+
+        if params.get('always_paired', False) and window_size < 2:
+            assert False
+
+        return CoolDownConstraint(
+            rotation,
+            window_size=window_size,
+            count=[0, count],
+            suppress_for=suppress_for
+        )
+
     def __repr__(self):
         return "CoolDownConstraint(%s,%s)" % (
              self.rotation, self.window_size, self.count)
 
-    def __init__(self, rotation, window_size, count = [0,1], suppress_for = []):
+    def __init__(self, rotation, window_size, count, suppress_for=[]):
         self.rotation = rotation
         self.window_size = window_size
         self.n_min = count[0]

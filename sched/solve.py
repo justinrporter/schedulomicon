@@ -125,4 +125,4 @@ def solve(
             solution_printer=solution_printer
         )
 
-    return solver, solution_printer
+    return status, solver, solution_printer
