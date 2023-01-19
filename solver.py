@@ -232,11 +232,11 @@ def generate_rotation_constraints(config):
         if params.get('cool_down', 0) != 0:
             if params.get('always_paired', False):
                 constraints.append(
-                    csts.CoolDownConstraint(rotation, params.get('cool_down') + 1, [0,2])
+                    csts.CoolDownConstraint(rotation, window_size = params.get('cool_down') + 2, count = [0,2])
                 )
             else: 
                 constraints.append(
-                    csts.CoolDownConstraint(rotation, params.get('cool_down') + 1, [0,1], suppress_for = "Yi, Yangtian")
+                    csts.CoolDownConstraint(rotation, window_size = params.get('cool_down') + 1, count = [0,1], suppress_for = "Yi, Yangtian")
                 )
 
         if params.get('always_paired', False):

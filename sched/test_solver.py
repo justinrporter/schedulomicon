@@ -47,34 +47,39 @@ def alldiff_3x3x3_obj(block_assigned, rankings, residents, blocks, rotations):
 def test_small_puzzle():
 
     rotations = ['Ro1', 'Ro2', 'Ro3']
-
+    
     solver, solution_printer = solve.solve(
         residents=['R1', 'R2', 'R3'],
-        blocks=['Bl1', 'Bl2', 'Bl3'],
-        rotations=['Ro1', 'Ro2', 'Ro3'],
+        blocks=['Bl1', 'Bl2', 'Bl3','Bl4','Bl5','Bl6'],
+        rotations=rotations,
         rankings={},
         groups=[],
         cst_list=[
             csts.RotationCoverageConstraint(
-                rot, rmin=1, rmax=1
+                rot, rmin=1, rmax=2
             ) for rot in rotations
         ] + [
             csts.RotationCountConstraint(
-                rot, n_min=1, n_max=1
-            ) for rot in rotations
+                'Ro1', n_min=2, n_max=2
+            )
         ] + [
-            csts.RotationBackupCountConstraint('Ro1', count=0)
+            csts.RotationCountConstraint(
+                rot, n_min=1, n_max=2
+            ) for rot in rotations if rot != 'Ro1'
+        ] + [
+            csts.RotationBackupCountConstraint('Ro2', count=0)
+        ] + [              
+            csts.CoolDownConstraint('Ro1', window_size = 3)
         ],
         soln_printer=TestSolnPrinter,
         objective_fn=alldiff_3x3x3_obj,
         n_processes=1
     )
-
     soln = solution_printer.solutions[-1]
     print(soln)
 
-    assert all(soln.R1.values == ['Ro3+',  'Ro1', 'Ro2+'])
-    assert all(soln.R2.values == ['Ro2+', 'Ro3+',  'Ro1'])
-    assert all(soln.R3.values == [ 'Ro1', 'Ro2+', 'Ro3+'])
+    assert all(soln.R1.values == ['Ro2',  'Ro1', 'Ro3+', 'Ro2', 'Ro1+', 'Ro3'])
+    assert all(soln.R2.values == ['Ro1+',  'Ro3', 'Ro2', 'Ro1', 'Ro3+', 'Ro2'])
+    assert all(soln.R3.values == ['Ro3+',  'Ro2', 'Ro1', 'Ro3+', 'Ro2', 'Ro1'])
 
-    assert solver.ObjectiveValue() == -9
+    assert solver.ObjectiveValue() == -18

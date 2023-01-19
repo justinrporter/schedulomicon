@@ -205,11 +205,11 @@ class CoolDownConstraint(Constraint):
 
     def __repr__(self):
         return "CoolDownConstraint(%s,%s)" % (
-             self.rotation, self.cool_down_time, self.count)
+             self.rotation, self.window_size, self.count)
 
-    def __init__(self, rotation, cool_down_time, count, suppress_for = []):
+    def __init__(self, rotation, window_size, count = [0,1], suppress_for = []):
         self.rotation = rotation
-        self.cool_down_time = cool_down_time
+        self.window_size = window_size
         self.n_min = count[0]
         self.n_max = count[1]
         self.suppress_for = suppress_for
@@ -223,7 +223,7 @@ class CoolDownConstraint(Constraint):
         add_cool_down_constraint(
             model, block_assigned, residents, blocks,
             rotation=self.rotation,
-            cool_down_time=self.cool_down_time,
+            window_size=self.window_size,
             n_min = self.n_min,
             n_max = self.n_max
         )
@@ -450,15 +450,15 @@ def add_must_be_followed_by_constraint(model, block_assigned, residents, blocks,
             ).OnlyEnforceIf(a)
 
 def add_cool_down_constraint(model, block_assigned, residents, blocks,
-                            rotation, n_min, n_max, cool_down_time):
+                            rotation, window_size, n_min, n_max):
 
     n_blocks = len(blocks)
-    n_full_windows = n_blocks - cool_down_time + 1
+    n_full_windows = n_blocks - window_size + 1
 
     for res in residents:
         for i in range(n_full_windows):
             ct = 0
-            for blk in blocks[ i : cool_down_time + i ]:
+            for blk in blocks[ i : window_size + i ]:
                 ct += block_assigned[(res, blk, rotation)]
             model.Add(ct >= n_min)
             model.Add(ct <= n_max)
