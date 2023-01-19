@@ -195,6 +195,7 @@ rotations:
     rot_count: [0, 0]
   Vacation CBY:
     rot_count: [2, 2]
+    cool_down: 4
   Bigelow CBY:
     groups: [medicine, ward, tough]
     rot_count: [2, 2]
@@ -203,6 +204,7 @@ rotations:
     #   max: [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 0, 0, 0, 0, 0]
       # max: 6
     must_be_followed_by: [elective, Vacation CBY, MGH ED CBY, Nephrology (DOM) CBY, Neurology (DOM) CBY, Cardiology (DOM) CBY, Gastroenterology (DOM) CBY, SDU CBY, Heme/Onc (DOM) CBY]
+    cool_down: 4
   Flex CBY:
     groups: [medicine, ward, tough]
     rot_count: [1, 2]
@@ -213,11 +215,13 @@ rotations:
     groups: [surgery, ward, tough]
     rot_count: [0, 4]
     always_paired: Yes
+    cool_down: 4
   NWH Surgery CBY:
     groups: [surgery, nwh, ward]
     rot_count: [0, 4]
     not_rot_count: 2
     always_paired: Yes
+    cool_down: 4
   NWH Med Nights CBY:
     groups: [medicine, nwh, ward]
     rot_count: [0, 6]

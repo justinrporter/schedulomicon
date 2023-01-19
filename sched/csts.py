@@ -201,6 +201,32 @@ class MustBeFollowedByRotationConstraint(Constraint):
             following_rotations=self.following_rotations
         )
 
+class CoolDownConstraint(Constraint):
+
+    def __repr__(self):
+        return "CoolDownConstraint(%s,%s)" % (
+             self.rotation, self.cool_down_time, self.count)
+
+    def __init__(self, rotation, cool_down_time, count, suppress_for = []):
+        self.rotation = rotation
+        self.cool_down_time = cool_down_time
+        self.n_min = count[0]
+        self.n_max = count[1]
+        self.suppress_for = suppress_for
+
+    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
+
+        super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
+
+        residents = [res for res in residents if res not in self.suppress_for]
+        
+        add_cool_down_constraint(
+            model, block_assigned, residents, blocks,
+            rotation=self.rotation,
+            cool_down_time=self.cool_down_time,
+            n_min = self.n_min,
+            n_max = self.n_max
+        )
 
 class RotationCountConstraint(Constraint):
 
@@ -302,13 +328,13 @@ class TimeToFirstConstraint(Constraint):
         self.rotations_in_group = rotations_in_group
         self.window_size = window_size
     
-    def apply(self, model, block_assigned, all_residents, all_blocks, all_rotations, block_backup):
+    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
 
         super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
 
-        for res in all_residents:
+        for res in residents:
             count = 0
-            for blk in all_blocks[:self.window_size]:
+            for blk in blocks[:self.window_size]:
                 for rot in self.rotations_in_group:
                     count += block_assigned[(res, blk, rot)]
             model.Add(count >= 1)
@@ -327,19 +353,19 @@ class GroupCountPerResidentPerWindow(Constraint):
         self.n_max = n_max
         self.window = window_size
 
-    def apply(self, model, block_assigned, all_residents, all_blocks, all_rotations, block_backup):
+    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
 
         super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
 
-        n_blocks = len(all_blocks)
+        n_blocks = len(blocks)
         n_full_windows = n_blocks - self.window + 1
 
-        for res in all_residents:
+        for res in residents:
 
             for i in range(n_full_windows):
                 ct = 0
 
-                for blk in all_blocks[ i : self.window + i ]:
+                for blk in blocks[ i : self.window + i ]:
 
                     for rot in self.rotations_in_group:
                         ct += block_assigned[(res, blk, rot)]
@@ -351,7 +377,7 @@ class GroupCountPerResidentPerWindow(Constraint):
 
             ct = 0
 
-            for blk in all_blocks[ - (self.window - 1) :  ]:
+            for blk in blocks[ - (self.window - 1) :  ]:
 
                 for rot in self.rotations_in_group:
                     ct += block_assigned[(res, blk, rot)]
@@ -422,3 +448,18 @@ def add_must_be_followed_by_constraint(model, block_assigned, residents, blocks,
             model.Add(
                 n_electives > 0
             ).OnlyEnforceIf(a)
+
+def add_cool_down_constraint(model, block_assigned, residents, blocks,
+                            rotation, n_min, n_max, cool_down_time):
+
+    n_blocks = len(blocks)
+    n_full_windows = n_blocks - cool_down_time + 1
+
+    for res in residents:
+        for i in range(n_full_windows):
+            ct = 0
+            for blk in blocks[ i : cool_down_time + i ]:
+                ct += block_assigned[(res, blk, rotation)]
+            model.Add(ct >= n_min)
+            model.Add(ct <= n_max)
+
