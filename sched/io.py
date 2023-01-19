@@ -9,19 +9,6 @@ from ortools.sat.python import cp_model
 from . import csts
 
 
-class BaseSolutionPrinter(cp_model.CpSolverSolutionCallback):
-
-    def __init__(self, block_assigned, block_backup, residents, blocks, rotations):
-
-        cp_model.CpSolverSolutionCallback.__init__(self)
-        self._block_assigned = block_assigned
-        self._block_backup = block_backup
-
-        self._residents = residents
-        self._blocks = blocks
-        self._rotations = rotations
-
-
 def compute_score_table(rankings, block_assigned, residents, blocks, rotations):
 
     score_table = []
@@ -37,6 +24,40 @@ def compute_score_table(rankings, block_assigned, residents, blocks, rotations):
         score_table.append(score_row)
 
     return score_table
+
+
+class BaseSolutionPrinter(cp_model.CpSolverSolutionCallback):
+
+    def __init__(self, block_assigned, block_backup, residents, blocks, rotations):
+
+        cp_model.CpSolverSolutionCallback.__init__(self)
+        self._block_assigned = block_assigned
+        self._block_backup = block_backup
+
+        self._residents = residents
+        self._blocks = blocks
+        self._rotations = rotations
+
+    def df_from_solution(self):
+
+        rows = []
+        for block in self._blocks:
+            row = []
+            for resident in self._residents:
+                for rotation in self._rotations:
+                    if self.Value(self._block_assigned[(resident, block, rotation)]):
+                        row.append(rotation)
+                        if self.Value(self._block_backup[(resident, block)]):
+                            row[-1] += '+'
+            rows.append(row)
+
+        df = pd.DataFrame.from_records(
+            rows,
+            columns=self._residents,
+            index=self._blocks
+        )
+
+        return df
 
 
 class BlockSchedulePartialSolutionPrinter(BaseSolutionPrinter):
@@ -66,36 +87,11 @@ class BlockSchedulePartialSolutionPrinter(BaseSolutionPrinter):
 
         print(f"Solution {self._solution_count:02d} at {datetime.datetime.now()} w objective value {self.ObjectiveValue()}")
 
-        rows = [[''] + self._residents]
-        for block in self._blocks:
-            row = [block]
-            for resident in self._residents:
-                for rotation in self._rotations:
-                    if self.Value(self._block_assigned[(resident, block, rotation)]):
-                        # row.append(self._rotations.index(rotation))
-                        row.append(rotation)
-                        if self.Value(self._block_backup[(resident, block)]):
-                            row[-1] += '+'
-            rows.append(row)
+        solution_df = self.df_from_solution()
 
-        with open(self._outfile.replace('npz', 'csv') % self._solution_count, 'w') as f:
-            writer = csv.writer(f, delimiter=',')
-            for row in rows:
-                writer.writerow(row)
-
-        backup_array = []
-        for resident in self._residents:
-            backup_array.append(
-                [self.Value(self._block_backup[(resident, block)]) for block in self._blocks]
-            )
-            # print(
-            #     ''.join(['+' if self.Value(self._block_backup[(resident, block)]) else '-'
-            #              for block in self._blocks])
-            #  )
-
-        ll = [r[1:] for r in rows[1:]]
-        a = np.array([r[1:] for r in rows[1:]]) #, dtype='int16')
-        # print(a.T)
+        solution_df.to_csv(
+            self._outfile.replace('npz', 'csv') % self._solution_count
+        )
 
         score_table = compute_score_table(
             self._rankings,

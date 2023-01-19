@@ -1,9 +1,20 @@
 import itertools
 
+from .exceptions import YAMLParseError
+
 class Constraint:
 
     def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
         pass
+
+    @classmethod
+    def _check_yaml_params(cls, root_entity, cst_params):
+        for key in cst_params:
+            if key not in cls.ALLOWED_YAML_OPTIONS:
+                raise YAMLParseError(
+                    f'On {root_entity}, option {key} not allowed (allowed '
+                    f'options are {cls.ALLOWED_YAML_OPTIONS}).'
+                )
 
 class BackupRequiredOnBlockBackupConstraint(Constraint):
 
@@ -206,14 +217,11 @@ class CoolDownConstraint(Constraint):
 
     ALLOWED_YAML_OPTIONS = ['window', 'count', 'suppress_for']
 
-    @staticmethod
-    def from_yml_dict(rotation, params):
+    @classmethod
+    def from_yml_dict(cls, rotation, params):
 
         assert 'cool_down' in params
-        for k in params['cool_down']:
-            assert k in CoolDownConstraint.ALLOWED_YAML_OPTIONS, \
-                (f'Option "{k}" on {rotation} not allowed (allowed options '
-                 f'are {CoolDownConstraint.ALLOWED_YAML_OPTIONS})')
+        cls._check_yaml_params(rotation, params['cool_down'])
 
         # Expected format:
         # cool_down:
@@ -226,9 +234,12 @@ class CoolDownConstraint(Constraint):
         suppress_for = params['cool_down'].get('suppress_for', [])
 
         if params.get('always_paired', False) and window_size < 2:
-            assert False
+            assert False, (
+                f'Expected window_size > 1 (got {window_size}) for '
+                f'paired rotation {rotation}'
+            )
 
-        return CoolDownConstraint(
+        return cls(
             rotation,
             window_size=window_size,
             count=[0, count],
