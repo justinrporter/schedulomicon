@@ -201,6 +201,32 @@ class MustBeFollowedByRotationConstraint(Constraint):
             following_rotations=self.following_rotations
         )
 
+class CoolDownConstraint(Constraint):
+
+    def __repr__(self):
+        return "CoolDownConstraint(%s,%s)" % (
+             self.rotation, self.window_size, self.count)
+
+    def __init__(self, rotation, window_size, count = [0,1], suppress_for = []):
+        self.rotation = rotation
+        self.window_size = window_size
+        self.n_min = count[0]
+        self.n_max = count[1]
+        self.suppress_for = suppress_for
+
+    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
+
+        super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
+
+        residents = [res for res in residents if res not in self.suppress_for]
+        
+        add_cool_down_constraint(
+            model, block_assigned, residents, blocks,
+            rotation=self.rotation,
+            window_size=self.window_size,
+            n_min = self.n_min,
+            n_max = self.n_max
+        )
 
 class RotationCountConstraint(Constraint):
 
@@ -422,3 +448,18 @@ def add_must_be_followed_by_constraint(model, block_assigned, residents, blocks,
             model.Add(
                 n_electives > 0
             ).OnlyEnforceIf(a)
+
+def add_cool_down_constraint(model, block_assigned, residents, blocks,
+                            rotation, window_size, n_min, n_max):
+
+    n_blocks = len(blocks)
+    n_full_windows = n_blocks - window_size + 1
+
+    for res in residents:
+        for i in range(n_full_windows):
+            ct = 0
+            for blk in blocks[ i : window_size + i ]:
+                ct += block_assigned[(res, blk, rotation)]
+            model.Add(ct >= n_min)
+            model.Add(ct <= n_max)
+
