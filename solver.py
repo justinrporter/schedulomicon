@@ -37,7 +37,11 @@ def parse_args(argv):
         '--rankings', default=None,
         help='A csv file with rankings of each resident for each rotation'
     )
-
+    parser.add_argument(
+        '--block-resident-ranking', default=None, nargs=2,
+        help='A csv file specifying a score for a particular rotation for '
+             'all residents for all blocks.'
+    )
     parser.add_argument(
         '--results', required=True,
         help='The place to write the schedule(s) as a csv.'
@@ -117,39 +121,68 @@ def add_group_count_per_resident_constraint(
         model.Add(ct >= n_min)
         model.Add(ct <= n_max)
 
-def rank_sum_objective_old(block_assigned, rankings, residents, blocks, rotations):
+# def rank_sum_objective_old(block_assigned, rankings, residents, blocks, rotations):
 
-    # at least one resident from `residents` should appear in rankings dict
-    assert any([res in residents for res in rankings.keys()])
+#     # at least one resident from `residents` should appear in rankings dict
+#     assert any([res in residents for res in rankings.keys()])
 
-    # at least one non-empty rankings dict for one of the residents
-    assert any([rankings[res] for res in residents])
+#     # at least one non-empty rankings dict for one of the residents
+#     assert any([rankings[res] for res in residents])
 
-    obj = 0
-    for res in residents:
-        for blk in blocks:
-            for rot in rotations:
-                if res in rankings and rot in rankings[res]:
-                    # print('rankings', res, rot, rankings[res][rot], type(rankings[res][rot]))
-                    obj += int(rankings[res][rot]) * block_assigned[res, blk, rot]
-                else:
-                    obj += 0
+#     obj = 0
+#     for res in residents:
+#         for blk in blocks:
+#             for rot in rotations:
+#                 if res in rankings and rot in rankings[res]:
+#                     # print('rankings', res, rot, rankings[res][rot], type(rankings[res][rot]))
+#                     obj += int(rankings[res][rot]) * block_assigned[res, blk, rot]
+#                 else:
+#                     obj += 0
 
-    return obj
+#     return obj
 
-def rank_sum_objective_new(block_assigned, rankings, residents, blocks, rotations):
+# def rank_sum_objective_new(block_assigned, rankings, residents, blocks, rotations):
 
-    # at least one resident from `residents` should appear in rankings dict
-    assert any([res in residents for res in rankings.keys()])
+#     # at least one resident from `residents` should appear in rankings dict
+#     assert any([res in residents for res in rankings.keys()])
 
-    # at least one non-empty rankings dict for one of the residents
-    assert any([rankings[res] for res in residents])
+#     # at least one non-empty rankings dict for one of the residents
+#     assert any([rankings[res] for res in residents])
 
-    obj = 0
-    for resident, rnk in rankings.items():
-        for rotation, score in rnk.items():
+#     obj = 0
+#     for resident, rnk in rankings.items():
+#         for rotation, score in rnk.items():
+#             for block in blocks:
+#                 obj += score * block_assigned[(resident, block, rotation)]
+
+#     return obj
+
+
+def accumulate_score_res_block_scores(score_dict, resident_block_scores, rotation):
+
+    for resident, block_scores in resident_block_scores.items():
+        for block, score in block_scores.items():
+            score_dict[(resident, block, rotation)] += score
+
+
+def accumulate_score_res_rot_scores(score_dict, resident_rot_scores):
+
+    blocks = set([b for (re, b, ro) in score_dict.keys()])
+
+    for resident, rot_scores in resident_rot_scores.items():
+        for rot, score in rot_scores.items():
             for block in blocks:
-                obj += score * block_assigned[(resident, block, rotation)]
+                score_dict[(resident, block, rot)] += score
+
+
+def objective_from_score_dict(block_assigned, scores):
+
+    assert set(block_assigned.keys()) == set(scores.keys())
+
+    obj = 0
+
+    for k in block_assigned:
+        obj += block_assigned[k] * scores[k]
 
     return obj
 
@@ -167,20 +200,7 @@ def process_config(config):
         groups.extend(params.get('groups', []))
     groups = list(set(groups))
 
-    rankings = {}
-
-    for res in residents:
-        rank_dicts = config['residents'][res].get('rankings', {})
-
-        rankings[res] = {}
-        for group, ranking in rank_dicts.items():
-            assert group in groups
-
-            for rank, rot in enumerate(ranking):
-                assert rot not in rankings[res], "(%s, %s)" % (res, rot)
-                rankings[res][rot] = rank
-
-    return residents, blocks, rotations, rankings, groups
+    return residents, blocks, rotations, groups
 
 
 def generate_resident_constraints(config):
@@ -349,6 +369,30 @@ def generate_constraints_from_configs(config):
     return constraints
 
 
+def score_dict_from_args(args, residents, blocks, rotations):
+
+    rankings = io.rankings_from_csv(args.rankings)
+
+    for res, rnk in rankings.items():
+        for rot in rnk:
+            assert rot in rotations, f"{rot} not in rotations"
+
+    scores = {}
+    for res in residents:
+        for block in blocks:
+            for rot in rotations:
+                scores[(res, block, rot)] = 0
+
+    accumulate_score_res_rot_scores(scores, rankings)
+
+    if args.block_resident_ranking is not None:
+        rotation, fname = args.block_resident_ranking
+        rot_blk_scores = pd.read_csv(fname, header=0, index_col=0, comment='#').T.to_dict()
+        accumulate_score_res_block_scores(scores, rot_blk_scores, rotation)
+
+    return scores
+
+
 def main(argv):
 
     args = parse_args(argv)
@@ -356,16 +400,7 @@ def main(argv):
     with open(args.config, 'r') as f:
         config = yaml.safe_load(f)
 
-    residents, blocks, rotations, rankings, groups = process_config(config)
-
-    if args.rankings is not None:
-        for k, v in rankings.items():
-            assert not v
-        rankings = io.rankings_from_csv(args.rankings)
-
-        for res, rnk in rankings.items():
-            for rot in rnk:
-                assert rot in rotations, f"{rot} not in rotations"
+    residents, blocks, rotations, groups = process_config(config)
 
     cst_list = generate_constraints_from_configs(config)
 
@@ -394,18 +429,22 @@ def main(argv):
     print("Blocks:", len(blocks))
     print("Rotations:", len(rotations))
 
+    scores = score_dict_from_args(args, residents, blocks, rotations)
+
+    objective_fn = partial(
+        objective_from_score_dict,
+        scores=scores
+    )
+
     status, solver, solution_printer = solve.solve(
-        residents, blocks, rotations, rankings, groups, cst_list,
+        residents, blocks, rotations, groups, cst_list,
         soln_printer=partial(
             io.BlockSchedulePartialSolutionPrinter,
-            rankings=rankings,
+            scores=scores,
             outfile=args.results,
             solution_limit=args.n_solutions
         ),
-        objective_fn=(
-            rank_sum_objective_new if args.objective == 'rank_sum_objective'
-            else None
-        ),
+        objective_fn=objective_fn,
         dump_model=args.dump_model,
         n_processes=args.n_processes
     )

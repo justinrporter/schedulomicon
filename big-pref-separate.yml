@@ -233,7 +233,7 @@ rotations:
       window: 6
       count: 2
   NWH Med Nights CBY:
-    groups: [medicine, nwh, ward]
+    groups: [medicine, nwh, ward, tough]
     rot_count: [0, 6]
   NWH Medicine CBY:
     groups: [medicine, nwh, ward, tough]

@@ -1,3 +1,5 @@
+from functools import partial
+
 import pandas as pd
 
 from . import solve, io, csts
@@ -29,11 +31,12 @@ class TestSolnPrinter(io.BaseSolutionPrinter):
         ))
 
 
-def alldiff_3x3x3_obj(block_assigned, rankings, residents, blocks, rotations):
+def alldiff_3x3x3_obj(block_assigned, residents, blocks, rotations):
 
     obj = 0
     for i, res in enumerate(residents):
         for j, rot in enumerate(rotations):
+            #           B1  B2  B3
             # R1 ranks:  0, -1, -2
             # R2 ranks: -1, -2,  0
             # R3 ranks: -2,  0, -1
@@ -46,13 +49,14 @@ def alldiff_3x3x3_obj(block_assigned, rankings, residents, blocks, rotations):
 
 def test_small_puzzle():
 
+    residents = ['R1', 'R2', 'R3']
     rotations = ['Ro1', 'Ro2', 'Ro3']
+    blocks = ['Bl1', 'Bl2', 'Bl3']
 
-    solver, solution_printer = solve.solve(
-        residents=['R1', 'R2', 'R3'],
-        blocks=['Bl1', 'Bl2', 'Bl3'],
+    status, solver, solution_printer = solve.solve(
+        residents=residents,
+        blocks=blocks,
         rotations=rotations,
-        rankings={},
         groups=[],
         cst_list=[
             csts.RotationCoverageConstraint(
@@ -66,7 +70,9 @@ def test_small_puzzle():
             csts.RotationBackupCountConstraint('Ro1', count=0)
         ],
         soln_printer=TestSolnPrinter,
-        objective_fn=alldiff_3x3x3_obj,
+        objective_fn=partial(
+            alldiff_3x3x3_obj, residents=residents,
+            blocks=blocks, rotations=rotations),
         n_processes=1
     )
 

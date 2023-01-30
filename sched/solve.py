@@ -5,7 +5,7 @@ from ortools.sat.python import cp_model
 from . import csts
 
 
-def generate_model(residents, blocks, rotations, groups, rankings):
+def generate_model(residents, blocks, rotations, groups):
 
     model = cp_model.CpModel()
 
@@ -78,12 +78,12 @@ def run_enumerator(model, solution_printer=None):
 
 
 def solve(
-        residents, blocks, rotations, rankings, groups, cst_list, soln_printer,
+        residents, blocks, rotations, groups, cst_list, soln_printer,
         objective_fn, n_processes, dump_model=None
     ):
 
     block_assigned, model = generate_model(
-        residents, blocks, rotations, rankings, groups
+        residents, blocks, rotations, groups
     )
 
     block_backup = generate_backup(model, residents, blocks, n_backup_blocks=2)
@@ -103,7 +103,7 @@ def solve(
 
     if objective_fn:
 
-        objective_fn = objective_fn(block_assigned, rankings, residents, blocks, rotations)
+        objective_fn = objective_fn(block_assigned)
 
         if dump_model is not None:
             model.ExportToFile(dump_model)

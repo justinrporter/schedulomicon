@@ -9,7 +9,7 @@ from ortools.sat.python import cp_model
 from . import csts
 
 
-def compute_score_table(rankings, block_assigned, residents, blocks, rotations):
+def compute_score_table(scores, block_assigned, residents, blocks, rotations):
 
     score_table = []
     for res in residents:
@@ -18,7 +18,7 @@ def compute_score_table(rankings, block_assigned, residents, blocks, rotations):
             score_row.append(0)
             for rot in rotations:
                 score_row[-1] += (
-                    rankings.get(res, {}).get(rot, 0) *
+                    scores[(res, blk, rot)] *
                     block_assigned[(res, blk, rot)]
                 )
         score_table.append(score_row)
@@ -64,8 +64,7 @@ class BlockSchedulePartialSolutionPrinter(BaseSolutionPrinter):
 
     def __init__(
             self, block_assigned, block_backup, residents, blocks, rotations, outfile,
-            rankings,
-            solution_limit=Ellipsis
+            scores, solution_limit=Ellipsis
             ):
 
         super().__init__(block_assigned, block_backup, residents, blocks, rotations)
@@ -80,7 +79,7 @@ class BlockSchedulePartialSolutionPrinter(BaseSolutionPrinter):
         self._solution_count = 0
         self._time_to_first_solution = None
         self._solution_limit = solution_limit
-        self._rankings = rankings
+        self._scores = scores
 
     def on_solution_callback(self):
         self._solution_count += 1
@@ -94,7 +93,7 @@ class BlockSchedulePartialSolutionPrinter(BaseSolutionPrinter):
         )
 
         score_table = compute_score_table(
-            self._rankings,
+            self._scores,
             {k: self.Value(v) for k, v in self._block_assigned.items()},
             self._residents, self._blocks, self._rotations
         )
