@@ -71,6 +71,11 @@ def parse_args(argv):
         '--min-individual-rank', type=int, default=None
     )
 
+    parser.add_argument(
+        '--hint', default=None,
+        help='A csv file with a prior solution to use as a hint to the solver'
+    )
+
     args = parser.parse_args(argv)
 
     return args
@@ -337,7 +342,6 @@ def generate_backup_constraints(
 
     return constraints
 
-
 def generate_constraints_from_configs(config):
 
     constraints = []
@@ -425,12 +429,15 @@ def main(argv):
     for c in generate_backup_constraints(config):
         cst_list.append(c)
 
+    if args.hint is not None:
+        hint = pd.read_csv(args.hint, header=0, index_col=0, comment='#')
+
     print("Residents:", len(residents))
     print("Blocks:", len(blocks))
     print("Rotations:", len(rotations))
 
     scores = score_dict_from_args(args, residents, blocks, rotations)
-
+    
     objective_fn = partial(
         objective_from_score_dict,
         scores=scores
@@ -442,11 +449,12 @@ def main(argv):
             io.BlockSchedulePartialSolutionPrinter,
             scores=scores,
             outfile=args.results,
-            solution_limit=args.n_solutions
+            solution_limit=args.n_solutions,
         ),
         objective_fn=objective_fn,
         dump_model=args.dump_model,
-        n_processes=args.n_processes
+        n_processes=args.n_processes,
+        
     )
 
     # Statistics.

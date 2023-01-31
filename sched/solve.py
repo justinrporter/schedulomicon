@@ -42,7 +42,14 @@ def generate_backup(model, residents, blocks, n_backup_blocks):
 
     return block_backup
 
-
+def add_result_as_hint(model, block_assigned, residents, blocks, rotations, hint):
+    for res in residents:
+        for block in blocks:
+            for rot in rotations:
+                if hint[res][block] == rot: 
+                    model.AddHint(block_assigned[res,block,rot],1)
+                else:
+                    model.AddHint(block_assigned[res,block,rot],0) 
 
 def run_optimizer(model, objective_fn, solution_printer=None, n_processes=None):
 
@@ -79,7 +86,7 @@ def run_enumerator(model, solution_printer=None):
 
 def solve(
         residents, blocks, rotations, groups, cst_list, soln_printer,
-        objective_fn, n_processes, dump_model=None
+        objective_fn, n_processes, hint, dump_model=None
     ):
 
     block_assigned, model = generate_model(
@@ -90,7 +97,11 @@ def solve(
 
     for cst in cst_list:
         cst.apply(model, block_assigned, residents, blocks, rotations, block_backup)
-
+    
+    if hint is not None:
+        add_result_as_hint(model, block_assigned, residents, blocks, rotations, hint)
+    else: print('no hint found')
+    
     solution_printer = soln_printer(
         block_assigned,
         block_backup,
