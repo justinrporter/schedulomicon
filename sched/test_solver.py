@@ -30,7 +30,6 @@ class TestSolnPrinter(io.BaseSolutionPrinter):
             records, index=self._blocks, columns=self._residents
         ))
 
-
 def alldiff_3x3x3_obj(block_assigned, residents, blocks, rotations):
 
     obj = 0
@@ -73,7 +72,8 @@ def test_small_puzzle():
         objective_fn=partial(
             alldiff_3x3x3_obj, residents=residents,
             blocks=blocks, rotations=rotations),
-        n_processes=1
+        n_processes=1,
+        hint=None
     )
 
     soln = solution_printer.solutions[-1]
@@ -89,12 +89,13 @@ def test_small_puzzle():
 def test_cooldown_constraint():
 
     rotations = ['Ro1', 'Ro2', 'Ro3']
-    
-    solver, solution_printer = solve.solve(
-        residents=['R1', 'R2', 'R3'],
-        blocks=['Bl1', 'Bl2', 'Bl3','Bl4','Bl5','Bl6'],
+    residents=['R1', 'R2', 'R3']
+    blocks=['Bl1', 'Bl2', 'Bl3','Bl4','Bl5','Bl6']
+
+    status, solver, solution_printer = solve.solve(
+        residents=residents,
+        blocks=blocks,
         rotations=rotations,
-        rankings={},
         groups=[],
         cst_list=[
             csts.RotationCoverageConstraint(
@@ -111,17 +112,67 @@ def test_cooldown_constraint():
         ] + [
             csts.RotationBackupCountConstraint('Ro2', count=0)
         ] + [              
-            csts.CoolDownConstraint('Ro1', window_size=3)
+            csts.CoolDownConstraint('Ro1', window_size=3,count=[1,1])
         ],
         soln_printer=TestSolnPrinter,
-        objective_fn=alldiff_3x3x3_obj,
-        n_processes=1
+        objective_fn=partial(
+            alldiff_3x3x3_obj, residents=residents,
+            blocks=blocks, rotations=rotations),
+        n_processes=1,
+        hint=None
     )
     soln = solution_printer.solutions[-1]
     print(soln)
+    print(solution_printer.solutions)
 
-    assert all(soln.R1.values == ['Ro2',  'Ro1', 'Ro3+', 'Ro2', 'Ro1+', 'Ro3'])
-    assert all(soln.R2.values == ['Ro1+',  'Ro3', 'Ro2', 'Ro1', 'Ro3+', 'Ro2'])
-    assert all(soln.R3.values == ['Ro3+',  'Ro2', 'Ro1', 'Ro3+', 'Ro2', 'Ro1'])
+    assert all(soln.R1.values == ['Ro1+',  'Ro3', 'Ro3', 'Ro1+', 'Ro2', 'Ro2'])
+    assert all(soln.R2.values == ['Ro2',  'Ro2', 'Ro1+', 'Ro3+', 'Ro3', 'Ro1'])
+    assert all(soln.R3.values == ['Ro3',  'Ro1+', 'Ro2', 'Ro2', 'Ro1', 'Ro3+'])
 
     assert solver.ObjectiveValue() == -18
+
+def test_hint():
+
+    residents = ['R1', 'R2', 'R3']
+    rotations = ['Ro1', 'Ro2', 'Ro3']
+    blocks = ['Bl1', 'Bl2', 'Bl3','Bl4']
+
+    hint = pd.DataFrame({
+        'R1': ['Ro3+',  'Ro1+', 'Ro2', 'Ro2'],
+        'R2': ['Ro2', 'Ro3+',  'Ro1', 'Ro3+'],
+        'R3': ['Ro1+', 'Ro2', 'Ro3+', 'Ro1']},
+        index = blocks)
+
+    status, solver, solution_printer = solve.solve(
+        residents=residents,
+        blocks=blocks,
+        rotations=rotations,
+        groups=[],
+        cst_list=[
+            csts.RotationCoverageConstraint(
+                rot, rmin=1, rmax=1
+            ) for rot in rotations
+        ] + [
+            csts.RotationCountConstraint(
+                rot, n_min=1, n_max=2
+            ) for rot in rotations
+        ]+  [
+            csts.RotationBackupCountConstraint('Ro2', count=0)
+        ],
+        soln_printer=TestSolnPrinter,
+        objective_fn=partial(
+            alldiff_3x3x3_obj, residents=residents,
+            blocks=blocks, rotations=rotations),
+        n_processes=2,
+        hint = hint
+    )
+
+    soln = solution_printer.solutions[-1]
+    #print(soln)
+    print(solution_printer.solutions)
+
+    assert all(soln.R1.values == ['Ro3',  'Ro3+', 'Ro2','Ro1+'])
+    assert all(soln.R2.values == ['Ro2', 'Ro2',  'Ro1+','Ro3+'])
+    assert all(soln.R3.values == [ 'Ro1+', 'Ro1+', 'Ro3','Ro2'])
+
+    assert solver.ObjectiveValue() == -15
