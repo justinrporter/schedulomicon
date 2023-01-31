@@ -100,7 +100,6 @@ def solve(
     
     if hint is not None:
         add_result_as_hint(model, block_assigned, residents, blocks, rotations, hint)
-    else: print('no hint found')
     
     solution_printer = soln_printer(
         block_assigned,

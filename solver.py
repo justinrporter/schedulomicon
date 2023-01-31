@@ -454,7 +454,7 @@ def main(argv):
         objective_fn=objective_fn,
         dump_model=args.dump_model,
         n_processes=args.n_processes,
-        
+        hint=hint
     )
 
     # Statistics.
