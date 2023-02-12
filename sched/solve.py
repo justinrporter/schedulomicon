@@ -5,6 +5,56 @@ from ortools.sat.python import cp_model
 from . import csts
 
 
+def accumulate_score_res_block_scores(score_dict, resident_block_scores, rotation):
+
+    for resident, block_scores in resident_block_scores.items():
+        for block, score in block_scores.items():
+            score_dict[(resident, block, rotation)] += score
+
+
+def accumulate_score_res_rot_scores(score_dict, resident_rot_scores):
+
+    blocks = set([b for (re, b, ro) in score_dict.keys()])
+
+    for resident, rot_scores in resident_rot_scores.items():
+        for rot, score in rot_scores.items():
+            for block in blocks:
+                score_dict[(resident, block, rot)] += score
+
+
+def objective_from_score_dict(block_assigned, scores):
+
+    assert set(block_assigned.keys()) == set(scores.keys())
+
+    obj = 0
+
+    for k in block_assigned:
+        obj += block_assigned[k] * scores[k]
+
+    return obj
+
+
+def score_dict_from_df(rankings, residents, blocks, rotations, block_resident_ranking):
+
+    for res, rnk in rankings.items():
+        for rot in rnk:
+            assert rot in rotations, f"{rot} not in rotations"
+
+    scores = {}
+    for res in residents:
+        for block in blocks:
+            for rot in rotations:
+                scores[(res, block, rot)] = 0
+
+    accumulate_score_res_rot_scores(scores, rankings)
+
+    if block_resident_ranking is not None:
+        rotation, rot_blk_scores = block_resident_ranking
+        accumulate_score_res_block_scores(scores, rot_blk_scores, rotation)
+
+    return scores
+
+
 def generate_model(residents, blocks, rotations, groups):
 
     model = cp_model.CpModel()
@@ -51,7 +101,7 @@ def add_result_as_hint(model, block_assigned, residents, blocks, rotations, hint
                 else:
                     model.AddHint(block_assigned[res,block,rot],0) 
 
-def run_optimizer(model, objective_fn, solution_printer=None, n_processes=None):
+def run_optimizer(model, objective_fn, max_time_in_mins, solution_printer=None, n_processes=None):
 
     if n_processes is None:
         n_processes = 1
@@ -63,6 +113,9 @@ def run_optimizer(model, objective_fn, solution_printer=None, n_processes=None):
     model.Minimize(objective_fn)
     solver.parameters.enumerate_all_solutions = False
     solver.parameters.num_search_workers = n_processes
+
+    if max_time_in_mins is not None:
+        solver.parameters.max_time_in_seconds = max_time_in_mins * 60
 
     status = solver.Solve(model, solution_printer)
 
@@ -86,7 +139,7 @@ def run_enumerator(model, solution_printer=None):
 
 def solve(
         residents, blocks, rotations, groups, cst_list, soln_printer,
-        objective_fn, n_processes, hint, dump_model=None
+        objective_fn, max_time_in_mins, n_processes, hint=None, dump_model=None
     ):
 
     block_assigned, model = generate_model(
@@ -123,6 +176,7 @@ def solve(
             objective_fn,
             n_processes=n_processes,
             solution_printer=solution_printer,
+            max_time_in_mins=max_time_in_mins
         )
     else:
         raise NotImplementedError("Still working on enumerator mode.")

@@ -68,7 +68,7 @@ def parse_args(argv):
     )
 
     parser.add_argument(
-        '--min-individual-rank', type=int, default=None
+        '--min-individual-rank', type=float, default=None
     )
 
     parser.add_argument(
@@ -79,52 +79,6 @@ def parse_args(argv):
     args = parser.parse_args(argv)
 
     return args
-
-
-def handle_count_specification(count_config, n_items):
-
-    if 'min' in count_config and 'max' in count_config:
-        rmin = expand_to_length_if_needed(count_config['min'], n_items)
-        rmax = expand_to_length_if_needed(count_config['max'], n_items)
-    else:
-        rmin = expand_to_length_if_needed(count_config[0], n_items)
-        rmax = expand_to_length_if_needed(count_config[1], n_items)
-
-    return rmin, rmax
-
-
-def expand_to_length_if_needed(var, length):
-
-    if not hasattr(var, '__len__'):
-        return [var]*length
-    else:
-        assert len(var) == length
-        return var
-
-
-def resolve_group(group, rotation_config):
-
-    rots = [
-        r for r, params in rotation_config.items()
-        if params and group in params.get('groups', [])
-    ]
-
-    return rots
-
-
-def add_group_count_per_resident_constraint(
-        model, block_assigned, residents, blocks,
-        rotations, n_min, n_max):
-
-    for res in residents:
-        ct = 0
-
-        for blk in blocks:
-            for rot in rotations:
-                ct += block_assigned[(res, blk, rot)]
-
-        model.Add(ct >= n_min)
-        model.Add(ct <= n_max)
 
 # def rank_sum_objective_old(block_assigned, rankings, residents, blocks, rotations):
 
@@ -163,123 +117,6 @@ def add_group_count_per_resident_constraint(
 #     return obj
 
 
-def accumulate_score_res_block_scores(score_dict, resident_block_scores, rotation):
-
-    for resident, block_scores in resident_block_scores.items():
-        for block, score in block_scores.items():
-            score_dict[(resident, block, rotation)] += score
-
-
-def accumulate_score_res_rot_scores(score_dict, resident_rot_scores):
-
-    blocks = set([b for (re, b, ro) in score_dict.keys()])
-
-    for resident, rot_scores in resident_rot_scores.items():
-        for rot, score in rot_scores.items():
-            for block in blocks:
-                score_dict[(resident, block, rot)] += score
-
-
-def objective_from_score_dict(block_assigned, scores):
-
-    assert set(block_assigned.keys()) == set(scores.keys())
-
-    obj = 0
-
-    for k in block_assigned:
-        obj += block_assigned[k] * scores[k]
-
-    return obj
-
-
-def process_config(config):
-
-    residents = list(config['residents'].keys())
-    blocks = list(config['blocks'].keys())
-    rotations = list(config['rotations'].keys())
-
-    groups = []
-    for rot, params in config['rotations'].items():
-        if not params:
-            continue
-        groups.extend(params.get('groups', []))
-    groups = list(set(groups))
-
-    return residents, blocks, rotations, groups
-
-
-def generate_resident_constraints(config):
-
-    cst_list = []
-
-    for res, params in config['residents'].items():
-        if not params:
-            continue
-
-        if 'pin_rotation' in params:
-            for pinned_rotation, pinned_blocks in params['pin_rotation'].items():
-                cst_list.append(
-                    csts.PinnedRotationConstraint(res, pinned_blocks, pinned_rotation)
-                )
-
-    return cst_list
-
-
-def generate_rotation_constraints(config):
-
-    constraints = []
-
-    for rotation, params in config['rotations'].items():
-
-        if not params:
-            continue
-        if 'coverage' in params:
-            rmin, rmax = handle_count_specification(params['coverage'], len(config['blocks']))
-            constraints.append(csts.RotationCoverageConstraint(rotation, rmin=rmin, rmax=rmax))
-        if 'must_be_followed_by' in params:
-            following_rotations = []
-            for key in params['must_be_followed_by']:
-                if key in config['rotations']:
-                    following_rotations.append(key)
-                else:
-                    following_rotations.extend(
-                        resolve_group(key, config['rotations']))
-
-            constraints.append(csts.MustBeFollowedByRotationConstraint(
-                rotation=rotation, following_rotations=following_rotations
-            ))
-
-        if 'prerequisite' in params:
-            constraints.append(csts.PrerequisiteRotationConstraint(
-                rotation=rotation, prerequisites=params['prerequisite']
-            ))
-
-        if 'cool_down' in params:
-            constraints.append(
-                csts.CoolDownConstraint.from_yml_dict(rotation, params)
-            )
-
-        if params.get('always_paired', False):
-            constraints.append(
-                csts.AlwaysPairedRotationConstraint(rotation)
-            )
-
-        if 'rot_count' in params:
-            rmin, rmax = handle_count_specification(
-                params['rot_count'], len(config['residents']))
-            constraints.append(
-                csts.RotationCountConstraint(rotation, rmin, rmax)
-            )
-
-        if 'not_rot_count' in params:
-            ct = params['not_rot_count']
-            constraints.append(
-                csts.RotationCountNotConstraint(rotation, ct)
-            )
-
-    return constraints
-
-
 def generate_block_constraints(config):
 
     constraints = []
@@ -310,91 +147,6 @@ def generate_block_constraints(config):
                     print(f"In {block}, {key}: Yes has no effect")
 
     return constraints
-
-
-def generate_backup_constraints(
-    config, n_residents_needed=2, backup_group_name='backup_eligible'):
-
-    constraints = []
-
-    for block, blk_params in config['blocks'].items():
-        if blk_params.get('backup_required', True):
-            constraints.append(
-                csts.BackupRequiredOnBlockBackupConstraint(
-                    block=block,
-                    n_residents_needed=n_residents_needed
-                )
-            )
-
-    for rotation, rot_params in config['rotations'].items():
-        if 'backup_count' in rot_params:
-            ct = int(rot_params['backup_count'])
-            constraints.append(
-                csts.RotationBackupCountConstraint(rotation, ct)
-            )
-
-    backup_eligible = {}
-    for rotation, rot_params in config['rotations'].items():
-        backup_eligible[rotation] = backup_group_name in rot_params.get('groups', {})
-    constraints.append(
-        csts.BackupEligibleBlocksBackupConstraint(backup_eligible)
-    )
-
-    return constraints
-
-def generate_constraints_from_configs(config):
-
-    constraints = []
-
-    constraints.extend(generate_rotation_constraints(config))
-
-    constraints.extend(generate_resident_constraints(config))
-
-    for cst in config['group_constraints']:
-        if cst['kind'] == 'all_group_count_per_resident':
-            constraints.append(
-                csts.GroupCountPerResidentPerWindow(
-                    rotations_in_group=resolve_group(cst['group'], config['rotations']),
-                    n_min=cst['count'][0], n_max=cst['count'][1], window_size = len(config['blocks']))
-            )
-        if cst['kind'] == 'window_group_count_per_resident':
-            constraints.append(
-                csts.GroupCountPerResidentPerWindow(
-                    rotations_in_group=resolve_group(cst['group'], config['rotations']),
-                    n_min=cst['count'][0], n_max=cst['count'][1], window_size = cst['window_size'])
-            )
-
-        if cst['kind'] == 'time_to_first':
-            constraints.append(
-                csts.TimeToFirstConstraint(
-                    rotations_in_group=resolve_group(cst['group'], config['rotations']), 
-                    window_size = cst['window_size'])
-            )
-    return constraints
-
-
-def score_dict_from_args(args, residents, blocks, rotations):
-
-    rankings = io.rankings_from_csv(args.rankings)
-
-    for res, rnk in rankings.items():
-        for rot in rnk:
-            assert rot in rotations, f"{rot} not in rotations"
-
-    scores = {}
-    for res in residents:
-        for block in blocks:
-            for rot in rotations:
-                scores[(res, block, rot)] = 0
-
-    accumulate_score_res_rot_scores(scores, rankings)
-
-    if args.block_resident_ranking is not None:
-        rotation, fname = args.block_resident_ranking
-        rot_blk_scores = pd.read_csv(fname, header=0, index_col=0, comment='#').T.to_dict()
-        accumulate_score_res_block_scores(scores, rot_blk_scores, rotation)
-
-    return scores
 
 
 def main(argv):
@@ -431,12 +183,20 @@ def main(argv):
 
     if args.hint is not None:
         hint = pd.read_csv(args.hint, header=0, index_col=0, comment='#')
+    else:
+        hint = None
 
     print("Residents:", len(residents))
     print("Blocks:", len(blocks))
     print("Rotations:", len(rotations))
 
-    scores = score_dict_from_args(args, residents, blocks, rotations)
+    scores = io.score_dict_from_df(
+        io.rankings_from_csv(args.rankings),
+        residents, blocks, rotations,
+        (block_resident_ranking[0],
+         pd.read_csv(block_resident_ranking[1],
+                     header=0, index_col=0, comment='#').T.to_dict())
+    )
     
     objective_fn = partial(
         objective_from_score_dict,
