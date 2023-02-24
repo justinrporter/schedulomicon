@@ -9,7 +9,7 @@ from functools import partial
 import pandas as pd
 import numpy as np
 
-from sched import csts, io, solve
+from sched import csts, io, solve, callback
 
 def parse_args(argv):
     parser = argparse.ArgumentParser(description='Process some integers.')
@@ -173,9 +173,9 @@ def main(argv):
             io.pin_constraints_from_csv(args.rotation_pins)
         )
 
-    if args.min_individual_rank is not None:
+    if args.min_individual_score is not None:
         cst_list.append(
-            csts.MinIndividualRankConstraint(rankings, args.min_individual_rank)
+            csts.MinIndividualScoreConstraint(rankings, args.min_individual_score)
         )
 
     for c in generate_backup_constraints(config):
@@ -203,10 +203,10 @@ def main(argv):
         scores=scores
     )
 
-    status, solver, solution_printer = solve.solve(
+    status, solver, solution_printer, model = solve.solve(
         residents, blocks, rotations, groups, cst_list,
         soln_printer=partial(
-            io.BlockSchedulePartialSolutionPrinter,
+            callback.BlockSchedulePartialSolutionPrinter,
             scores=scores,
             outfile=args.results,
             solution_limit=args.n_solutions,

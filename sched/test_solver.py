@@ -2,10 +2,10 @@ from functools import partial
 
 import pandas as pd
 
-from . import solve, io, csts
+from . import solve, io, csts, callback
 
 
-class TestSolnPrinter(io.BaseSolutionPrinter):
+class TestSolnPrinter(callback.BaseSolutionPrinter):
     def __init__(self, *args, **kwargs):
         self.solutions = []
         self.solution_count = 0

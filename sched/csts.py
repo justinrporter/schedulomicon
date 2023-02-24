@@ -1,6 +1,12 @@
 import itertools
+import numbers
+import logging
 
 from .exceptions import YAMLParseError
+
+
+logger = logging.getLogger(__name__)
+
 
 class Constraint:
 
@@ -344,27 +350,46 @@ class PinnedRotationConstraint(Constraint):
                 )
 
 
-class MinIndividualRankConstraint(Constraint):
+class MinIndividualScoreConstraint(Constraint):
 
-    def __init__(self, rankings, min_rank):
-        self.rankings = rankings
-        self.min_rank = min_rank
+    def __init__(self, scores, min_score):
+        assert isinstance(min_score, numbers.Number)
+        assert min_score == int(min_score)
+
+        self.scores = scores
+
+        self.min_score = int(min_score)
+        print(self.min_score)
+
+        logger.info(f"Created MinIndividualScoreConstraint with "
+                     f"min_score {self.min_score}")
+
 
     def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
 
         super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
 
+        assert set(residents) == set([res for res, _, _ in block_assigned.keys()])
+
         for res in residents:
             res_obj = 0
+            ct = 0
             for rot in rotations:
-                if res in self.rankings and rot in self.rankings[res]:
-                    for blk in blocks:
-                        res_obj += (
-                            self.rankings[res][rot] *
-                            block_assigned[res, blk, rot]
-                        )
+                for blk in blocks:
+                    k = (res, blk, rot)
+                    x = self.scores[k]
 
-            model.Add(res_obj <= self.min_rank)
+                    assert int(x) == x, f"Score for {x} {k} is not an integer"
+
+                    res_obj += int(x) * block_assigned[k]
+                    ct += 1
+
+            logger.debug(f"Added {ct} scores for {res} in MinIndividualScoreConstraint")
+            model.Add(res_obj < self.min_score)
+
+        logger.info(f"Applied individual resident utility < {self.min_score} to "
+                     f"{len(residents)} residents")
+
 
 class TimeToFirstConstraint(Constraint):
 
@@ -381,7 +406,8 @@ class TimeToFirstConstraint(Constraint):
             for blk in blocks[:self.window_size]:
                 for rot in self.rotations_in_group:
                     count += block_assigned[(res, blk, rot)]
-            model.Add(count >= 1)
+
+            model.Add(count > 1)
 
 
 class GroupCountPerResidentPerWindow(Constraint):

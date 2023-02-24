@@ -1,8 +1,11 @@
 import datetime
+import logging
 
 from ortools.sat.python import cp_model
 
-from . import csts
+from . import csts, util
+
+logger = logging.getLogger(__name__)
 
 
 def accumulate_score_res_block_scores(score_dict, resident_block_scores, rotation):
@@ -92,19 +95,23 @@ def generate_backup(model, residents, blocks, n_backup_blocks):
 
     return block_backup
 
+
 def add_result_as_hint(model, block_assigned, residents, blocks, rotations, hint):
     for res in residents:
         for block in blocks:
             for rot in rotations:
-                if hint[res][block] == rot: 
-                    model.AddHint(block_assigned[res,block,rot],1)
-                else:
-                    model.AddHint(block_assigned[res,block,rot],0) 
+                model.AddHint(
+                    block_assigned[res,block,rot],
+                    hint[res][block] == rot
+                )
+
 
 def run_optimizer(model, objective_fn, max_time_in_mins, solution_printer=None, n_processes=None):
 
     if n_processes is None:
-        n_processes = 1
+        n_processes = util.get_parallelism()
+    logger.info("Planning to use {n_processes} threads.")
+    print(f"Planning to use {n_processes} threads.")
 
     # Creates the solver and solve.
     solver = cp_model.CpSolver()
@@ -139,7 +146,7 @@ def run_enumerator(model, solution_printer=None):
 
 def solve(
         residents, blocks, rotations, groups, cst_list, soln_printer,
-        objective_fn, max_time_in_mins, n_processes, hint=None, dump_model=None
+        objective_fn, max_time_in_mins, hint=None
     ):
 
     block_assigned, model = generate_model(
@@ -162,31 +169,38 @@ def solve(
         rotations,
     )
 
-    print('Starting search:', datetime.datetime.now())
+    start_time = datetime.datetime.now()
+    print('Starting search:', start_time)
 
     if objective_fn:
 
         objective_fn = objective_fn(block_assigned)
 
-        if dump_model is not None:
-            model.ExportToFile(dump_model)
-
         status, solver = run_optimizer(
             model,
             objective_fn,
-            n_processes=n_processes,
             solution_printer=solution_printer,
             max_time_in_mins=max_time_in_mins
         )
     else:
         raise NotImplementedError("Still working on enumerator mode.")
 
-        if dump_model is not None:
-            model.ExportToFile(dump_model)
-
         status, solver = run_enumerator(
             model,
             solution_printer=solution_printer
         )
 
-    return status, solver, solution_printer
+    # compare the actual runtime to the requested runtime and throw an
+    # error if it doesn't kinda match
+    end_time = datetime.datetime.now()
+    runtime_in_minutes = (end_time - start_time).total_seconds() / 60
+
+    print(status)
+    if status == "FEASIBLE":
+        assert abs(runtime_in_minutes - max_time_in_mins) < 5, (
+            f"Marking results as error, since actual runtime of "
+            f"{runtime_in_minutes} wasn't close (within 5m) of requested "
+            f"runtime {max_time_in_mins}"
+        )
+
+    return status, solver, solution_printer, model
