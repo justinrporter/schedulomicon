@@ -53,6 +53,10 @@ def parse_args(argv):
     )
 
     parser.add_argument(
+        '--no-backup', default=False, action='store_true',
+    )
+
+    parser.add_argument(
         '-p', '--n_processes', default=1, type=int,
         help='The number of search workers for OR-Tools to use.'
     )
@@ -156,9 +160,9 @@ def main(argv):
     with open(args.config, 'r') as f:
         config = yaml.safe_load(f)
 
-    residents, blocks, rotations, groups = process_config(config)
+    residents, blocks, rotations, groups = io.process_config(config)
 
-    cst_list = generate_constraints_from_configs(config)
+    cst_list = io.generate_constraints_from_configs(config)
 
     if args.coverage_min:
         cst_list.extend(
@@ -173,13 +177,14 @@ def main(argv):
             io.pin_constraints_from_csv(args.rotation_pins)
         )
 
-    if args.min_individual_score is not None:
+    if args.min_individual_rank is not None:
         cst_list.append(
-            csts.MinIndividualScoreConstraint(rankings, args.min_individual_score)
+            csts.MinIndividualScoreConstraint(rankings, args.min_individual_rank)
         )
 
-    for c in generate_backup_constraints(config):
-        cst_list.append(c)
+    if not args.no_backup:
+        for c in generate_backup_constraints(config):
+            cst_list.append(c)
 
     if args.hint is not None:
         hint = pd.read_csv(args.hint, header=0, index_col=0, comment='#')
@@ -190,16 +195,21 @@ def main(argv):
     print("Blocks:", len(blocks))
     print("Rotations:", len(rotations))
 
-    scores = io.score_dict_from_df(
+    if args.block_resident_ranking:
+        block_resident_ranking = (
+            args.block_resident_ranking[0],
+            pd.read_csv(args.block_resident_ranking[1],
+                        header=0, index_col=0, comment='#').T.to_dict())
+    else:
+        block_resident_ranking = None
+
+    scores = solve.score_dict_from_df(
         io.rankings_from_csv(args.rankings),
-        residents, blocks, rotations,
-        (block_resident_ranking[0],
-         pd.read_csv(block_resident_ranking[1],
-                     header=0, index_col=0, comment='#').T.to_dict())
+        residents, blocks, rotations, block_resident_ranking
     )
-    
+
     objective_fn = partial(
-        objective_from_score_dict,
+        solve.objective_from_score_dict,
         scores=scores
     )
 
@@ -214,7 +224,8 @@ def main(argv):
         objective_fn=objective_fn,
         dump_model=args.dump_model,
         n_processes=args.n_processes,
-        hint=hint
+        hint=hint,
+        max_time_in_mins=None
     )
 
     # Statistics.
