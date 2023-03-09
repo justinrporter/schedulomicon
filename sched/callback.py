@@ -1,10 +1,12 @@
 import datetime
 import logging
+import csv
 
 import pandas as pd
 
 from ortools.sat.python import cp_model
 
+from . import io
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +131,7 @@ class BlockSchedulePartialSolutionPrinter(BaseSolutionPrinter):
             self._outfile.replace('npz', 'csv') % self._solution_count
         )
 
-        score_table = compute_score_table(
+        score_table = io.compute_score_table(
             self._scores,
             {k: self.Value(v) for k, v in self._block_assigned.items()},
             self._residents, self._blocks, self._rotations

@@ -165,18 +165,40 @@ class RotationCoverageConstraint(Constraint):
 
 class PrerequisiteRotationConstraint(Constraint):
 
-    def __init__(self, rotation, prerequisites):
+    def __init__(self, rotation, prerequisites=None, prereq_counts=None):
         self.rotation = rotation
-        self.prerequisites = prerequisites
+
+        assert prerequisites is not None or prereq_counts is not None
+        assert prerequisites is None or prereq_counts is None
+
+        if prerequisites is not None:
+            assert prereq_counts is None
+
+            self.prerequisites = {}
+            for p in prerequisites:
+                self.prerequisites[(p,)] = 1
+        else:
+            # has the form {(rot1, rot2): 2, (rot3,): 1}
+            # indicates rot1 and/or rot2 twice, rot3 once
+            self.prerequisites = prereq_counts
+
+        logger.debug('Rotation %s prerequisites %s', rotation, self.prerequisites)
 
     def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
 
         super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
 
-        add_prerequisite_constraint(
-            model, block_assigned, residents, blocks,
-            rotation=self.rotation, prerequisites=self.prerequisites
-        )
+        for resident in residents:
+            for i in range(len(blocks)):
+                rot_is_assigned = block_assigned[(resident, blocks[i], self.rotation)]
+
+                for prereq_grp, req_ct in self.prerequisites.items():
+                    for prereq in prereq_grp:
+                        n_prereq_instances = 0
+                        for j in range(0, i):
+                            n_prereq_instances += block_assigned[(resident, blocks[j], prereq)]
+
+                    model.Add(n_prereq_instances >= req_ct).OnlyEnforceIf(rot_is_assigned)
 
 
 class AlwaysPairedRotationConstraint(Constraint):
@@ -464,21 +486,6 @@ def add_must_be_paired_constraint(model, block_assigned, residents, blocks,
         model.Add(
             block_assigned[(resident, b2, rot_name)] == 1
         ).OnlyEnforceIf(block_assigned[(resident, b1, rot_name)])
-
-
-def add_prerequisite_constraint(model, block_assigned, residents, blocks,
-                                rotation, prerequisites):
-
-    for resident in residents:
-        for i in range(len(blocks)):
-            rot_is_assigned = block_assigned[(resident, blocks[i], rotation)]
-
-            for prereq in prerequisites:
-                n_prereq_instances = 0
-                for j in range(0, i):
-                    n_prereq_instances += block_assigned[(resident, blocks[j], prereq)]
-
-                model.Add(n_prereq_instances >= 1).OnlyEnforceIf(rot_is_assigned)
 
 
 def add_must_be_followed_by_constraint(model, block_assigned, residents, blocks,

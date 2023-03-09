@@ -172,9 +172,24 @@ def generate_rotation_constraints(config):
             ))
 
         if 'prerequisite' in params:
-            constraints.append(csts.PrerequisiteRotationConstraint(
-                rotation=rotation, prerequisites=params['prerequisite']
-            ))
+            if hasattr(params['prerequisite'], 'keys'):
+                # prereq defn is a dictionary
+                prereq_counts = {}
+                for p, c in params['prerequisite'].items():
+                    if p in config['rotations']:
+                        prereq_counts[(p,)] = c
+                    else:
+                        prereq_counts[tuple(resolve_group(p, config['rotations']))] = c
+
+                constraints.append(csts.PrerequisiteRotationConstraint(
+                    rotation=rotation,
+                    prereq_counts=prereq_counts
+                ))
+            else:
+                # prereq defn is a list
+                constraints.append(csts.PrerequisiteRotationConstraint(
+                    rotation=rotation, prerequisites=params['prerequisite']
+                ))
 
         if 'cool_down' in params:
             constraints.append(
