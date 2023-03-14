@@ -4,3 +4,4 @@ sftp-config.json
 __pycache__
 results/*
 .DS_Store
+inputs.code-workspace

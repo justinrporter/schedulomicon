@@ -106,7 +106,7 @@ def add_result_as_hint(model, block_assigned, residents, blocks, rotations, hint
                 )
 
 
-def run_optimizer(model, objective_fn, max_time_in_mins, solution_printer=None, n_processes=None):
+def run_optimizer(model, objective_fn, n_processes=None, solution_printer=None, max_time_in_mins=60):
 
     if n_processes is None:
         n_processes = util.get_parallelism()
@@ -131,7 +131,7 @@ def run_optimizer(model, objective_fn, max_time_in_mins, solution_printer=None, 
     return status, solver
 
 
-def run_enumerator(model, solution_printer=None):
+def run_enumerator(model, objective_fn, solution_printer=None):
 
     solver = cp_model.CpSolver()
     solver.parameters.linearization_level = 2
@@ -146,7 +146,7 @@ def run_enumerator(model, solution_printer=None):
 
 def solve(
         residents, blocks, rotations, groups, cst_list, soln_printer,
-        objective_fn, max_time_in_mins, hint=None
+        objective_fn, max_time_in_mins, n_processes = None, hint=None
     ):
 
     block_assigned, model = generate_model(
@@ -179,6 +179,7 @@ def solve(
         status, solver = run_optimizer(
             model,
             objective_fn,
+            n_processes,
             solution_printer=solution_printer,
             max_time_in_mins=max_time_in_mins
         )
@@ -187,6 +188,7 @@ def solve(
 
         status, solver = run_enumerator(
             model,
+            objective_fn,
             solution_printer=solution_printer
         )
 

@@ -35,6 +35,8 @@ def generate_resident_constraints(config):
                 cst_list.append(
                     csts.PinnedRotationConstraint(res, pinned_blocks, pinned_rotation)
                 )
+        if 'vacation_window' in params:
+            cst_list.append(csts.RotationWindowConstraint(res, 'Vacation', params['vacation_window'].items()))
 
     return cst_list
 
@@ -131,6 +133,14 @@ def resolve_group(group, rotation_config):
 
     return rots
 
+def resolve_resident_group(group, res_config):
+
+    res = [
+        r for r, params in res_config.items()
+        if params and group in params.get('resident_group', [])
+    ]
+
+    return res
 
 def add_group_count_per_resident_constraint(
         model, block_assigned, residents, blocks,
@@ -145,7 +155,6 @@ def add_group_count_per_resident_constraint(
 
         model.Add(ct >= n_min)
         model.Add(ct <= n_max)
-
 
 def generate_rotation_constraints(config):
 
@@ -213,6 +222,17 @@ def generate_rotation_constraints(config):
             constraints.append(
                 csts.RotationCountNotConstraint(rotation, ct)
             )
+
+        if 'requires_resident_group' in params:
+            eligible_residents = []
+            for group in params['requires_resident_group']:
+                eligible_residents.append(resolve_resident_group(group, config['residents']))
+            constraints.append(csts.ResidentGroupConstraint(rotation, eligible_residents))
+        
+        if 'late_CA2' in params:
+            if params['late_CA2'] == True:
+                group = resolve_resident_group('CA2', config['residents'])
+                constraints.append(csts.EligibleAfterBlockConstraint(rotation,group,'Block 7'))
 
     return constraints
 

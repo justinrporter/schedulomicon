@@ -371,6 +371,28 @@ class PinnedRotationConstraint(Constraint):
                         self.resident, pinned_block, self.pinned_rotation] == 1
                 )
 
+class RotationWindowConstraint(Constraint):
+
+    def __repr__(self):
+        return "%s(%s,%s,%s)" % (
+            self.__class__, self.resident, self.rotation, self.possible_blocks)
+
+    def __init__(self, resident, rotation, possible_blocks):
+
+        self.resident = resident
+        self.rotation = rotation
+        self.possible_blocks = possible_blocks
+
+    def apply(self, model, block_assigned, residents, blocks, rotations):
+
+        super().apply(model, block_assigned, residents, blocks, rotations)
+
+        # Rotation is assigned to the resident somewhere in the "possible_blocks"
+        sum = 0
+        for block in self.possible_blocks:
+            sum += block_assigned[self.resident, block, self.rotation]
+
+        model.Add(sum >= 1)
 
 class MinIndividualScoreConstraint(Constraint):
 
@@ -454,6 +476,43 @@ class GroupCountPerResidentPerWindow(Constraint):
             self.rotations_in_group, self.window, self.n_min, self.n_max
         )
 
+class ResidentGroupConstraint(Constraint):
+
+    def __init__(self, rotation, eligible_residents):
+
+        self.rotation = rotation
+        self.eligible_residents = eligible_residents
+
+    def apply(self, model, block_assigned, residents, blocks):
+
+        super().apply(model, block_assigned, residents, blocks)
+
+        add_resident_group_constraint(
+            model, block_assigned, residents, blocks,
+            self.rotation, self.eligible_residents
+        )
+
+class EligibleAfterBlockConstraint(Constraint):
+
+    def __init__(self, rotation, resident_group, eligible_after_block):
+
+        self.rotation = rotation
+        self.resident_group = resident_group
+        self.eligible_after_block = eligible_after_block
+
+    def apply(self, model, block_assigned, residents, blocks, rotations):
+
+        super().apply(model, block_assigned, residents, blocks, rotations)
+
+        eligible_index = blocks.index(self.eligible_after_block)+1
+        ineligible_blocks = blocks[:eligible_index]
+
+        add_resident_group_constraint(
+            model, block_assigned, residents, blocks, rotations,
+            self.rotation, self.resident_group, ineligible_blocks
+        )
+
+
 
 def add_must_be_paired_constraint(model, block_assigned, residents, blocks,
                                   rot_name):
@@ -519,3 +578,15 @@ def add_window_count_constraint(model, block_assigned, residents, blocks,
                     ct += block_assigned[(res, blk, rot)]
             model.Add(ct >= n_min)
             model.Add(ct <= n_max)
+
+def add_resident_group_constraint(model, block_assigned, residents, blocks,
+                                rotation, eligible_residents, ineligible_blocks = None):
+# If all blocks are indicated, adds a constrains that the sum of blocks = 0 if the resident is not in "eligible residents" group
+    for res in residents:
+        if ineligible_blocks is None:
+            n = sum(block_assigned[(res, block, rotation)] for block in blocks)
+            model.Add(n == 0).OnlyEnforceIf(res not in eligible_residents)
+# If only certain 'eligible blocks' have been indicated, makes sure that the eligible_residents are NOT assigned the rotation during an ineligible block)
+        else:
+            n = sum(block_assigned[(res, block, rotation)] for block in ineligible_blocks)
+            model.Add(n == 0).OnlyEnforceIf(res in eligible_residents)
