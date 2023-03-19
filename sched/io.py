@@ -90,7 +90,7 @@ def generate_resident_constraints(config, groups_array):
 
         if 'pins' in params:
             for pin_constraints in params['pins'].items():
-                eligible_sector = resolve_group(pin_constraints, groups_array)
+                eligible_sector = resolve_pinned_group(pin_constraints, groups_array, residents, blocks, rotations)
                 cst_list.append(
                     csts.PinnedRotationConstraint(eligible_sector)
                 )
@@ -184,17 +184,17 @@ def expand_to_length_if_needed(var, length):
         return var
 
 
-# def resolve_group(group, rotation_config):
+def resolve_group(group, rotation_config):
 
-#     rots = [
-#         r for r, params in rotation_config.items()
-#         if params and group in params.get('groups', [])
-#     ]
+    rots = [
+        r for r, params in rotation_config.items()
+        if params and group in params.get('groups', [])
+    ]
 
-#     return rots
+    return rots
 
 
-def resolve_group(group_logic, groups_array):
+def resolve_pinned_group(group_logic, groups_array, residents, blocks, rotations):
 
     group = pp.Word(pp.alphanums+"_-" + "''")
 
@@ -202,7 +202,12 @@ def resolve_group(group_logic, groups_array):
     def resolve_identifier(gramm: pp.ParseResults):
         if gramm[0] in groups_array.keys():
             return groups_array[gramm[0]]
-        else: print('not found', gramm)
+        elif gramm[0] in rotations:
+            rot_array = np.zeros_like(groups_array[gramm[0]]).astype(bool)
+            for i, res in enumerate(rot_array):
+                for j, block in enumerate(rot_array[i]):
+                   rot_array[i][j][rotations.index(gramm[0])] = True
+            return rot_array
 
     group.setParseAction(resolve_identifier)
         
@@ -231,15 +236,6 @@ def resolve_group(group_logic, groups_array):
     
     eligible_sector = gramm.parse_string(group_logic)
     return eligible_sector
-
-def resolve_resident_group(group, res_config):
-
-    res = [
-        r for r, params in res_config.items()
-        if params and group in params.get('groups', [])
-    ]
-
-    return res
 
 def add_group_count_per_resident_constraint(
         model, block_assigned, residents, blocks,
@@ -321,17 +317,6 @@ def generate_rotation_constraints(config):
             constraints.append(
                 csts.RotationCountNotConstraint(rotation, ct)
             )
-
-        if 'requires_resident_group' in params:
-            eligible_residents = []
-            for group in params['requires_resident_group']:
-                eligible_residents.append(resolve_resident_group(group, config['residents']))
-            constraints.append(csts.ResidentGroupConstraint(rotation, eligible_residents))
-        
-        if 'late_CA2' in params:
-            if params['late_CA2'] == True:
-                group = resolve_resident_group('CA2', config['residents'])
-                constraints.append(csts.EligibleAfterBlockConstraint(rotation,group,'Block 7'))
 
     return constraints
 

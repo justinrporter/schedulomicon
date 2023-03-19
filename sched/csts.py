@@ -1,6 +1,7 @@
 import itertools
 import numbers
 import logging
+import numpy as np
 
 from .exceptions import YAMLParseError
 
@@ -324,7 +325,6 @@ class RotationCountConstraint(Constraint):
             model.Add(r_tot >= nmin)
             model.Add(r_tot <= nmax)
 
-
 class RotationCountNotConstraint(Constraint):
 
     def __init__(self, rotation, ct):
@@ -338,8 +338,6 @@ class RotationCountNotConstraint(Constraint):
         for resident in residents:
             r_tot = sum(block_assigned[(resident, block, self.rotation)] for block in blocks)
             model.Add(r_tot != self.ct)
-
-
 
 class PinnedRotationConstraint(Constraint):
 
@@ -450,7 +448,6 @@ class MinIndividualScoreConstraint(Constraint):
 
         logger.info(f"Applied individual resident utility < {self.min_score} to "
                      f"{len(residents)} residents")
-
 
 class TimeToFirstConstraint(Constraint):
 
