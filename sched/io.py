@@ -6,23 +6,80 @@ import pandas as pd
 from . import csts
 
 
+def get_group_array(group, config, group_type):
+    
+    residents = list(config['residents'].keys())
+    blocks = list(config['blocks'].keys())
+    rotations = list(config['rotations'].keys())
+
+    n_res = len(residents)
+    n_blocks = len(blocks)
+    n_rots = len(rotations)
+
+    group_array = np.dstack([np.stack([[False]*n_res]*n_blocks).T]*n_rots)
+
+    if group_type == 'residents':
+        for res, params in config['residents'].items():
+            if not params: continue
+            if group in params.get('groups', []):
+                group_array[residents.index(res)] = True
+    elif group_type == 'blocks':
+        for block, params in config['blocks'].items():
+            if not params: continue
+            if group in params.get('groups', []):
+                for i, res in enumerate(group_array):
+                    group_array[i][blocks.index(block)] = True
+    elif group_type == 'rotations':
+        for rotation, params in config['rotations'].items():
+            if not params: continue
+            if group in params.get('groups', []):
+                for i, res in enumerate(group_array):
+                    for j, block in enumerate(group_array[i]):
+                        group_array[i][j][rotations.index(rotation)] = True
+    return group_array
+
 def process_config(config):
 
     residents = list(config['residents'].keys())
     blocks = list(config['blocks'].keys())
     rotations = list(config['rotations'].keys())
+    
+    groups = {
+        'residents': [],
+        'blocks': [],
+        'rotations': []
+    }
 
-    groups = []
-    for rot, params in config['rotations'].items():
-        if not params:
-            continue
-        groups.extend(params.get('groups', []))
-    groups = list(set(groups))
+    for config_type in ['residents', 'blocks', 'rotations']:
+        for item, params in config[config_type].items():
+            if not params: continue
+            groups[config_type].extend(params.get('groups', []))
+        groups[config_type] = list(set(groups[config_type]))
 
-    return residents, blocks, rotations, groups
+    groups_array = {}
+    for group_type in groups:
+        for group in group_type:
+            groups_array[group] = get_group_array(group, config, group_type = group_type)
+
+    return residents, blocks, rotations, groups_array
+
+# def process_config(config):
+
+#     residents = list(config['residents'].keys())
+#     blocks = list(config['blocks'].keys())
+#     rotations = list(config['rotations'].keys())
+
+#     groups = []
+#     for rot, params in config['rotations'].items():
+#         if not params:
+#             continue
+#         groups.extend(params.get('groups', []))
+#     groups = list(set(groups))
+
+#     return residents, blocks, rotations, groups
 
 
-def generate_resident_constraints(config):
+def generate_resident_constraints(config, groups_array):
 
     cst_list = []
 
@@ -30,11 +87,13 @@ def generate_resident_constraints(config):
         if not params:
             continue
 
-        if 'pin_rotation' in params:
-            for pinned_rotation, pinned_blocks in params['pin_rotation'].items():
+        if 'pins' in params:
+            for pin_constraints in params['pins'].items():
+                eligible_sector = resolve_group(pin_constraints, groups_array[res])
                 cst_list.append(
-                    csts.PinnedRotationConstraint(res, pinned_blocks, pinned_rotation)
+                    csts.PinnedRotationConstraint(eligible_sector)
                 )
+                #TODO - can you send a sector of all residents at once?
         if 'vacation_window' in params:
             cst_list.append(csts.RotationWindowConstraint(res, 'Vacation', params['vacation_window'].items()))
 
@@ -124,20 +183,44 @@ def expand_to_length_if_needed(var, length):
         return var
 
 
-def resolve_group(group, rotation_config):
+# def resolve_group(group, rotation_config):
 
-    rots = [
-        r for r, params in rotation_config.items()
-        if params and group in params.get('groups', [])
-    ]
+#     rots = [
+#         r for r, params in rotation_config.items()
+#         if params and group in params.get('groups', [])
+#     ]
 
-    return rots
+#     return rots
+
+
+def resolve_group(group_logic, groups_array):
+    group = pp.Word(pp.alphanums+"_-").set_name("set")
+    @group.set_parse_action
+
+    def resolve_identifier(gramm: pp.ParseResults):
+        #print('parse action occuring:',groups_array[gramm[0]])
+        return groups_array[gramm[0]]
+                       
+    gramm = pp.infixNotation(
+        group("set"),
+        [
+            (pp.oneOf("not !"), 1, pp.opAssoc.RIGHT),
+            (pp.oneOf("and &"), 2, pp.opAssoc.LEFT), 
+            (pp.oneOf("or |"), 2, pp.opAssoc.LEFT),   
+        ]
+    )
+    
+    eligible_sector = gramm.parse_string(group_logic)
+
+    #TODO --- this is broken still, need to figure out how to resolve the groups and incorporate the logic (ask justin for his code?)
+
+    return eligible_sector
 
 def resolve_resident_group(group, res_config):
 
     res = [
         r for r, params in res_config.items()
-        if params and group in params.get('resident_group', [])
+        if params and group in params.get('groups', [])
     ]
 
     return res

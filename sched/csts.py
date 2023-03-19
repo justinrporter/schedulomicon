@@ -340,36 +340,53 @@ class RotationCountNotConstraint(Constraint):
             model.Add(r_tot != self.ct)
 
 
+
 class PinnedRotationConstraint(Constraint):
 
-    def __repr__(self):
-        return "%s(%s,%s,%s)" % (
-            self.__class__, self.resident, self.pinned_blocks, self.pinned_rotation)
+    # def __repr__(self):
+    #     return "%s(%s,%s,%s)" % (
+    #         self.__class__, self.resident, self.pinned_blocks, self.pinned_rotation)
 
-    def __init__(self, resident, pinned_blocks, pinned_rotation):
+    # def __init__(self, resident, pinned_blocks, pinned_rotation):
 
-        self.resident = resident
-        self.pinned_blocks = pinned_blocks
-        self.pinned_rotation = pinned_rotation
+    #     self.resident = resident
+    #     self.pinned_blocks = pinned_blocks
+    #     self.pinned_rotation = pinned_rotation
 
+
+    def __init__(self, eligible_sector):
+        self.eligible_sector = eligible_sector
+    
     def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
 
         super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
 
-        # if the block to pin is unspecified, the rotation is assigned to the
-        # resident somewhere in the schedule
-        if len(self.pinned_blocks) == 0:
-            model.Add(
-                sum(block_assigned[self.resident, block, self.pinned_rotation]
-                    for block in blocks) >= 1
-            )
-        # otherwise we pin the specific block
-        else:
-            for pinned_block in self.pinned_blocks:
+        # # if the block to pin is unspecified, the rotation is assigned to the
+        # # resident somewhere in the schedule
+        # if len(self.pinned_blocks) == 0:
+        #     model.Add(
+        #         sum(block_assigned[self.resident, block, self.pinned_rotation]
+        #             for block in blocks) >= 1
+        #     )
+        # # otherwise we pin the specific block
+        # else:
+        #     for pinned_block in self.pinned_blocks:
+        #         model.Add(
+        #             block_assigned[
+        #                 self.resident, pinned_block, self.pinned_rotation] == 1
+        #         )
+
+        for (x,y,z), value in np.ndenumerate(self.eligible_sector):
+            sum = 0
+            #TODO - adjust this so you can require a pin of 2 or 3 blocks etc. 
+            if value == False:
                 model.Add(
-                    block_assigned[
-                        self.resident, pinned_block, self.pinned_rotation] == 1
-                )
+                        block_assigned[
+                            residents[x], blocks[y], rotations[z]] == 0
+                    )
+            elif value == True:
+                sum += 1
+            model.Add(sum >= 1)
 
 class RotationWindowConstraint(Constraint):
 
