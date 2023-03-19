@@ -2,6 +2,7 @@ import csv
 
 import numpy as np
 import pandas as pd
+import pyparsing as pp
 
 from . import csts
 
@@ -89,7 +90,7 @@ def generate_resident_constraints(config, groups_array):
 
         if 'pins' in params:
             for pin_constraints in params['pins'].items():
-                eligible_sector = resolve_group(pin_constraints, groups_array[res])
+                eligible_sector = resolve_group(pin_constraints, groups_array)
                 cst_list.append(
                     csts.PinnedRotationConstraint(eligible_sector)
                 )
@@ -194,26 +195,41 @@ def expand_to_length_if_needed(var, length):
 
 
 def resolve_group(group_logic, groups_array):
-    group = pp.Word(pp.alphanums+"_-").set_name("set")
-    @group.set_parse_action
 
+    group = pp.Word(pp.alphanums+"_-" + "''")
+
+    #@group.set_parse_action
     def resolve_identifier(gramm: pp.ParseResults):
-        #print('parse action occuring:',groups_array[gramm[0]])
-        return groups_array[gramm[0]]
-                       
+        if gramm[0] in groups_array.keys():
+            return groups_array[gramm[0]]
+        else: print('not found', gramm)
+
+    group.setParseAction(resolve_identifier)
+        
+    def notParseAction(object):
+        set = object[0][1]
+        return ~set
+
+    def andParseAction(object):
+        print(object)
+        set = object[0][0] and object[0][2]
+        return set
+
+    def orParseAction(object):
+        print(object)
+        set = object[0][0] or object[0][2]
+        return set
+        
     gramm = pp.infixNotation(
-        group("set"),
+        group,
         [
-            (pp.oneOf("not !"), 1, pp.opAssoc.RIGHT),
-            (pp.oneOf("and &"), 2, pp.opAssoc.LEFT), 
-            (pp.oneOf("or |"), 2, pp.opAssoc.LEFT),   
+            (pp.oneOf("not !"), 1, pp.opAssoc.RIGHT, notParseAction),
+            (pp.oneOf("and &"), 2, pp.opAssoc.LEFT, andParseAction), 
+            (pp.oneOf("or |"), 2, pp.opAssoc.LEFT, orParseAction)   
         ]
     )
     
     eligible_sector = gramm.parse_string(group_logic)
-
-    #TODO --- this is broken still, need to figure out how to resolve the groups and incorporate the logic (ask justin for his code?)
-
     return eligible_sector
 
 def resolve_resident_group(group, res_config):
