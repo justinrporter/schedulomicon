@@ -58,7 +58,7 @@ def score_dict_from_df(rankings, residents, blocks, rotations, block_resident_ra
     return scores
 
 
-def generate_model(residents, blocks, rotations, groups):
+def generate_model(residents, blocks, rotations, groups_array):
 
     model = cp_model.CpModel()
 
@@ -145,12 +145,12 @@ def run_enumerator(model, objective_fn, solution_printer=None):
 
 
 def solve(
-        residents, blocks, rotations, groups, cst_list, soln_printer,
+        residents, blocks, rotations, groups_array, cst_list, soln_printer,
         objective_fn, max_time_in_mins, n_processes = None, hint=None
     ):
 
     block_assigned, model = generate_model(
-        residents, blocks, rotations, groups
+        residents, blocks, rotations, groups_array
     )
 
     block_backup = generate_backup(model, residents, blocks, n_backup_blocks=2)

@@ -59,7 +59,7 @@ def process_config(config):
 
     groups_array = {}
     for group_type in groups:
-        for group in group_type:
+        for group in groups[group_type]:
             groups_array[group] = get_group_array(group, config, group_type = group_type)
 
     return residents, blocks, rotations, groups_array
@@ -89,14 +89,14 @@ def generate_resident_constraints(config, groups_array):
             continue
 
         if 'pins' in params:
-            for pin_constraints in params['pins'].items():
-                eligible_sector = resolve_pinned_group(pin_constraints, groups_array, residents, blocks, rotations)
+            for pin_constraints in params['pins']:
+                eligible_sector = resolve_pinned_group(pin_constraints, groups_array, config['residents'].keys(), config['blocks'].keys(), config['rotations'].keys())
                 cst_list.append(
                     csts.PinnedRotationConstraint(eligible_sector)
                 )
                 #TODO - can you send a sector of all residents at once?
         if 'vacation_window' in params:
-            cst_list.append(csts.RotationWindowConstraint(res, 'Vacation', params['vacation_window'].items()))
+            cst_list.append(csts.RotationWindowConstraint(res, 'Vacation', params['vacation_window']))
 
     return cst_list
 
@@ -132,13 +132,13 @@ def generate_backup_constraints(
     return constraints
 
 
-def generate_constraints_from_configs(config):
+def generate_constraints_from_configs(config, groups_array):
 
     constraints = []
 
     constraints.extend(generate_rotation_constraints(config))
 
-    constraints.extend(generate_resident_constraints(config))
+    constraints.extend(generate_resident_constraints(config, groups_array))
 
     for cst in config['group_constraints']:
         if cst['kind'] == 'all_group_count_per_resident':
@@ -203,10 +203,11 @@ def resolve_pinned_group(group_logic, groups_array, residents, blocks, rotations
         if gramm[0] in groups_array.keys():
             return groups_array[gramm[0]]
         elif gramm[0] in rotations:
-            rot_array = np.zeros_like(groups_array[gramm[0]]).astype(bool)
+            print(groups_array.keys())
+            rot_array = np.zeros_like(groups_array['CA1']).astype(bool)
             for i, res in enumerate(rot_array):
                 for j, block in enumerate(rot_array[i]):
-                   rot_array[i][j][rotations.index(gramm[0])] = True
+                   rot_array[i][j][list(rotations).index(gramm[0])] = True
             return rot_array
 
     group.setParseAction(resolve_identifier)
@@ -216,13 +217,11 @@ def resolve_pinned_group(group_logic, groups_array, residents, blocks, rotations
         return ~set
 
     def andParseAction(object):
-        print(object)
-        set = object[0][0] and object[0][2]
+        set = object[0][0] & object[0][2]
         return set
 
     def orParseAction(object):
-        print(object)
-        set = object[0][0] or object[0][2]
+        set = object[0][0] | object[0][2]
         return set
         
     gramm = pp.infixNotation(
@@ -352,25 +351,25 @@ def coverage_constraints_from_csv(fname, rmin_or_rmax):
     return constraints
 
 
-def pin_constraints_from_csv(fname):
+# def pin_constraints_from_csv(fname):
 
-    coverage_pins = pd.read_csv(fname, header=0, index_col=0, comment='#')
+#     coverage_pins = pd.read_csv(fname, header=0, index_col=0, comment='#')
 
-    constraints = []
-    for block, rot_dict in coverage_pins.to_dict().items():
-        for resident, rotation in rot_dict.items():
-            if hasattr(rotation, '__len__'):
-                # TODO: it sucks this is hard-coded
-                if block == "Rotation(s) Somewhere":
-                    constraints.append(
-                        csts.PinnedRotationConstraint(resident, [], rotation)
-                    )
-                else:
-                    constraints.append(
-                        csts.PinnedRotationConstraint(resident, [block], rotation)
-                    )
+#     constraints = []
+#     for block, rot_dict in coverage_pins.to_dict().items():
+#         for resident, rotation in rot_dict.items():
+#             if hasattr(rotation, '__len__'):
+#                 # TODO: it sucks this is hard-coded
+#                 if block == "Rotation(s) Somewhere":
+#                     constraints.append(
+#                         csts.PinnedRotationConstraint(resident, [], rotation)
+#                     )
+#                 else:
+#                     constraints.append(
+#                         csts.PinnedRotationConstraint(resident, [block], rotation)
+#                     )
 
-    return constraints
+#     return constraints
 
 
 def rankings_from_csv(fname):
