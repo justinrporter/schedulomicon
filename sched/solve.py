@@ -146,7 +146,7 @@ def run_enumerator(model, solution_printer=None):
 
 def solve(
         residents, blocks, rotations, groups, cst_list, soln_printer,
-        objective_fn, max_time_in_mins, hint=None
+        objective_fn, max_time_in_mins, n_processes=None, hint=None
     ):
 
     block_assigned, model = generate_model(
