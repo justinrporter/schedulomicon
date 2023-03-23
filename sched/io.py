@@ -108,7 +108,7 @@ def generate_resident_constraints(config, groups_array):
 
         if 'true_somewhere' in params:
             for true_somewhere in params['true_somewhere']:
-                eligible_field = resolve_pinned_constraint(res+' ('+true_somewhere+")", groups_array, config['residents'].keys(), config['blocks'].keys(), config['rotations'].keys())
+                eligible_field = resolve_pinned_constraint("'" + res+"' and ("+true_somewhere+")", groups_array, config['residents'].keys(), config['blocks'].keys(), config['rotations'].keys())
                 cst_list.append(
                     csts.PinnedRotationConstraint(eligible_field)
                 )
@@ -249,7 +249,7 @@ def resolve_pinned_constraint(true_somewhere, groups_array, residents, blocks, r
             (pp.oneOf("or |"), 2, pp.opAssoc.LEFT, orParseAction),   
         ]
     )
-    
+    #print(true_somewhere)
     eligible_field = gramm.parse_string(true_somewhere)
 
     return eligible_field

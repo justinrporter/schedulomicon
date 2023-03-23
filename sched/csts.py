@@ -374,7 +374,7 @@ class PinnedRotationConstraint(Constraint):
         #                 self.resident, pinned_block, self.pinned_rotation] == 1
         #         )
 
-        for (x,y,z), value in np.ndenumerate(self.eligible_sector):
+        for (x,y,z), value in np.ndenumerate(self.eligible_sector[0]):
             sum = 0
             #TODO - adjust this so you can require a pin of 2 or 3 blocks etc. 
             if value == False:
