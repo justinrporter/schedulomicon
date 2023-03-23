@@ -109,12 +109,10 @@ def generate_resident_constraints(config, groups_array):
         if 'true_somewhere' in params:
             for true_somewhere in params['true_somewhere']:
                 eligible_field = resolve_pinned_constraint("'" + res+"' and ("+true_somewhere+")", groups_array, config['residents'].keys(), config['blocks'].keys(), config['rotations'].keys())
+                print(eligible_field)
                 cst_list.append(
                     csts.PinnedRotationConstraint(eligible_field)
                 )
-                #TODO - can you send a sector of all residents at once?
-        # if 'vacation_window' in params:
-        #     cst_list.append(csts.RotationWindowConstraint(res, 'Vacation', params['vacation_window']))
 
     return cst_list
 
@@ -222,7 +220,7 @@ def resolve_pinned_constraint(true_somewhere, groups_array, residents, blocks, r
     def resolve_identifier(gramm: pp.ParseResults):
             if gramm[0] in groups_array.keys():
                 return groups_array[gramm[0]]
-            else: print('not found:', gramm[0])
+            else: print('not found - field:', gramm[0])
 
     group.setParseAction(resolve_identifier)
     block.setParseAction(resolve_identifier)

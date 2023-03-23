@@ -352,8 +352,8 @@ class PinnedRotationConstraint(Constraint):
     #     self.pinned_rotation = pinned_rotation
 
 
-    def __init__(self, eligible_sector):
-        self.eligible_sector = eligible_sector
+    def __init__(self, eligible_field):
+        self.eligible_field = eligible_field
     
     def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
 
@@ -373,18 +373,11 @@ class PinnedRotationConstraint(Constraint):
         #             block_assigned[
         #                 self.resident, pinned_block, self.pinned_rotation] == 1
         #         )
-
-        for (x,y,z), value in np.ndenumerate(self.eligible_sector[0]):
-            sum = 0
-            #TODO - adjust this so you can require a pin of 2 or 3 blocks etc. 
-            if value == False:
-                model.Add(
-                        block_assigned[
-                            residents[x], blocks[y], rotations[z]] == 0
-                    )
-            elif value == True:
+        sum = 0
+        for (x,y,z), value in np.ndenumerate(self.eligible_field[0]):
+            if value == True:
                 sum += 1
-            model.Add(sum >= 1)
+        model.Add(sum >= 1)
 
 class RotationWindowConstraint(Constraint):
 
