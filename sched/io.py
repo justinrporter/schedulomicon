@@ -37,6 +37,17 @@ def get_group_array(group, config, group_type):
                 for i, res in enumerate(group_array):
                     for j, block in enumerate(group_array[i]):
                         group_array[i][j][rotations.index(rotation)] = True
+    
+    elif group_type == 'res_name':
+        group_array[residents.index(group)] = True
+    elif group_type == 'block_name':
+        for i,res in enumerate(residents): 
+            group_array[i][blocks.index(group)] = True
+    elif group_type == 'rotation_name':
+        for i, res in enumerate(residents):
+            for j, block in enumerate(blocks):
+                group_array[i][j][rotations.index(group)] = True
+
     return group_array
 
 def process_config(config):
@@ -61,7 +72,14 @@ def process_config(config):
     for group_type in groups:
         for group in groups[group_type]:
             groups_array[group] = get_group_array(group, config, group_type = group_type)
-
+    
+    for res in residents:
+        groups_array[res] = get_group_array(res,config, group_type = "res_name")
+    for block in blocks: 
+        groups_array[block] = get_group_array(block,config, group_type = "block_name")
+    for rotation in rotations: 
+        groups_array[rotation] = get_group_array(rotation,config, group_type = "rotation_name")
+    
     return residents, blocks, rotations, groups_array
 
 # def process_config(config):
@@ -88,15 +106,15 @@ def generate_resident_constraints(config, groups_array):
         if not params:
             continue
 
-        if 'pins' in params:
-            for pin_constraints in params['pins']:
-                eligible_sector = resolve_pinned_group(pin_constraints, groups_array, config['residents'].keys(), config['blocks'].keys(), config['rotations'].keys())
+        if 'true_somewhere' in params:
+            for true_somewhere in params['true_somewhere']:
+                eligible_field = resolve_pinned_constraint(res+' ('+true_somewhere+")", groups_array, config['residents'].keys(), config['blocks'].keys(), config['rotations'].keys())
                 cst_list.append(
-                    csts.PinnedRotationConstraint(eligible_sector)
+                    csts.PinnedRotationConstraint(eligible_field)
                 )
                 #TODO - can you send a sector of all residents at once?
-        if 'vacation_window' in params:
-            cst_list.append(csts.RotationWindowConstraint(res, 'Vacation', params['vacation_window']))
+        # if 'vacation_window' in params:
+        #     cst_list.append(csts.RotationWindowConstraint(res, 'Vacation', params['vacation_window']))
 
     return cst_list
 
@@ -193,6 +211,48 @@ def resolve_group(group, rotation_config):
 
     return rots
 
+def resolve_pinned_constraint(true_somewhere, groups_array, residents, blocks, rotations):
+   
+    group = pp.Combine(pp.Word(pp.alphanums+"_-") + pp.White(' ',max=1) + pp.Word(pp.alphanums), adjacent=False)
+    block = pp.Combine(pp.Keyword("Block") + pp.White(' ',max=1) + pp.Word(pp.nums), adjacent=False)
+    name = pp.QuotedString("'")
+    rotation = pp.Combine(pp.alphas + pp.Optional(pp.White(' ', max=1)) + pp.alphas)
+
+    #@group.set_parse_action
+    def resolve_identifier(gramm: pp.ParseResults):
+            if gramm[0] in groups_array.keys():
+                return groups_array[gramm[0]]
+            else: print('not found:', gramm[0])
+
+    group.setParseAction(resolve_identifier)
+    block.setParseAction(resolve_identifier)
+    name.setParseAction(resolve_identifier)
+    rotation.setParseAction(resolve_identifier)
+        
+    def notParseAction(object):
+        set = object[0][1]
+        return ~set
+
+    def andParseAction(object):
+        set = object[0][0] & object[0][2]
+        return set
+
+    def orParseAction(object):
+        set = object[0][0] | object[0][2]
+        return set
+        
+    gramm = pp.infixNotation(
+        name | block | group,
+        [
+            (pp.oneOf("not !"), 1, pp.opAssoc.RIGHT, notParseAction),
+            (pp.oneOf("and &"), 2, pp.opAssoc.LEFT, andParseAction), 
+            (pp.oneOf("or |"), 2, pp.opAssoc.LEFT, orParseAction),   
+        ]
+    )
+    
+    eligible_field = gramm.parse_string(true_somewhere)
+
+    return eligible_field
 
 def resolve_pinned_group(group_logic, groups_array, residents, blocks, rotations):
 
@@ -204,7 +264,7 @@ def resolve_pinned_group(group_logic, groups_array, residents, blocks, rotations
             return groups_array[gramm[0]]
         elif gramm[0] in rotations:
             print(groups_array.keys())
-            rot_array = np.zeros_like(groups_array['CA1']).astype(bool)
+            rot_array = np.zeros_like(groups_array['medicine']).astype(bool)
             for i, res in enumerate(rot_array):
                 for j, block in enumerate(rot_array[i]):
                    rot_array[i][j][list(rotations).index(gramm[0])] = True
