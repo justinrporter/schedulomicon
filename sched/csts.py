@@ -135,11 +135,12 @@ class RotationCoverageConstraint(Constraint):
         return "RotationCoverageConstraint(%s,%s,%s,%s)" % (
              self.rotation, self.blocks, self.rmin, self.rmax)
 
-    def __init__(self, rotation, blocks=Ellipsis, rmin=None, rmax=None):
+    def __init__(self, rotation, blocks=Ellipsis, rmin=None, rmax=None, allowed_vals=None):
         self.rotation = rotation
         self.blocks = blocks
         self.rmin = rmin
         self.rmax = rmax
+        self.allowed_vals = allowed_vals
 
         assert self.rmax is not None or self.rmin is not None
 
@@ -163,13 +164,28 @@ class RotationCoverageConstraint(Constraint):
         else:
             rmax_list = self.rmax
 
+        no_allowed_vals = model.NewBoolVar('no_allowed_vals')
+        model.Add(no_allowed_vals == (self.allowed_vals is None))
+
         for block, rmin, rmax in zip(apply_to_blocks, rmin_list, rmax_list):
             # r_tot is the total number of residents on this rotation for this block
-            r_tot = sum(block_assigned[(res, block, self.rotation)] for res in residents)
+            r_tot = 0
+            for res in residents:
+                r_tot += block_assigned[(res, block, self.rotation)]
+            #r_tot = sum(block_assigned[(res, block, self.rotation)] for res in residents)
             if rmin is not None and rmin > 0:
-                model.Add(r_tot >= rmin)
+                #model.Add(r_tot >= rmin).OnlyEnforceIf(self.allowed_vals is None)
+                model.Add(r_tot >= rmin).OnlyEnforceIf(no_allowed_vals)
             if rmax is not None:
-                model.Add(r_tot <= rmax)
+                #model.Add(r_tot <= rmax).OnlyEnforceIf(self.allowed_vals is None)
+                model.Add(r_tot <= rmax).OnlyEnforceIf(no_allowed_vals)
+            if self.allowed_vals is not None:
+                # print(rmin, rmax)
+                # Add a boolean variable for each allowed value
+                bool_vars = [model.NewBoolVar(f'bool_var_{value}') for value in self.allowed_vals]
+                model.Add(sum(bool_vars) == 1)
+                for i, value in enumerate(self.allowed_vals):
+                    model.Add(r_tot == value).OnlyEnforceIf(bool_vars[i])
 
 
 class PrerequisiteRotationConstraint(Constraint):

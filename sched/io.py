@@ -322,8 +322,11 @@ def generate_rotation_constraints(config):
         if not params:
             continue
         if 'coverage' in params:
-            rmin, rmax = handle_count_specification(params['coverage'], len(config['blocks']))
-            constraints.append(csts.RotationCoverageConstraint(rotation, rmin=rmin, rmax=rmax))
+            allowed_vals = params['coverage']['allowed_values'] if 'allowed_values' in params['coverage'] else None
+            # if rmin or rmax in params['coverage']:
+            #     rmin, rmax = handle_count_specification(params['coverage'], len(config['blocks']))
+            # else: rmin, rmax = None, None
+            constraints.append(csts.RotationCoverageConstraint(rotation, rmin=rmin, rmax=rmax, allowed_vals=allowed_vals))
         if 'must_be_followed_by' in params:
             following_rotations = []
             for key in params['must_be_followed_by']:
