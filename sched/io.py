@@ -109,7 +109,6 @@ def generate_resident_constraints(config, groups_array):
         if 'true_somewhere' in params:
             for true_somewhere in params['true_somewhere']:
                 eligible_field = resolve_pinned_constraint("'" + res+"' and ("+true_somewhere+")", groups_array, config['residents'].keys(), config['blocks'].keys(), config['rotations'].keys())
-                print(eligible_field)
                 cst_list.append(
                     csts.PinnedRotationConstraint(eligible_field)
                 )
@@ -144,6 +143,12 @@ def generate_backup_constraints(
     constraints.append(
         csts.BackupEligibleBlocksBackupConstraint(backup_eligible)
     )
+
+    for res, res_params in config['residents'].items():
+        if not res_params: continue
+        if 'no_backup' in res_params: 
+            for block in res_params['no_backup']:
+                constraints.append(csts.BanBackupBlockContraint(res, block))
 
     return constraints
 
@@ -261,7 +266,7 @@ def resolve_pinned_group(group_logic, groups_array, residents, blocks, rotations
         if gramm[0] in groups_array.keys():
             return groups_array[gramm[0]]
         elif gramm[0] in rotations:
-            print(groups_array.keys())
+            #print(groups_array.keys())
             rot_array = np.zeros_like(groups_array['medicine']).astype(bool)
             for i, res in enumerate(rot_array):
                 for j, block in enumerate(rot_array[i]):
@@ -374,7 +379,7 @@ def generate_rotation_constraints(config):
             constraints.append(
                 csts.RotationCountNotConstraint(rotation, ct)
             )
-
+            
     return constraints
 
 

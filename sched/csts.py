@@ -81,10 +81,18 @@ class RotationBackupCountConstraint(Constraint):
         for block in blocks:
             for resident in residents:
                 ct += backup_vars[(resident, block)]
-
         model.Add(ct <= self.count)
 
+class BanBackupBlockContraint(Constraint):
+    def __init__(self, resident, block):
+        self.block = block
+        self.resident = resident
 
+    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
+
+        super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
+
+        model.Add(block_backup[(self.resident, self.block)] == 0)
 class BackupEligibleBlocksBackupConstraint(Constraint):
 
     def __init__(self, backup_eligible):
@@ -373,10 +381,14 @@ class PinnedRotationConstraint(Constraint):
         #             block_assigned[
         #                 self.resident, pinned_block, self.pinned_rotation] == 1
         #         )
+
         sum = 0
         for (x,y,z), value in np.ndenumerate(self.eligible_field[0]):
             if value == True:
-                sum += 1
+                res = residents[x]
+                block = blocks[y]
+                rot = rotations[z]
+                sum += block_assigned[res, block, rot]
         model.Add(sum >= 1)
 
 class RotationWindowConstraint(Constraint):
