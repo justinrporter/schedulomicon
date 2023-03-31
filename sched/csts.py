@@ -164,28 +164,21 @@ class RotationCoverageConstraint(Constraint):
         else:
             rmax_list = self.rmax
 
-        no_allowed_vals = model.NewBoolVar('no_allowed_vals')
-        model.Add(no_allowed_vals == (self.allowed_vals is None))
-
         for block, rmin, rmax in zip(apply_to_blocks, rmin_list, rmax_list):
             # r_tot is the total number of residents on this rotation for this block
             r_tot = 0
             for res in residents:
                 r_tot += block_assigned[(res, block, self.rotation)]
             #r_tot = sum(block_assigned[(res, block, self.rotation)] for res in residents)
-            if rmin is not None and rmin > 0:
-                #model.Add(r_tot >= rmin).OnlyEnforceIf(self.allowed_vals is None)
-                model.Add(r_tot >= rmin).OnlyEnforceIf(no_allowed_vals)
+            if rmin is not None:
+                model.Add(r_tot >= rmin)
             if rmax is not None:
-                #model.Add(r_tot <= rmax).OnlyEnforceIf(self.allowed_vals is None)
-                model.Add(r_tot <= rmax).OnlyEnforceIf(no_allowed_vals)
+                model.Add(r_tot <= rmax)
             if self.allowed_vals is not None:
-                # print(rmin, rmax)
-                # Add a boolean variable for each allowed value
-                bool_vars = [model.NewBoolVar(f'bool_var_{value}') for value in self.allowed_vals]
-                model.Add(sum(bool_vars) == 1)
-                for i, value in enumerate(self.allowed_vals):
-                    model.Add(r_tot == value).OnlyEnforceIf(bool_vars[i])
+                r_tot_var = model.NewIntVar(-1000, 1000, "r_tot_var")
+                model.Add(r_tot_var == r_tot)
+                allowed_vals = [[value] for value in self.allowed_vals]
+                model.AddAllowedAssignments([r_tot_var], allowed_vals)
 
 
 class PrerequisiteRotationConstraint(Constraint):
@@ -365,38 +358,12 @@ class RotationCountNotConstraint(Constraint):
 
 class PinnedRotationConstraint(Constraint):
 
-    # def __repr__(self):
-    #     return "%s(%s,%s,%s)" % (
-    #         self.__class__, self.resident, self.pinned_blocks, self.pinned_rotation)
-
-    # def __init__(self, resident, pinned_blocks, pinned_rotation):
-
-    #     self.resident = resident
-    #     self.pinned_blocks = pinned_blocks
-    #     self.pinned_rotation = pinned_rotation
-
-
     def __init__(self, eligible_field):
         self.eligible_field = eligible_field
     
     def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
 
         super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
-
-        # # if the block to pin is unspecified, the rotation is assigned to the
-        # # resident somewhere in the schedule
-        # if len(self.pinned_blocks) == 0:
-        #     model.Add(
-        #         sum(block_assigned[self.resident, block, self.pinned_rotation]
-        #             for block in blocks) >= 1
-        #     )
-        # # otherwise we pin the specific block
-        # else:
-        #     for pinned_block in self.pinned_blocks:
-        #         model.Add(
-        #             block_assigned[
-        #                 self.resident, pinned_block, self.pinned_rotation] == 1
-        #         )
 
         sum = 0
         for (x,y,z), value in np.ndenumerate(self.eligible_field[0]):
@@ -406,6 +373,24 @@ class PinnedRotationConstraint(Constraint):
                 rot = rotations[z]
                 sum += block_assigned[res, block, rot]
         model.Add(sum >= 1)
+
+class MarkIneligibleConstraint(Constraint):
+
+    def __init__(self, eligible_field):
+        self.eligible_field = eligible_field
+    
+    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
+
+        super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
+
+        sum = 0
+        for (x,y,z), value in np.ndenumerate(~self.eligible_field[0]):
+            if value == True:
+                res = residents[x]
+                block = blocks[y]
+                rot = rotations[z]
+                sum += block_assigned[res, block, rot]
+        model.Add(sum == 0)
 
 class RotationWindowConstraint(Constraint):
 

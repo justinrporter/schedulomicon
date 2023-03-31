@@ -108,7 +108,7 @@ def generate_resident_constraints(config, groups_array):
 
         if 'true_somewhere' in params:
             for true_somewhere in params['true_somewhere']:
-                eligible_field = resolve_pinned_constraint("'" + res+"' and ("+true_somewhere+")", groups_array, config['residents'].keys(), config['blocks'].keys(), config['rotations'].keys())
+                eligible_field = resolve_eligible_field("'" + res+"' and ("+true_somewhere+")", groups_array)
                 cst_list.append(
                     csts.PinnedRotationConstraint(eligible_field)
                 )
@@ -157,7 +157,7 @@ def generate_constraints_from_configs(config, groups_array):
 
     constraints = []
 
-    constraints.extend(generate_rotation_constraints(config))
+    constraints.extend(generate_rotation_constraints(config, groups_array))
 
     constraints.extend(generate_resident_constraints(config, groups_array))
 
@@ -214,7 +214,7 @@ def resolve_group(group, rotation_config):
 
     return rots
 
-def resolve_pinned_constraint(true_somewhere, groups_array, residents, blocks, rotations):
+def resolve_eligible_field(true_somewhere, groups_array):
    
     group = pp.Combine(pp.Word(pp.alphanums+"_-") + pp.White(' ',max=1) + pp.Word(pp.alphanums), adjacent=False)
     block = pp.Combine(pp.Keyword("Block") + pp.White(' ',max=1) + pp.Word(pp.nums), adjacent=False)
@@ -257,48 +257,6 @@ def resolve_pinned_constraint(true_somewhere, groups_array, residents, blocks, r
 
     return eligible_field
 
-def resolve_pinned_group(group_logic, groups_array, residents, blocks, rotations):
-
-    group = pp.Word(pp.alphanums+"_-" + "''")
-
-    #@group.set_parse_action
-    def resolve_identifier(gramm: pp.ParseResults):
-        if gramm[0] in groups_array.keys():
-            return groups_array[gramm[0]]
-        elif gramm[0] in rotations:
-            #print(groups_array.keys())
-            rot_array = np.zeros_like(groups_array['medicine']).astype(bool)
-            for i, res in enumerate(rot_array):
-                for j, block in enumerate(rot_array[i]):
-                   rot_array[i][j][list(rotations).index(gramm[0])] = True
-            return rot_array
-
-    group.setParseAction(resolve_identifier)
-        
-    def notParseAction(object):
-        set = object[0][1]
-        return ~set
-
-    def andParseAction(object):
-        set = object[0][0] & object[0][2]
-        return set
-
-    def orParseAction(object):
-        set = object[0][0] | object[0][2]
-        return set
-        
-    gramm = pp.infixNotation(
-        group,
-        [
-            (pp.oneOf("not !"), 1, pp.opAssoc.RIGHT, notParseAction),
-            (pp.oneOf("and &"), 2, pp.opAssoc.LEFT, andParseAction), 
-            (pp.oneOf("or |"), 2, pp.opAssoc.LEFT, orParseAction)   
-        ]
-    )
-    
-    eligible_sector = gramm.parse_string(group_logic)
-    return eligible_sector
-
 def add_group_count_per_resident_constraint(
         model, block_assigned, residents, blocks,
         rotations, n_min, n_max):
@@ -313,21 +271,26 @@ def add_group_count_per_resident_constraint(
         model.Add(ct >= n_min)
         model.Add(ct <= n_max)
 
-def generate_rotation_constraints(config):
+def generate_rotation_constraints(config, groups_array):
 
     constraints = []
 
     for rotation, params in config['rotations'].items():
-
         if not params:
             continue
-        if 'coverage' in params:
-            allowed_vals = params['coverage']['allowed_values'] if 'allowed_values' in params['coverage'] else None
-            # if rmin or rmax in params['coverage']:
-            #     rmin, rmax = handle_count_specification(params['coverage'], len(config['blocks']))
-            # else: rmin, rmax = None, None
+
+        if 'coverage' in params.keys():
+            if 'allowed_values' in params['coverage']: 
+                rmin = min(params['coverage']['allowed_values'])
+                rmax = max(params['coverage']['allowed_values'])
+                allowed_vals = params['coverage']['allowed_values']
+            else: allowed_vals = None
+            if type(params['coverage']) == list:
+                rmin, rmax = handle_count_specification(params['coverage'], len(config['blocks']))
+            else: rmin, rmax = None, None
             constraints.append(csts.RotationCoverageConstraint(rotation, rmin=rmin, rmax=rmax, allowed_vals=allowed_vals))
-        if 'must_be_followed_by' in params:
+        
+        if 'must_be_followed_by' in params: 
             following_rotations = []
             for key in params['must_be_followed_by']:
                 if key in config['rotations']:
@@ -382,7 +345,14 @@ def generate_rotation_constraints(config):
             constraints.append(
                 csts.RotationCountNotConstraint(rotation, ct)
             )
+        
+        if 'requires_groups' in params:
+            eligible_field = resolve_eligible_field(rotation + 'and' + params['requires_groups'], groups_array)
+            constraints.append(
+                csts.MarkIneligibleConstraint(rotation, eligible_field)
+            )
             
+
     return constraints
 
 
