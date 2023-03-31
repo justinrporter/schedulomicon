@@ -9,7 +9,6 @@ logger = logging.getLogger(__name__)
 
 
 def accumulate_score_res_block_scores(score_dict, resident_block_scores, rotation):
-
     for resident, block_scores in resident_block_scores.items():
         for block, score in block_scores.items():
             score_dict[(resident, block, rotation)] += score

@@ -82,21 +82,6 @@ def process_config(config):
     
     return residents, blocks, rotations, groups_array
 
-# def process_config(config):
-
-#     residents = list(config['residents'].keys())
-#     blocks = list(config['blocks'].keys())
-#     rotations = list(config['rotations'].keys())
-
-#     groups = []
-#     for rot, params in config['rotations'].items():
-#         if not params:
-#             continue
-#         groups.extend(params.get('groups', []))
-#     groups = list(set(groups))
-
-#     return residents, blocks, rotations, groups
-
 
 def generate_resident_constraints(config, groups_array):
 
@@ -216,16 +201,17 @@ def resolve_group(group, rotation_config):
 
 def resolve_eligible_field(true_somewhere, groups_array):
    
-    group = pp.Combine(pp.Word(pp.alphanums+"_-") + pp.White(' ',max=1) + pp.Word(pp.alphanums), adjacent=False)
+    group = pp.Combine(pp.Word(pp.alphanums+"_-") + pp.Optional(pp.White(' ',max=1) + pp.Word(pp.alphanums)), adjacent=False)
     block = pp.Combine(pp.Keyword("Block") + pp.White(' ',max=1) + pp.Word(pp.nums), adjacent=False)
     name = pp.QuotedString("'")
-    rotation = pp.Combine(pp.alphas + pp.Optional(pp.White(' ', max=1)) + pp.alphas)
+    rotation = pp.Combine(pp.alphas + pp.Optional(pp.White(' ', max=1) + pp.alphas), adjacent=False)
 
     #@group.set_parse_action
     def resolve_identifier(gramm: pp.ParseResults):
-            if gramm[0] in groups_array.keys():
-                return groups_array[gramm[0]]
-            else: print('not found - field:', gramm[0])
+        if gramm[0] in groups_array.keys():
+            return groups_array[gramm[0]]
+        else: 
+            print('not found - field:', gramm[0])
 
     group.setParseAction(resolve_identifier)
     block.setParseAction(resolve_identifier)
@@ -245,7 +231,7 @@ def resolve_eligible_field(true_somewhere, groups_array):
         return set
         
     gramm = pp.infixNotation(
-        name | block | group,
+        name | block | group | rotation,
         [
             (pp.oneOf("not !"), 1, pp.opAssoc.RIGHT, notParseAction),
             (pp.oneOf("and &"), 2, pp.opAssoc.LEFT, andParseAction), 
@@ -347,7 +333,7 @@ def generate_rotation_constraints(config, groups_array):
             )
         
         if 'requires_groups' in params:
-            eligible_field = resolve_eligible_field(rotation + 'and' + params['requires_groups'], groups_array)
+            eligible_field = resolve_eligible_field('('+rotation + ') and (' + params['requires_groups']+')', groups_array)
             constraints.append(
                 csts.MarkIneligibleConstraint(eligible_field)
             )
