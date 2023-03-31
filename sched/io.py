@@ -349,10 +349,9 @@ def generate_rotation_constraints(config, groups_array):
         if 'requires_groups' in params:
             eligible_field = resolve_eligible_field(rotation + 'and' + params['requires_groups'], groups_array)
             constraints.append(
-                csts.MarkIneligibleConstraint(rotation, eligible_field)
+                csts.MarkIneligibleConstraint(eligible_field)
             )
             
-
     return constraints
 
 
