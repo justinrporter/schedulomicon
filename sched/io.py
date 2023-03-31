@@ -274,7 +274,7 @@ def generate_rotation_constraints(config, groups_array):
             if type(params['coverage']) == list:
                 rmin, rmax = handle_count_specification(params['coverage'], len(config['blocks']))
             else: rmin, rmax = None, None
-            constraints.append(csts.RotationCoverageConstraint(rotation, rmin=rmin, rmax=rmax, allowed_vals=allowed_vals))
+            if rmin is not None and rmax is not None: constraints.append(csts.RotationCoverageConstraint(rotation, rmin=rmin, rmax=rmax, allowed_vals=allowed_vals))
         
         if 'must_be_followed_by' in params: 
             following_rotations = []
