@@ -5,3 +5,4 @@ __pycache__
 results/*
 .DS_Store
 inputs.code-workspace
+*.jugdata
