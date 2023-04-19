@@ -358,9 +358,8 @@ class RotationCountNotConstraint(Constraint):
 
 class PinnedRotationConstraint(Constraint):
 
-    def __init__(self, eligible_field, prohibit = False):
+    def __init__(self, eligible_field):
         self.eligible_field = eligible_field
-        self.prohibit = prohibit
     
     def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
 
@@ -374,11 +373,28 @@ class PinnedRotationConstraint(Constraint):
                 block = blocks[y]
                 rot = rotations[z]
                 sum += block_assigned[res, block, rot]
-        if self.prohibit == True:
-            model.Add(sum == 0)
-        else: 
-            model.Add(sum >= 1)
+        model.Add(sum >= 1)
 
+class ProhibitedCombinationConstraint(Constraint):
+
+    def __init__(self, prohibited_fields):
+        self.prohibited_fields = prohibited_fields
+    
+    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
+
+        super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
+        
+        list_length = len(self.prohibited_fields)
+        sum = 0
+        for field in self.prohibited_fields:
+            for loc,value in np.ndenumerate(field):
+                x,y,z = loc
+                if value == True:
+                    res = residents[x]
+                    block = blocks[y]
+                    rot = rotations[z]
+                    sum += block_assigned[res, block, rot]
+        model.Add(sum < list_length)
 class MarkIneligibleConstraint(Constraint):
 
     def __init__(self, eligible_field):

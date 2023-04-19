@@ -101,9 +101,9 @@ def generate_resident_constraints(config, groups_array):
         
         if 'prohibit' in params:
             for prohibit in params['prohibit']:
-                eligible_field = resolve_eligible_field("'" + res+"' and <"+prohibit+">", groups_array, config['residents'].keys(), config['blocks'].keys(), config['rotations'].keys())
+                prohibited_fields = resolve_prohibited_fields("'" + res+"' and <"+prohibit+">", groups_array, config['residents'].keys(), config['blocks'].keys(), config['rotations'].keys())
                 cst_list.append(
-                    csts.PinnedRotationConstraint(eligible_field, prohibit = True)
+                    csts.ProhibitedCombinationConstraint(prohibited_fields)
                 )
 
     return cst_list
@@ -207,16 +207,12 @@ def resolve_group(group, rotation_config):
 
     return rots
 
-def resolve_eligible_field(true_somewhere, groups_array, residents, blocks, rotations):
+def resolve_eligible_field(statement, groups_array, residents, blocks, rotations, prohibited = False):
    
     block = pp.Combine(pp.Keyword("Block") + pp.White(' ',max=1) + pp.Word(pp.nums), adjacent=False)
     string_literal = pp.QuotedString('\'') | pp.QuotedString('"')
     operator = pp.oneOf('and or not & | !')
     term = pp.Combine(pp.OneOrMore(pp.Word(pp.alphanums + '-_.,\'()'), stop_on=operator), adjacent=False, join_string=' ')
-
-    # Define grammar for an expression
-    expression = pp.Forward()
-    subexpression = pp.Group(pp.Suppress('<') + pp.OneOrMore(block | string_literal | operator | term) + pp.Suppress('>'))
 
     def resolve_identifier(gramm: pp.ParseResults):
         if gramm[0] in groups_array.keys():
@@ -245,17 +241,38 @@ def resolve_eligible_field(true_somewhere, groups_array, residents, blocks, rota
         [
             (pp.Keyword("not"), 1, pp.opAssoc.RIGHT, notParseAction),
             (pp.Keyword("and"), 2, pp.opAssoc.LEFT, andParseAction), 
-            (pp.Keyword("or"), 2, pp.opAssoc.LEFT, orParseAction),   
-            # (pp.Keyword("not"), 1, pp.opAssoc.RIGHT),
-            # (pp.Keyword("and"), 2, pp.opAssoc.LEFT), 
-            # (pp.Keyword("or"), 2, pp.opAssoc.LEFT),  
+            (pp.Keyword("or"), 2, pp.opAssoc.LEFT, orParseAction)
         ],
         lpar = pp.Suppress('<'), rpar= pp.Suppress('>')
     )
-    # print(true_somewhere)
-    eligible_field = expression.parse_string(true_somewhere)
-    # print(eligible_field)
-    return eligible_field
+
+    if prohibited == True:
+        prohib_expr = pp.infixNotation(
+        block | string_literal | term ,
+        [
+            (pp.Keyword("not"), 1, pp.opAssoc.RIGHT),
+            (pp.Keyword("and"), 2, pp.opAssoc.LEFT), 
+            (pp.Keyword("or"), 2, pp.opAssoc.LEFT)
+        ],
+        lpar = pp.Suppress('<'), rpar= pp.Suppress('>')
+        )
+
+        test = prohib_expr.parse_string(statement)
+        res = test[0][0]
+        fields_list = []
+        for i in test[0][2]: #this is the statement in "prohibited" which is now a list of arrays + 'and'/'or'
+            if isinstance(i, np.ndarray): 
+                field = res & i
+                fields_list.append(field)
+        return fields_list
+    
+    else: 
+        eligible_field = expression.parse_string(statement)
+        return eligible_field
+
+def resolve_prohibited_fields(statment, groups_array, residents, blocks, rotations):
+    prohibited_fields_list = resolve_eligible_field(statment, groups_array, residents, blocks, rotations, prohibited = True)
+    return prohibited_fields_list
 
 def add_group_count_per_resident_constraint(
         model, block_assigned, residents, blocks,
