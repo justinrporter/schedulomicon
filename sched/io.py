@@ -79,7 +79,7 @@ def process_config(config):
         groups_array[block] = get_group_array(block,config, group_type = "block_name")
     for rotation in rotations: 
         groups_array[rotation] = get_group_array(rotation,config, group_type = "rotation_name")
-    
+
     return residents, blocks, rotations, groups_array
 
 
@@ -105,7 +105,6 @@ def generate_resident_constraints(config, groups_array):
                 cst_list.append(
                     csts.ProhibitedCombinationConstraint(prohibited_fields)
                 )
-
     return cst_list
 
 
@@ -142,7 +141,6 @@ def generate_backup_constraints(
         if 'no_backup' in res_params: 
             for block in res_params['no_backup']:
                 constraints.append(csts.BanBackupBlockContraint(res, block))
-
     return constraints
 
 
@@ -174,6 +172,7 @@ def generate_constraints_from_configs(config, groups_array):
                     rotations_in_group=resolve_group(cst['group'], config['rotations']),
                     window_size = cst['window_size'])
             )
+
     return constraints
 
 

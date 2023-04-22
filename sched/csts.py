@@ -293,12 +293,13 @@ class CoolDownConstraint(Constraint):
         )
 
     def __repr__(self):
-        return "CoolDownConstraint(%s,%s)" % (
+        return "CoolDownConstraint(%s,%s,%s)" % (
              self.rotation, self.window_size, self.count)
 
     def __init__(self, rotation, window_size, count, suppress_for=[]):
         self.rotation = rotation
         self.window_size = window_size
+        self.count = count
         self.n_min = count[0]
         self.n_max = count[1]
         self.suppress_for = suppress_for
