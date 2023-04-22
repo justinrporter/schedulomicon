@@ -153,11 +153,17 @@ def generate_constraints_from_configs(config, groups_array):
     constraints.extend(generate_resident_constraints(config, groups_array))
 
     for cst in config['group_constraints']:
+
         if cst['kind'] == 'all_group_count_per_resident':
+            if 'apply_to_residents' in cst:
+                res_list = cst['apply_to_residents']
+            else: 
+                res_list = None 
+        
             constraints.append(
                 csts.GroupCountPerResidentPerWindow(
                     rotations_in_group=resolve_group(cst['group'], config['rotations']),
-                    n_min=cst['count'][0], n_max=cst['count'][1], window_size = len(config['blocks']))
+                    n_min=cst['count'][0], n_max=cst['count'][1], window_size = len(config['blocks']),res_list = res_list)
             )
         if cst['kind'] == 'window_group_count_per_resident':
             constraints.append(

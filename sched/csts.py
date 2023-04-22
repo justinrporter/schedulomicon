@@ -502,16 +502,20 @@ class GroupCountPerResidentPerWindow(Constraint):
         return "GroupCountPerResident(%s,%s,%s)" % (
              self.rotations_in_group, self.n_min, self.n_max)
 
-    def __init__(self, rotations_in_group, n_min, n_max, window_size):
+    def __init__(self, rotations_in_group, n_min, n_max, window_size, res_list=None):
 
         self.rotations_in_group = rotations_in_group
         self.n_min = n_min
         self.n_max = n_max
         self.window = window_size
+        self.res_list = res_list
 
     def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
 
         super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
+
+        if self.res_list is not None: 
+            residents = self.res_list
 
         add_window_count_constraint(
             model, block_assigned, residents, blocks,
