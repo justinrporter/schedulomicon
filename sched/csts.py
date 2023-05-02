@@ -83,6 +83,7 @@ class RotationBackupCountConstraint(Constraint):
                 ct += backup_vars[(resident, block)]
         model.Add(ct <= self.count)
 
+
 class BanBackupBlockContraint(Constraint):
     def __init__(self, resident, block):
         self.block = block
@@ -93,6 +94,8 @@ class BanBackupBlockContraint(Constraint):
         super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
 
         model.Add(block_backup[(self.resident, self.block)] == 0)
+
+
 class BackupEligibleBlocksBackupConstraint(Constraint):
 
     def __init__(self, backup_eligible):
@@ -175,6 +178,7 @@ class RotationCoverageConstraint(Constraint):
             if rmax is not None:
                 model.Add(r_tot <= rmax)
             if self.allowed_vals is not None:
+                # why 1000? -JRP
                 r_tot_var = model.NewIntVar(-1000, 1000, "r_tot_var")
                 model.Add(r_tot_var == r_tot)
                 allowed_vals = [[value] for value in self.allowed_vals]
@@ -263,6 +267,7 @@ class CoolDownConstraint(Constraint):
 
     ALLOWED_YAML_OPTIONS = ['window', 'count', 'suppress_for']
 
+    # show Jess this -JRP
     @classmethod
     def from_yml_dict(cls, rotation, params):
 
