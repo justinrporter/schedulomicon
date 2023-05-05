@@ -427,10 +427,9 @@ def coverage_constraints_from_csv(fname, rmin_or_rmax):
 
 #     return constraints
 
-
 def rankings_from_csv(fname):
     ranking_df = pd.read_csv(fname, header=0, index_col=0, comment='#')
-
+    
     for c in ranking_df.columns:
         ranking_df[c] = ranking_df[c].fillna(0)
         ranking_df[c] = ranking_df[c].astype(int)
