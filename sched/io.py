@@ -222,13 +222,17 @@ def resolve_eligible_field(statement, groups_array, residents, blocks, rotations
     def resolve_identifier(gramm: pp.ParseResults):
         if gramm[0] in groups_array.keys():
             return groups_array[gramm[0]]
-        else: print('not found - field:', gramm[0])
+        else:
+            # what happens if we get here -JRP
+            print('not found - field:', gramm[0])
 
     term.setParseAction(resolve_identifier)
     block.setParseAction(resolve_identifier)
     string_literal.setParseAction(resolve_identifier)
     
+    #usually it would be not_parse_action -JRP
     def notParseAction(object):
+        # overriding keyword with "object" and "set" -JRP
         field = object[0][2]
         set = field
         return ["not", set]
@@ -248,18 +252,21 @@ def resolve_eligible_field(statement, groups_array, residents, blocks, rotations
             (pp.Keyword("and"), 2, pp.opAssoc.LEFT, andParseAction), 
             (pp.Keyword("or"), 2, pp.opAssoc.LEFT, orParseAction)
         ],
-        lpar = pp.Suppress('<'), rpar= pp.Suppress('>')
+        lpar=pp.Suppress('<'), rpar=pp.Suppress('>')
     )
 
+    # here we should use the 'is' operator -JRP
     if prohibited == True:
+        # can we DRY this out? (see above block) -JRP
         prohib_expr = pp.infixNotation(
-        block | string_literal | term ,
-        [
-            (pp.Keyword("not"), 1, pp.opAssoc.RIGHT),
-            (pp.Keyword("and"), 2, pp.opAssoc.LEFT), 
-            (pp.Keyword("or"), 2, pp.opAssoc.LEFT)
-        ],
-        lpar = pp.Suppress('<'), rpar= pp.Suppress('>')
+            block | string_literal | term,
+            [
+                (pp.Keyword("not"), 1, pp.opAssoc.RIGHT),
+                (pp.Keyword("and"), 2, pp.opAssoc.LEFT),
+                (pp.Keyword("or"), 2, pp.opAssoc.LEFT)
+            ],
+            lpar=pp.Suppress('<'),
+            rpar=pp.Suppress('>')
         )
 
         test = prohib_expr.parse_string(statement)
@@ -270,14 +277,17 @@ def resolve_eligible_field(statement, groups_array, residents, blocks, rotations
                 field = res & i
                 fields_list.append(field)
         return fields_list
-    
+
     else: 
         eligible_field = expression.parse_string(statement)
         return eligible_field
 
+
 def resolve_prohibited_fields(statment, groups_array, residents, blocks, rotations):
-    prohibited_fields_list = resolve_eligible_field(statment, groups_array, residents, blocks, rotations, prohibited = True)
+    prohibited_fields_list = resolve_eligible_field(
+        statment, groups_array, residents, blocks, rotations, prohibited=True)
     return prohibited_fields_list
+
 
 def add_group_count_per_resident_constraint(
         model, block_assigned, residents, blocks,
@@ -302,12 +312,17 @@ def generate_rotation_constraints(config, groups_array):
             continue
 
         if 'coverage' in params.keys():
+
+            # options are 1) coverage: [rmin, rmax]
+            # or 2) coverage: allowed_values: [v1, v2, ...]
+            # it's kind of a wierd API but it's what we have rn
             if 'allowed_values' in params['coverage']: 
                 rmin = min(params['coverage']['allowed_values'])
                 rmax = max(params['coverage']['allowed_values'])
                 allowed_vals = params['coverage']['allowed_values']
             else: allowed_vals = None
 
+            # shouldn't test types, also 'is list' not '== list' -JRP
             if type(params['coverage']) == list:
                 rmin, rmax = handle_count_specification(params['coverage'], len(config['blocks']))
             
@@ -406,26 +421,6 @@ def coverage_constraints_from_csv(fname, rmin_or_rmax):
 
     return constraints
 
-
-# def pin_constraints_from_csv(fname):
-
-#     coverage_pins = pd.read_csv(fname, header=0, index_col=0, comment='#')
-
-#     constraints = []
-#     for block, rot_dict in coverage_pins.to_dict().items():
-#         for resident, rotation in rot_dict.items():
-#             if hasattr(rotation, '__len__'):
-#                 # TODO: it sucks this is hard-coded
-#                 if block == "Rotation(s) Somewhere":
-#                     constraints.append(
-#                         csts.PinnedRotationConstraint(resident, [], rotation)
-#                     )
-#                 else:
-#                     constraints.append(
-#                         csts.PinnedRotationConstraint(resident, [block], rotation)
-#                     )
-
-#     return constraints
 
 def rankings_from_csv(fname):
     ranking_df = pd.read_csv(fname, header=0, index_col=0, comment='#')
