@@ -2,9 +2,8 @@ import csv
 
 import numpy as np
 import pandas as pd
-import pyparsing as pp
 
-from . import csts
+from . import csts, parser
 
 
 def get_group_array(group, config, group_type):
@@ -92,19 +91,19 @@ def generate_resident_constraints(config, groups_array):
             continue
 
         if 'true_somewhere' in params:
-            for true_somewhere in params['true_somewhere']:
-                print("true_somewhere: "+"'" + res+"' and <"+true_somewhere+">")
-                eligible_field = resolve_eligible_field("'" + res+"' and <"+true_somewhere+">", groups_array, config['residents'].keys(), config['blocks'].keys(), config['rotations'].keys())
+            for selector_string in params['true_somewhere']:
+
+                eligible_field = parser.resolve_eligible_field(
+                    f"'{res} and <{selector_string}>",
+                    groups_array,
+                    config['residents'].keys(),
+                    config['blocks'].keys(),
+                    config['rotations'].keys()
+                )
                 cst_list.append(
                     csts.PinnedRotationConstraint(eligible_field)
                 )
-        
-        if 'prohibit' in params:
-            for prohibit in params['prohibit']:
-                prohibited_fields = resolve_prohibited_fields("'" + res+"' and <"+prohibit+">", groups_array, config['residents'].keys(), config['blocks'].keys(), config['rotations'].keys())
-                cst_list.append(
-                    csts.ProhibitedCombinationConstraint(prohibited_fields)
-                )
+
     return cst_list
 
 
@@ -212,82 +211,6 @@ def resolve_group(group, rotation_config):
 
     return rots
 
-def resolve_eligible_field(statement, groups_array, residents, blocks, rotations, prohibited = False):
-   
-    block = pp.Combine(pp.Keyword("Block") + pp.White(' ',max=1) + pp.Word(pp.nums), adjacent=False)
-    string_literal = pp.QuotedString('\'') | pp.QuotedString('"')
-    operator = pp.oneOf('and or not & | !')
-    term = pp.Combine(pp.OneOrMore(pp.Word(pp.alphanums + '-_.,\'()'), stop_on=operator), adjacent=False, join_string=' ')
-
-    def resolve_identifier(gramm: pp.ParseResults):
-        if gramm[0] in groups_array.keys():
-            return groups_array[gramm[0]]
-        else:
-            # what happens if we get here -JRP
-            print('not found - field:', gramm[0])
-
-    term.setParseAction(resolve_identifier)
-    block.setParseAction(resolve_identifier)
-    string_literal.setParseAction(resolve_identifier)
-    
-    #usually it would be not_parse_action -JRP
-    def notParseAction(object):
-        # overriding keyword with "object" and "set" -JRP
-        field = object[0][2]
-        set = field
-        return ["not", set]
-    
-    def andParseAction(object):
-        set = object[0][0] & object[0][2]
-        return set
-
-    def orParseAction(object):
-        set = object[0][0] | object[0][2]
-        return set
-        
-    expression = pp.infixNotation(
-        block | string_literal | term,
-        [
-            (pp.Keyword("not"), 1, pp.opAssoc.RIGHT, notParseAction),
-            (pp.Keyword("and"), 2, pp.opAssoc.LEFT, andParseAction), 
-            (pp.Keyword("or"), 2, pp.opAssoc.LEFT, orParseAction)
-        ],
-        lpar=pp.Suppress('<'), rpar=pp.Suppress('>')
-    )
-
-    # here we should use the 'is' operator -JRP
-    if prohibited == True:
-        # can we DRY this out? (see above block) -JRP
-        prohib_expr = pp.infixNotation(
-            block | string_literal | term,
-            [
-                (pp.Keyword("not"), 1, pp.opAssoc.RIGHT),
-                (pp.Keyword("and"), 2, pp.opAssoc.LEFT),
-                (pp.Keyword("or"), 2, pp.opAssoc.LEFT)
-            ],
-            lpar=pp.Suppress('<'),
-            rpar=pp.Suppress('>')
-        )
-
-        test = prohib_expr.parse_string(statement)
-        res = test[0][0]
-        fields_list = []
-        for i in test[0][2]: #this is the statement in "prohibited" which is now a list of arrays + 'and'/'or'
-            if isinstance(i, np.ndarray): 
-                field = res & i
-                fields_list.append(field)
-        return fields_list
-
-    else: 
-        eligible_field = expression.parse_string(statement)
-        return eligible_field
-
-
-def resolve_prohibited_fields(statment, groups_array, residents, blocks, rotations):
-    prohibited_fields_list = resolve_eligible_field(
-        statment, groups_array, residents, blocks, rotations, prohibited=True)
-    return prohibited_fields_list
-
 
 def add_group_count_per_resident_constraint(
         model, block_assigned, residents, blocks,
@@ -307,31 +230,19 @@ def generate_rotation_constraints(config, groups_array):
 
     constraints = []
 
+    available_csts = {
+        'coverage': csts.RotationCoverageConstraint,
+        'cool_down': csts.CoolDownConstraint
+    }
+
     for rotation, params in config['rotations'].items():
         if not params:
             continue
 
-        if 'coverage' in params.keys():
+        for k in params.keys():
+            if k in available_csts:
+                csts.append(available_csts[k].from_yml_dict(rotation, params))
 
-            # options are 1) coverage: [rmin, rmax]
-            # or 2) coverage: allowed_values: [v1, v2, ...]
-            # it's kind of a wierd API but it's what we have rn
-            if 'allowed_values' in params['coverage']: 
-                rmin = min(params['coverage']['allowed_values'])
-                rmax = max(params['coverage']['allowed_values'])
-                allowed_vals = params['coverage']['allowed_values']
-            else: allowed_vals = None
-
-            # shouldn't test types, also 'is list' not '== list' -JRP
-            if type(params['coverage']) == list:
-                rmin, rmax = handle_count_specification(params['coverage'], len(config['blocks']))
-            
-            elif 'allowed_values' not in params['coverage'] and not type(params['coverage']) == list: 
-                rmin, rmax = None, None
-
-            if rmin is not None and rmax is not None:
-                constraints.append(csts.RotationCoverageConstraint(rotation, rmin=rmin, rmax=rmax, allowed_vals=allowed_vals))
-        
         if 'must_be_followed_by' in params: 
             following_rotations = []
             for key in params['must_be_followed_by']:
@@ -364,11 +275,6 @@ def generate_rotation_constraints(config, groups_array):
                 constraints.append(csts.PrerequisiteRotationConstraint(
                     rotation=rotation, prerequisites=params['prerequisite']
                 ))
-
-        if 'cool_down' in params:
-            constraints.append(
-                csts.CoolDownConstraint.from_yml_dict(rotation, params)
-            )
 
         if params.get('always_paired', False):
             constraints.append(

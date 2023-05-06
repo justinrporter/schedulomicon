@@ -134,6 +134,26 @@ class BanRotationBlockConstraint(Constraint):
 
 class RotationCoverageConstraint(Constraint):
 
+    ALLOWED_YAML_OPTIONS = ['allowed_values', 'rmin', 'rmax']
+
+    @classmethod
+    def from_yml_dict(cls, rotation, params):
+
+        assert 'coverage' in params
+        cls._check_yaml_params(rotation, params['allowed_values'])
+
+        # options are 1) coverage: [rmin, rmax]
+        # or 2) coverage: allowed_values: [v1, v2, ...]
+        if 'allowed_values' in params['coverage']:
+            allowed_vals = params['coverage']['allowed_values']
+            cst = cls(rotation, allowed_vals=allowed_vals)
+
+        else:  # specifying rmin, rmax directly
+            rmin, rmax = params['coverage']
+            cst = cls(rotation, rmin=rmin, rmax=rmax)
+
+        return cst
+
     def __repr__(self):
         return "RotationCoverageConstraint(%s,%s,%s,%s)" % (
              self.rotation, self.blocks, self.rmin, self.rmax)
@@ -141,11 +161,19 @@ class RotationCoverageConstraint(Constraint):
     def __init__(self, rotation, blocks=Ellipsis, rmin=None, rmax=None, allowed_vals=None):
         self.rotation = rotation
         self.blocks = blocks
-        self.rmin = rmin
-        self.rmax = rmax
-        self.allowed_vals = allowed_vals
 
-        assert self.rmax is not None or self.rmin is not None
+        if allowed_vals is not None:
+            assert rmin is None
+            assert rmax is None
+            self.allowed_vals = allowed_vals
+            self.rmin = None
+            self.rmax = None
+        else:
+            assert rmin is not None or rmax is not None
+            self.allowed_vals = None
+            self.rmin = rmin
+            self.rmax = rmax
+
 
     def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
 
@@ -169,20 +197,20 @@ class RotationCoverageConstraint(Constraint):
 
         for block, rmin, rmax in zip(apply_to_blocks, rmin_list, rmax_list):
             # r_tot is the total number of residents on this rotation for this block
-            r_tot = 0
+            # need to make a new IntVar for r_tot, since AddAllowedAssignments takes
+            # an OR-Tools IntVar
+            r_tot = model.NewIntVar(
+                0, len(residents), f"r_tot_var_{self.rotation}_{block}")
             for res in residents:
                 r_tot += block_assigned[(res, block, self.rotation)]
-            #r_tot = sum(block_assigned[(res, block, self.rotation)] for res in residents)
+
             if rmin is not None:
                 model.Add(r_tot >= rmin)
             if rmax is not None:
                 model.Add(r_tot <= rmax)
             if self.allowed_vals is not None:
-                # why 1000? -JRP
-                r_tot_var = model.NewIntVar(-1000, 1000, "r_tot_var")
-                model.Add(r_tot_var == r_tot)
                 allowed_vals = [[value] for value in self.allowed_vals]
-                model.AddAllowedAssignments([r_tot_var], allowed_vals)
+                model.AddAllowedAssignments([r_tot], allowed_vals)
 
 
 class PrerequisiteRotationConstraint(Constraint):
@@ -267,7 +295,6 @@ class CoolDownConstraint(Constraint):
 
     ALLOWED_YAML_OPTIONS = ['window', 'count', 'suppress_for']
 
-    # show Jess this -JRP
     @classmethod
     def from_yml_dict(cls, rotation, params):
 
