@@ -484,21 +484,30 @@ class MinIndividualScoreConstraint(Constraint):
 
 class TimeToFirstConstraint(Constraint):
 
-    def __init__(self, rotations_in_group, window_size):
-        self.rotations_in_group = rotations_in_group
+    def __init__(self, eligible_field, window_size):
+        self.eligible_field = eligible_field
         self.window_size = window_size
     
     def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
 
         super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
 
-        for res in residents:
-            count = 0
-            for blk in blocks[:self.window_size]:
-                for rot in self.rotations_in_group:
-                    count += block_assigned[(res, blk, rot)]
+        sum = 0
+        for (x,y,z), value in np.ndenumerate(self.eligible_field[0]):
+            if value == True and y <= self.window_size: #Count all of the elements in the eligible field before the block limit
+                res = residents[x]
+                block = blocks[y]
+                rot = rotations[z]
+                sum += block_assigned[res, block, rot]
+        model.Add(sum >= 1)
 
-            model.Add(count > 1)
+        # for res in residents:
+        #     count = 0
+        #     for blk in blocks[:self.window_size]:
+        #         for rot in self.rotations_in_group:
+        #             count += block_assigned[(res, blk, rot)]
+
+        #     model.Add(count > 1)
 
 
 class GroupCountPerResidentPerWindow(Constraint):
