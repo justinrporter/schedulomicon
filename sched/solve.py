@@ -156,10 +156,10 @@ def solve(
 
     for cst in cst_list:
         cst.apply(model, block_assigned, residents, blocks, rotations, block_backup)
-    
+
     if hint is not None:
         add_result_as_hint(model, block_assigned, residents, blocks, rotations, hint)
-    
+
     solution_printer = soln_printer(
         block_assigned,
         block_backup,
