@@ -94,7 +94,7 @@ def generate_resident_constraints(config, groups_array):
             for selector_string in params['true_somewhere']:
 
                 eligible_field = parser.resolve_eligible_field(
-                    f"'{res} and <{selector_string}>",
+                    f"{res} and <{selector_string}>",
                     groups_array,
                     config['residents'].keys(),
                     config['blocks'].keys(),
@@ -174,7 +174,13 @@ def generate_constraints_from_configs(config, groups_array):
         if cst['kind'] == 'time_to_first':
             constraints.append(
                 csts.TimeToFirstConstraint(
-                    eligible_field=resolve_eligible_field(cst['group'], groups_array, config['residents'], config['blocks'], config['rotations'], prohibited = False),
+                    eligible_field=parser.resolve_eligible_field(
+                        cst['group'],
+                        groups_array,
+                        config['residents'],
+                        config['blocks'],
+                        config['rotations']
+                    ),
                     window_size = cst['window_size'])
             )
 
@@ -241,7 +247,7 @@ def generate_rotation_constraints(config, groups_array):
 
         for k in params.keys():
             if k in available_csts:
-                csts.append(available_csts[k].from_yml_dict(rotation, params))
+                constraints.append(available_csts[k].from_yml_dict(rotation, params))
 
         if 'must_be_followed_by' in params: 
             following_rotations = []

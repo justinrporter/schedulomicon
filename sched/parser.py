@@ -1,5 +1,8 @@
+from functools import partial
+
 import pyparsing as pp
 
+from . import exceptions
 
 def resolve_eligible_field(statement, groups_array, residents, blocks, rotations):
 
@@ -16,9 +19,9 @@ def resolve_eligible_field(statement, groups_array, residents, blocks, rotations
         join_string=' '
     )
 
-    term.setParseAction(resolve_identifier)
-    block.setParseAction(resolve_identifier)
-    string_literal.setParseAction(resolve_identifier)
+    term.setParseAction(partial(_resolve_identifier, groups_array=groups_array))
+    block.setParseAction(partial(_resolve_identifier, groups_array=groups_array))
+    string_literal.setParseAction(partial(_resolve_identifier, groups_array=groups_array))
 
     expression = pp.infixNotation(
         block | string_literal | term,
@@ -45,10 +48,15 @@ def _and_parse_action(arg):
     return l_arg & r_arg
 
 def _or_parse_action(arg):
-    l_arg, op, r_arg = arg[0]
+    l_arg, op, r_arg = arg[0][0:3]
     assert op in ['|', 'or']
     return l_arg | r_arg
 
-def _resolve_identifier(gramm: pp.ParseResults):
-    assert gramm[0] in groups_array.keys()
-    return groups_array[gramm[0]]
+def _resolve_identifier(gramm: pp.ParseResults, groups_array):
+    group_name = gramm[0]
+    try:
+        return groups_array[group_name]
+    except KeyError:
+        raise exceptions.YAMLParseError(
+            f"Couldn't find {group_name} in list of groups: {groups_array.keys()}"
+        )

@@ -135,21 +135,22 @@ class BanRotationBlockConstraint(Constraint):
 class RotationCoverageConstraint(Constraint):
 
     ALLOWED_YAML_OPTIONS = ['allowed_values', 'rmin', 'rmax']
+    KEY_NAME = 'coverage'
 
     @classmethod
     def from_yml_dict(cls, rotation, params):
 
-        assert 'coverage' in params
-        cls._check_yaml_params(rotation, params['allowed_values'])
+        assert cls.KEY_NAME in params
+        cls._check_yaml_params(rotation, params[cls.KEY_NAME])
 
         # options are 1) coverage: [rmin, rmax]
         # or 2) coverage: allowed_values: [v1, v2, ...]
-        if 'allowed_values' in params['coverage']:
-            allowed_vals = params['coverage']['allowed_values']
+        if 'allowed_values' in params[cls.KEY_NAME]:
+            allowed_vals = params[cls.KEY_NAME]['allowed_values']
             cst = cls(rotation, allowed_vals=allowed_vals)
 
         else:  # specifying rmin, rmax directly
-            rmin, rmax = params['coverage']
+            rmin, rmax = params[cls.KEY_NAME]
             cst = cls(rotation, rmin=rmin, rmax=rmax)
 
         return cst
@@ -199,18 +200,25 @@ class RotationCoverageConstraint(Constraint):
             # r_tot is the total number of residents on this rotation for this block
             # need to make a new IntVar for r_tot, since AddAllowedAssignments takes
             # an OR-Tools IntVar
-            r_tot = model.NewIntVar(
-                0, len(residents), f"r_tot_var_{self.rotation}_{block}")
+            r_tot = 0
             for res in residents:
                 r_tot += block_assigned[(res, block, self.rotation)]
 
+            r_tot_var = model.NewIntVar(
+                0, len(residents), f"r_tot_{self.rotation}_{block}")
+
+            # OR-Tools requires a separate variable to constrain (below)
+            # via AddAllowedAssignments, so we name it separately and make it
+            # equivalent to the r_tot accumulated value
+            model.Add(r_tot_var == r_tot)
+
             if rmin is not None:
-                model.Add(r_tot >= rmin)
+                model.Add(r_tot_var >= rmin)
             if rmax is not None:
-                model.Add(r_tot <= rmax)
+                model.Add(r_tot_var <= rmax)
             if self.allowed_vals is not None:
                 allowed_vals = [[value] for value in self.allowed_vals]
-                model.AddAllowedAssignments([r_tot], allowed_vals)
+                model.AddAllowedAssignments([r_tot_var], allowed_vals)
 
 
 class PrerequisiteRotationConstraint(Constraint):
