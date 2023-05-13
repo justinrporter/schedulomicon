@@ -145,7 +145,7 @@ def run_enumerator(model, objective_fn, solution_printer=None):
 
 def solve(
         residents, blocks, rotations, groups_array, cst_list, soln_printer,
-        objective_fn, max_time_in_mins, n_processes = None, hint=None
+        objective_fn, max_time_in_mins, n_processes=None, hint=None,
     ):
 
     block_assigned, model = generate_model(
@@ -160,12 +160,15 @@ def solve(
     if hint is not None:
         add_result_as_hint(model, block_assigned, residents, blocks, rotations, hint)
 
+    # instantiate the soln printer using the prototype passed in
+    # eg soln_printer = partial(callback.JugScheduleSolutionPrinter, scores=scs, solution_limit=1)
+
     solution_printer = soln_printer(
-        block_assigned,
-        block_backup,
-        residents,
-        blocks,
-        rotations,
+        block_assigned=block_assigned,
+        block_backup=block_backup,
+        residents=residents,
+        blocks=blocks,
+        rotations=rotations,
     )
 
     start_time = datetime.datetime.now()
@@ -196,12 +199,4 @@ def solve(
     end_time = datetime.datetime.now()
     runtime_in_minutes = (end_time - start_time).total_seconds() / 60
 
-    print(status)
-    if status == "FEASIBLE":
-        assert abs(runtime_in_minutes - max_time_in_mins) < 5, (
-            f"Marking results as error, since actual runtime of "
-            f"{runtime_in_minutes} wasn't close (within 5m) of requested "
-            f"runtime {max_time_in_mins}"
-        )
-
-    return status, solver, solution_printer, model
+    return status, solver, solution_printer, model, runtime_in_minutes
