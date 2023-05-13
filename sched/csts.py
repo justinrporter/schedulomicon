@@ -171,6 +171,8 @@ class RotationCoverageConstraint(Constraint):
             self.rmax = None
         else:
             assert rmin is not None or rmax is not None
+            if rmin is not None and rmax is not None:
+                assert rmin <= rmax
             self.allowed_vals = None
             self.rmin = rmin
             self.rmax = rmax
@@ -197,6 +199,10 @@ class RotationCoverageConstraint(Constraint):
             rmax_list = self.rmax
 
         for block, rmin, rmax in zip(apply_to_blocks, rmin_list, rmax_list):
+
+            if None not in [rmin, rmax]:
+                assert rmin <= rmax, f"For rotation '{self.rotation}' block '{block}', rmin {rmin} > rmax {rmax}"
+
             # r_tot is the total number of residents on this rotation for this block
             # need to make a new IntVar for r_tot, since AddAllowedAssignments takes
             # an OR-Tools IntVar
