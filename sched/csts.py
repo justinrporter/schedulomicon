@@ -223,6 +223,7 @@ class RotationCoverageConstraint(Constraint):
             if rmax is not None:
                 model.Add(r_tot_var <= rmax)
             if self.allowed_vals is not None:
+                assert not any(v is None for v in self.allowed_vals)
                 allowed_vals = [[value] for value in self.allowed_vals]
                 model.AddAllowedAssignments([r_tot_var], allowed_vals)
 
@@ -386,6 +387,8 @@ class RotationCountConstraint(Constraint):
 
         for resident, nmin, nmax in zip(residents, n_min, n_max):
             r_tot = sum(block_assigned[(resident, block, self.rotation)] for block in blocks)
+            assert nmin is not None
+            assert nmax is not None
             model.Add(r_tot >= nmin)
             model.Add(r_tot <= nmax)
 
@@ -677,6 +680,8 @@ def add_window_count_constraint(model, block_assigned, residents, blocks,
             for blk in blocks[ i : window_size + i ]:
                 for rot in rotations:
                     ct += block_assigned[(res, blk, rot)]
+            assert n_min is not None
+            assert n_max is not None
             model.Add(ct >= n_min)
             model.Add(ct <= n_max)
 

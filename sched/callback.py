@@ -105,7 +105,8 @@ class JugScheduleSolutionPrinter(BaseSolutionPrinter):
         print("  - worst resident utility:", scores_df.sum(axis=1).max())
         print("  - best resident utility:", scores_df.sum(axis=1).min())
 
-        if self._solution_count >= self._solution_limit:
+        if (self._solution_limit is not None) and \
+           (self._solution_count >= self._solution_limit):
             print('Stopping search after %i solutions' % self._solution_limit)
             self.StopSearch()
 
@@ -132,6 +133,7 @@ class BlockSchedulePartialSolutionPrinter(BaseSolutionPrinter):
         self._scores = scores
 
     def on_solution_callback(self):
+
         self._solution_count += 1
 
         logger.info(f"Solution {self._solution_count:02d} at {datetime.datetime.now()} w objective value {self.ObjectiveValue()}")
@@ -160,7 +162,9 @@ class BlockSchedulePartialSolutionPrinter(BaseSolutionPrinter):
         # for row in score_table:
         #     print('['+','.join([str(i) for i in row])+'],')
 
+
         if (self._solution_limit is not Ellipsis) and \
+            (self._solution_limit is not None) and \
            (self._solution_count >= self._solution_limit):
             self.StopSearch()
 
