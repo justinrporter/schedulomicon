@@ -445,6 +445,8 @@ class ProhibitedCombinationConstraint(Constraint):
                     rot = rotations[z]
                     sum += block_assigned[res, block, rot]
         model.Add(sum < list_length)
+
+
 class MarkIneligibleConstraint(Constraint):
 
     def __init__(self, eligible_field):
