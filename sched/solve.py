@@ -40,7 +40,7 @@ def score_dict_from_df(rankings, residents, blocks, rotations, block_resident_ra
 
     for res, rnk in rankings.items():
         for rot in rnk:
-            assert rot in rotations, f"{rot} not in rotations"
+            assert rot in rotations, f"Rotation '{rot}' not found in YAML specification."
 
     scores = {}
     for res in residents:
@@ -109,6 +109,7 @@ def run_optimizer(model, objective_fn, n_processes=None, solution_printer=None, 
 
     if n_processes is None:
         n_processes = util.get_parallelism()
+
     logger.info("Planning to use {n_processes} threads.")
     print(f"Planning to use {n_processes} threads.")
 
