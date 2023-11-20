@@ -4,6 +4,7 @@ import pyparsing as pp
 
 from . import exceptions
 
+
 def resolve_eligible_field(statement, groups_array, residents, blocks, rotations):
 
     block = pp.Combine(
@@ -23,7 +24,7 @@ def resolve_eligible_field(statement, groups_array, residents, blocks, rotations
     block.setParseAction(partial(_resolve_identifier, groups_array=groups_array))
     string_literal.setParseAction(partial(_resolve_identifier, groups_array=groups_array))
 
-    expression = pp.infixNotation(
+    expression = pp.infix_notation(
         block | string_literal | term,
         [
             (pp.Keyword("not"), 1, pp.opAssoc.RIGHT, _not_parse_action),
@@ -43,14 +44,24 @@ def _not_parse_action(arg):
     return ~group_array
 
 def _and_parse_action(arg):
-    l_arg, op, r_arg = arg[0]
-    assert op in ['&', 'and']
-    return l_arg & r_arg
+    assert all(o in ['&', 'and'] for o in arg[0][1::2])
+
+    operands = arg[0][::2]
+    a = operands[0]
+    for o in operands:
+        a = a & o
+
+    return a
 
 def _or_parse_action(arg):
-    l_arg, op, r_arg = arg[0][0:3]
-    assert op in ['|', 'or']
-    return l_arg | r_arg
+    assert all(o in ['|', 'or'] for o in arg[0][1::2])
+
+    operands = arg[0][::2]
+    a = operands[0]
+    for o in operands:
+        a = a | o
+
+    return a
 
 def _resolve_identifier(gramm: pp.ParseResults, groups_array):
     group_name = gramm[0]
