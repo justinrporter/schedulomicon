@@ -392,6 +392,7 @@ class RotationCountConstraint(Constraint):
             model.Add(r_tot >= nmin)
             model.Add(r_tot <= nmax)
 
+
 class RotationCountNotConstraint(Constraint):
 
     def __init__(self, rotation, ct):
@@ -406,7 +407,8 @@ class RotationCountNotConstraint(Constraint):
             r_tot = sum(block_assigned[(resident, block, self.rotation)] for block in blocks)
             model.Add(r_tot != self.ct)
 
-class PinnedRotationConstraint(Constraint):
+
+class TrueSomewhereConstraint(Constraint):
 
     def __init__(self, eligible_field):
         self.eligible_field = eligible_field
@@ -415,15 +417,16 @@ class PinnedRotationConstraint(Constraint):
 
         super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
 
-        sum = 0
+        s = 0
         for loc,value in np.ndenumerate(self.eligible_field[0]):
             x,y,z = loc
             if value == True:
                 res = residents[x]
                 block = blocks[y]
                 rot = rotations[z]
-                sum += block_assigned[res, block, rot]
-        model.Add(sum >= 1)
+                s += block_assigned[res, block, rot]
+        model.Add(s >= 1)
+
 
 class ProhibitedCombinationConstraint(Constraint):
 
@@ -465,6 +468,7 @@ class MarkIneligibleConstraint(Constraint):
                 sum += block_assigned[res, block, rot]
         model.Add(sum == 0)
 
+
 class RotationWindowConstraint(Constraint):
 
     def __repr__(self):
@@ -487,6 +491,7 @@ class RotationWindowConstraint(Constraint):
             sum += block_assigned[self.resident, block, self.rotation]
 
         model.Add(sum >= 1)
+
 
 class MinIndividualScoreConstraint(Constraint):
 
@@ -528,33 +533,6 @@ class MinIndividualScoreConstraint(Constraint):
         logger.info(f"Applied individual resident utility < {self.min_score} to "
                      f"{len(residents)} residents")
 
-class TimeToFirstConstraint(Constraint):
-
-    def __init__(self, eligible_field, window_size):
-        self.eligible_field = eligible_field
-        self.window_size = window_size
-    
-    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
-
-        super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
-
-        sum = 0
-        for (x,y,z), value in np.ndenumerate(self.eligible_field[0]):
-            if value == True and y <= self.window_size: #Count all of the elements in the eligible field before the block limit
-                res = residents[x]
-                block = blocks[y]
-                rot = rotations[z]
-                sum += block_assigned[res, block, rot]
-        model.Add(sum >= 1)
-
-        # for res in residents:
-        #     count = 0
-        #     for blk in blocks[:self.window_size]:
-        #         for rot in self.rotations_in_group:
-        #             count += block_assigned[(res, blk, rot)]
-
-        #     model.Add(count > 1)
-
 
 class GroupCountPerResidentPerWindow(Constraint):
 
@@ -582,6 +560,7 @@ class GroupCountPerResidentPerWindow(Constraint):
             self.rotations_in_group, self.window, self.n_min, self.n_max
         )
 
+
 class ResidentGroupConstraint(Constraint):
 
     def __init__(self, rotation, eligible_residents):
@@ -597,6 +576,7 @@ class ResidentGroupConstraint(Constraint):
             model, block_assigned, residents, blocks,
             self.rotation, self.eligible_residents
         )
+
 
 class EligibleAfterBlockConstraint(Constraint):
 
@@ -617,7 +597,6 @@ class EligibleAfterBlockConstraint(Constraint):
             model, block_assigned, residents, blocks, rotations,
             self.rotation, self.resident_group, ineligible_blocks
         )
-
 
 
 def add_must_be_paired_constraint(model, block_assigned, residents, blocks,

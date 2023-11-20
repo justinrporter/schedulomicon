@@ -101,7 +101,7 @@ def generate_resident_constraints(config, groups_array):
                     config['rotations'].keys()
                 )
                 cst_list.append(
-                    csts.PinnedRotationConstraint(eligible_field)
+                    csts.TrueSomewhereConstraint(eligible_field)
                 )
 
     return cst_list
@@ -169,19 +169,6 @@ def generate_constraints_from_configs(config, groups_array):
                 csts.GroupCountPerResidentPerWindow(
                     rotations_in_group=resolve_group(cst['group'], config['rotations']),
                     n_min=cst['count'][0], n_max=cst['count'][1], window_size = cst['window_size'])
-            )
-
-        if cst['kind'] == 'time_to_first':
-            constraints.append(
-                csts.TimeToFirstConstraint(
-                    eligible_field=parser.resolve_eligible_field(
-                        cst['group'],
-                        groups_array,
-                        config['residents'],
-                        config['blocks'],
-                        config['rotations']
-                    ),
-                    window_size = cst['window_size'])
             )
 
     return constraints

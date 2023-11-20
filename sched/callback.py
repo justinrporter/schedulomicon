@@ -92,7 +92,6 @@ class JugScheduleSolutionPrinter(BaseSolutionPrinter):
         self._solution_count += 1
         print(f"Solution {self._solution_count:02d} at {datetime.datetime.now()} w objective value {self.ObjectiveValue()}")
         logger.info(f"Solution {self._solution_count:02d} at {datetime.datetime.now()} w objective value {self.ObjectiveValue()}")
-        print(f"Solution {self._solution_count:02d} at {datetime.datetime.now()} w objective value {self.ObjectiveValue()}")
 
         solution_df = self.df_from_solution()
 
@@ -105,8 +104,6 @@ class JugScheduleSolutionPrinter(BaseSolutionPrinter):
         print("  - best resident utility:", scores_df.sum(axis=1).min())
         logger.info("  - worst resident utility:", scores_df.sum(axis=1).max())
         logger.info("  - best resident utility:", scores_df.sum(axis=1).min())
-        print("  - worst resident utility:", scores_df.sum(axis=1).max())
-        print("  - best resident utility:", scores_df.sum(axis=1).min())
 
         if (self._solution_limit is not None) and \
            (self._solution_count >= self._solution_limit):
