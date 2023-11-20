@@ -13,7 +13,8 @@ logger = logging.getLogger(__name__)
 
 class BaseSolutionPrinter(cp_model.CpSolverSolutionCallback):
 
-    def __init__(self, block_assigned, block_backup, residents, blocks, rotations):
+    def __init__(self, block_assigned, block_backup, residents, blocks, rotations,
+                 solution_limit=None):
 
         cp_model.CpSolverSolutionCallback.__init__(self)
         self._block_assigned = block_assigned
@@ -22,6 +23,10 @@ class BaseSolutionPrinter(cp_model.CpSolverSolutionCallback):
         self._residents = residents
         self._blocks = blocks
         self._rotations = rotations
+
+        self._solution_limit = solution_limit
+        self._solution_count = 0
+
 
     def df_from_solution(self):
 
@@ -69,18 +74,17 @@ class BaseSolutionPrinter(cp_model.CpSolverSolutionCallback):
 
         return df
 
+
 class JugScheduleSolutionPrinter(BaseSolutionPrinter):
 
-    def __init__(
-            self, block_assigned, block_backup, residents, blocks, rotations,
-            scores, solution_limit=Ellipsis
-            ):
+    def __init__(self, scores, *args, **kwargs):
 
-        super().__init__(block_assigned, block_backup, residents, blocks, rotations)
+        super().__init__(*args, **kwargs)
 
         self._scores = scores
 
-        self._solution_count = 0
+        # _solution count is set in BaseSolutionPrinter
+        # self._solution_count = 0
         self._solution_scores = []
         self._solutions = []
 
@@ -88,6 +92,7 @@ class JugScheduleSolutionPrinter(BaseSolutionPrinter):
         self._solution_count += 1
         print(f"Solution {self._solution_count:02d} at {datetime.datetime.now()} w objective value {self.ObjectiveValue()}")
         logger.info(f"Solution {self._solution_count:02d} at {datetime.datetime.now()} w objective value {self.ObjectiveValue()}")
+        print(f"Solution {self._solution_count:02d} at {datetime.datetime.now()} w objective value {self.ObjectiveValue()}")
 
         solution_df = self.df_from_solution()
 
@@ -100,6 +105,13 @@ class JugScheduleSolutionPrinter(BaseSolutionPrinter):
         print("  - best resident utility:", scores_df.sum(axis=1).min())
         logger.info("  - worst resident utility:", scores_df.sum(axis=1).max())
         logger.info("  - best resident utility:", scores_df.sum(axis=1).min())
+        print("  - worst resident utility:", scores_df.sum(axis=1).max())
+        print("  - best resident utility:", scores_df.sum(axis=1).min())
+
+        if (self._solution_limit is not None) and \
+           (self._solution_count >= self._solution_limit):
+            print('Stopping search after %i solutions' % self._solution_limit)
+            self.StopSearch()
 
 
 class BlockSchedulePartialSolutionPrinter(BaseSolutionPrinter):
@@ -124,6 +136,7 @@ class BlockSchedulePartialSolutionPrinter(BaseSolutionPrinter):
         self._scores = scores
 
     def on_solution_callback(self):
+
         self._solution_count += 1
 
         logger.info(f"Solution {self._solution_count:02d} at {datetime.datetime.now()} w objective value {self.ObjectiveValue()}")
@@ -152,7 +165,9 @@ class BlockSchedulePartialSolutionPrinter(BaseSolutionPrinter):
         # for row in score_table:
         #     print('['+','.join([str(i) for i in row])+'],')
 
+
         if (self._solution_limit is not Ellipsis) and \
+            (self._solution_limit is not None) and \
            (self._solution_count >= self._solution_limit):
             self.StopSearch()
 

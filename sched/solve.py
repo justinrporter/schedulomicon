@@ -9,7 +9,6 @@ logger = logging.getLogger(__name__)
 
 
 def accumulate_score_res_block_scores(score_dict, resident_block_scores, rotation):
-
     for resident, block_scores in resident_block_scores.items():
         for block, score in block_scores.items():
             score_dict[(resident, block, rotation)] += score
@@ -41,7 +40,7 @@ def score_dict_from_df(rankings, residents, blocks, rotations, block_resident_ra
 
     for res, rnk in rankings.items():
         for rot in rnk:
-            assert rot in rotations, f"{rot} not in rotations"
+            assert rot in rotations, f"Rotation '{rot}' not found in YAML specification."
 
     scores = {}
     for res in residents:
@@ -58,7 +57,7 @@ def score_dict_from_df(rankings, residents, blocks, rotations, block_resident_ra
     return scores
 
 
-def generate_model(residents, blocks, rotations, groups):
+def generate_model(residents, blocks, rotations, groups_array):
 
     model = cp_model.CpModel()
 
@@ -106,10 +105,11 @@ def add_result_as_hint(model, block_assigned, residents, blocks, rotations, hint
                 )
 
 
-def run_optimizer(model, objective_fn, max_time_in_mins, solution_printer=None, n_processes=None):
+def run_optimizer(model, objective_fn, n_processes=None, solution_printer=None, max_time_in_mins=60):
 
     if n_processes is None:
         n_processes = util.get_parallelism()
+
     logger.info("Planning to use {n_processes} threads.")
     print(f"Planning to use {n_processes} threads.")
 
@@ -131,7 +131,7 @@ def run_optimizer(model, objective_fn, max_time_in_mins, solution_printer=None, 
     return status, solver
 
 
-def run_enumerator(model, solution_printer=None):
+def run_enumerator(model, objective_fn, solution_printer=None):
 
     solver = cp_model.CpSolver()
     solver.parameters.linearization_level = 2
@@ -145,28 +145,31 @@ def run_enumerator(model, solution_printer=None):
 
 
 def solve(
-        residents, blocks, rotations, groups, cst_list, soln_printer,
-        objective_fn, max_time_in_mins, n_processes=None, hint=None
+        residents, blocks, rotations, groups_array, cst_list, soln_printer,
+        objective_fn, max_time_in_mins, n_processes=None, hint=None,
     ):
 
     block_assigned, model = generate_model(
-        residents, blocks, rotations, groups
+        residents, blocks, rotations, groups_array
     )
 
     block_backup = generate_backup(model, residents, blocks, n_backup_blocks=2)
 
     for cst in cst_list:
         cst.apply(model, block_assigned, residents, blocks, rotations, block_backup)
-    
+
     if hint is not None:
         add_result_as_hint(model, block_assigned, residents, blocks, rotations, hint)
-    
+
+    # instantiate the soln printer using the prototype passed in
+    # eg soln_printer = partial(callback.JugScheduleSolutionPrinter, scores=scs, solution_limit=1)
+
     solution_printer = soln_printer(
-        block_assigned,
-        block_backup,
-        residents,
-        blocks,
-        rotations,
+        block_assigned=block_assigned,
+        block_backup=block_backup,
+        residents=residents,
+        blocks=blocks,
+        rotations=rotations,
     )
 
     start_time = datetime.datetime.now()
@@ -179,6 +182,7 @@ def solve(
         status, solver = run_optimizer(
             model,
             objective_fn,
+            n_processes,
             solution_printer=solution_printer,
             max_time_in_mins=max_time_in_mins
         )
@@ -187,6 +191,7 @@ def solve(
 
         status, solver = run_enumerator(
             model,
+            objective_fn,
             solution_printer=solution_printer
         )
 
@@ -195,12 +200,4 @@ def solve(
     end_time = datetime.datetime.now()
     runtime_in_minutes = (end_time - start_time).total_seconds() / 60
 
-    print(status)
-    if status == "FEASIBLE":
-        assert abs(runtime_in_minutes - max_time_in_mins) < 5, (
-            f"Marking results as error, since actual runtime of "
-            f"{runtime_in_minutes} wasn't close (within 5m) of requested "
-            f"runtime {max_time_in_mins}"
-        )
-
-    return status, solver, solution_printer, model
+    return status, solver, solution_printer, model, runtime_in_minutes

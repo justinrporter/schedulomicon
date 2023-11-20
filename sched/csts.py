@@ -1,6 +1,7 @@
 import itertools
 import numbers
 import logging
+import numpy as np
 
 from .exceptions import YAMLParseError
 
@@ -80,8 +81,19 @@ class RotationBackupCountConstraint(Constraint):
         for block in blocks:
             for resident in residents:
                 ct += backup_vars[(resident, block)]
-
         model.Add(ct <= self.count)
+
+
+class BanBackupBlockContraint(Constraint):
+    def __init__(self, resident, block):
+        self.block = block
+        self.resident = resident
+
+    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
+
+        super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
+
+        model.Add(block_backup[(self.resident, self.block)] == 0)
 
 
 class BackupEligibleBlocksBackupConstraint(Constraint):
@@ -122,17 +134,49 @@ class BanRotationBlockConstraint(Constraint):
 
 class RotationCoverageConstraint(Constraint):
 
+    ALLOWED_YAML_OPTIONS = ['allowed_values', 'rmin', 'rmax']
+    KEY_NAME = 'coverage'
+
+    @classmethod
+    def from_yml_dict(cls, rotation, params):
+
+        assert cls.KEY_NAME in params
+        cls._check_yaml_params(rotation, params[cls.KEY_NAME])
+
+        # options are 1) coverage: [rmin, rmax]
+        # or 2) coverage: allowed_values: [v1, v2, ...]
+        if 'allowed_values' in params[cls.KEY_NAME]:
+            allowed_vals = params[cls.KEY_NAME]['allowed_values']
+            cst = cls(rotation, allowed_vals=allowed_vals)
+
+        else:  # specifying rmin, rmax directly
+            rmin, rmax = params[cls.KEY_NAME]
+            cst = cls(rotation, rmin=rmin, rmax=rmax)
+
+        return cst
+
     def __repr__(self):
         return "RotationCoverageConstraint(%s,%s,%s,%s)" % (
              self.rotation, self.blocks, self.rmin, self.rmax)
 
-    def __init__(self, rotation, blocks=Ellipsis, rmin=None, rmax=None):
+    def __init__(self, rotation, blocks=Ellipsis, rmin=None, rmax=None, allowed_vals=None):
         self.rotation = rotation
         self.blocks = blocks
-        self.rmin = rmin
-        self.rmax = rmax
 
-        assert self.rmax is not None or self.rmin is not None
+        if allowed_vals is not None:
+            assert rmin is None
+            assert rmax is None
+            self.allowed_vals = allowed_vals
+            self.rmin = None
+            self.rmax = None
+        else:
+            assert rmin is not None or rmax is not None
+            if rmin is not None and rmax is not None:
+                assert rmin <= rmax
+            self.allowed_vals = None
+            self.rmin = rmin
+            self.rmax = rmax
+
 
     def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
 
@@ -155,12 +199,33 @@ class RotationCoverageConstraint(Constraint):
             rmax_list = self.rmax
 
         for block, rmin, rmax in zip(apply_to_blocks, rmin_list, rmax_list):
+
+            if None not in [rmin, rmax]:
+                assert rmin <= rmax, f"For rotation '{self.rotation}' block '{block}', rmin {rmin} > rmax {rmax}"
+
             # r_tot is the total number of residents on this rotation for this block
-            r_tot = sum(block_assigned[(res, block, self.rotation)] for res in residents)
-            if rmin is not None and rmin > 0:
-                model.Add(r_tot >= rmin)
+            # need to make a new IntVar for r_tot, since AddAllowedAssignments takes
+            # an OR-Tools IntVar
+            r_tot = 0
+            for res in residents:
+                r_tot += block_assigned[(res, block, self.rotation)]
+
+            r_tot_var = model.NewIntVar(
+                0, len(residents), f"r_tot_{self.rotation}_{block}")
+
+            # OR-Tools requires a separate variable to constrain (below)
+            # via AddAllowedAssignments, so we name it separately and make it
+            # equivalent to the r_tot accumulated value
+            model.Add(r_tot_var == r_tot)
+
+            if rmin is not None:
+                model.Add(r_tot_var >= rmin)
             if rmax is not None:
-                model.Add(r_tot <= rmax)
+                model.Add(r_tot_var <= rmax)
+            if self.allowed_vals is not None:
+                assert not any(v is None for v in self.allowed_vals)
+                allowed_vals = [[value] for value in self.allowed_vals]
+                model.AddAllowedAssignments([r_tot_var], allowed_vals)
 
 
 class PrerequisiteRotationConstraint(Constraint):
@@ -275,12 +340,13 @@ class CoolDownConstraint(Constraint):
         )
 
     def __repr__(self):
-        return "CoolDownConstraint(%s,%s)" % (
+        return "CoolDownConstraint(%s,%s,%s)" % (
              self.rotation, self.window_size, self.count)
 
     def __init__(self, rotation, window_size, count, suppress_for=[]):
         self.rotation = rotation
         self.window_size = window_size
+        self.count = count
         self.n_min = count[0]
         self.n_max = count[1]
         self.suppress_for = suppress_for
@@ -321,9 +387,10 @@ class RotationCountConstraint(Constraint):
 
         for resident, nmin, nmax in zip(residents, n_min, n_max):
             r_tot = sum(block_assigned[(resident, block, self.rotation)] for block in blocks)
+            assert nmin is not None
+            assert nmax is not None
             model.Add(r_tot >= nmin)
             model.Add(r_tot <= nmax)
-
 
 class RotationCountNotConstraint(Constraint):
 
@@ -339,38 +406,87 @@ class RotationCountNotConstraint(Constraint):
             r_tot = sum(block_assigned[(resident, block, self.rotation)] for block in blocks)
             model.Add(r_tot != self.ct)
 
-
 class PinnedRotationConstraint(Constraint):
 
-    def __repr__(self):
-        return "%s(%s,%s,%s)" % (
-            self.__class__, self.resident, self.pinned_blocks, self.pinned_rotation)
-
-    def __init__(self, resident, pinned_blocks, pinned_rotation):
-
-        self.resident = resident
-        self.pinned_blocks = pinned_blocks
-        self.pinned_rotation = pinned_rotation
-
+    def __init__(self, eligible_field):
+        self.eligible_field = eligible_field
+    
     def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
 
         super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
 
-        # if the block to pin is unspecified, the rotation is assigned to the
-        # resident somewhere in the schedule
-        if len(self.pinned_blocks) == 0:
-            model.Add(
-                sum(block_assigned[self.resident, block, self.pinned_rotation]
-                    for block in blocks) >= 1
-            )
-        # otherwise we pin the specific block
-        else:
-            for pinned_block in self.pinned_blocks:
-                model.Add(
-                    block_assigned[
-                        self.resident, pinned_block, self.pinned_rotation] == 1
-                )
+        sum = 0
+        for loc,value in np.ndenumerate(self.eligible_field[0]):
+            x,y,z = loc
+            if value == True:
+                res = residents[x]
+                block = blocks[y]
+                rot = rotations[z]
+                sum += block_assigned[res, block, rot]
+        model.Add(sum >= 1)
 
+class ProhibitedCombinationConstraint(Constraint):
+
+    def __init__(self, prohibited_fields):
+        self.prohibited_fields = prohibited_fields
+    
+    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
+
+        super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
+        
+        list_length = len(self.prohibited_fields)
+        sum = 0
+        for field in self.prohibited_fields:
+            for loc,value in np.ndenumerate(field):
+                x,y,z = loc
+                if value == True:
+                    res = residents[x]
+                    block = blocks[y]
+                    rot = rotations[z]
+                    sum += block_assigned[res, block, rot]
+        model.Add(sum < list_length)
+
+
+class MarkIneligibleConstraint(Constraint):
+
+    def __init__(self, eligible_field):
+        self.eligible_field = eligible_field
+    
+    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
+
+        super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
+
+        sum = 0
+        for (x,y,z), value in np.ndenumerate(~self.eligible_field[0]):
+            if value == True:
+                res = residents[x]
+                block = blocks[y]
+                rot = rotations[z]
+                sum += block_assigned[res, block, rot]
+        model.Add(sum == 0)
+
+class RotationWindowConstraint(Constraint):
+
+    def __repr__(self):
+        return "%s(%s,%s,%s)" % (
+            self.__class__, self.resident, self.rotation, self.possible_blocks)
+
+    def __init__(self, resident, rotation, possible_blocks):
+
+        self.resident = resident
+        self.rotation = rotation
+        self.possible_blocks = possible_blocks
+
+    def apply(self, model, block_assigned, residents, blocks, rotations):
+
+        super().apply(model, block_assigned, residents, blocks, rotations)
+
+        # Rotation is assigned to the resident somewhere in the "possible_blocks"
+        sum = 0
+        for block in self.possible_blocks:
+            sum += block_assigned[self.resident, block, self.rotation]
+
+        model.Add(sum >= 1)
 
 class MinIndividualScoreConstraint(Constraint):
 
@@ -412,24 +528,32 @@ class MinIndividualScoreConstraint(Constraint):
         logger.info(f"Applied individual resident utility < {self.min_score} to "
                      f"{len(residents)} residents")
 
-
 class TimeToFirstConstraint(Constraint):
 
-    def __init__(self, rotations_in_group, window_size):
-        self.rotations_in_group = rotations_in_group
+    def __init__(self, eligible_field, window_size):
+        self.eligible_field = eligible_field
         self.window_size = window_size
     
     def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
 
         super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
 
-        for res in residents:
-            count = 0
-            for blk in blocks[:self.window_size]:
-                for rot in self.rotations_in_group:
-                    count += block_assigned[(res, blk, rot)]
+        sum = 0
+        for (x,y,z), value in np.ndenumerate(self.eligible_field[0]):
+            if value == True and y <= self.window_size: #Count all of the elements in the eligible field before the block limit
+                res = residents[x]
+                block = blocks[y]
+                rot = rotations[z]
+                sum += block_assigned[res, block, rot]
+        model.Add(sum >= 1)
 
-            model.Add(count > 1)
+        # for res in residents:
+        #     count = 0
+        #     for blk in blocks[:self.window_size]:
+        #         for rot in self.rotations_in_group:
+        #             count += block_assigned[(res, blk, rot)]
+
+        #     model.Add(count > 1)
 
 
 class GroupCountPerResidentPerWindow(Constraint):
@@ -438,21 +562,62 @@ class GroupCountPerResidentPerWindow(Constraint):
         return "GroupCountPerResident(%s,%s,%s)" % (
              self.rotations_in_group, self.n_min, self.n_max)
 
-    def __init__(self, rotations_in_group, n_min, n_max, window_size):
+    def __init__(self, rotations_in_group, n_min, n_max, window_size, res_list=None):
 
         self.rotations_in_group = rotations_in_group
         self.n_min = n_min
         self.n_max = n_max
         self.window = window_size
+        self.res_list = res_list
 
     def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
 
         super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
 
+        if self.res_list is not None: 
+            residents = self.res_list
+
         add_window_count_constraint(
             model, block_assigned, residents, blocks,
             self.rotations_in_group, self.window, self.n_min, self.n_max
         )
+
+class ResidentGroupConstraint(Constraint):
+
+    def __init__(self, rotation, eligible_residents):
+
+        self.rotation = rotation
+        self.eligible_residents = eligible_residents
+
+    def apply(self, model, block_assigned, residents, blocks):
+
+        super().apply(model, block_assigned, residents, blocks)
+
+        add_resident_group_constraint(
+            model, block_assigned, residents, blocks,
+            self.rotation, self.eligible_residents
+        )
+
+class EligibleAfterBlockConstraint(Constraint):
+
+    def __init__(self, rotation, resident_group, eligible_after_block):
+
+        self.rotation = rotation
+        self.resident_group = resident_group
+        self.eligible_after_block = eligible_after_block
+
+    def apply(self, model, block_assigned, residents, blocks, rotations):
+
+        super().apply(model, block_assigned, residents, blocks, rotations)
+
+        eligible_index = blocks.index(self.eligible_after_block)+1
+        ineligible_blocks = blocks[:eligible_index]
+
+        add_resident_group_constraint(
+            model, block_assigned, residents, blocks, rotations,
+            self.rotation, self.resident_group, ineligible_blocks
+        )
+
 
 
 def add_must_be_paired_constraint(model, block_assigned, residents, blocks,
@@ -517,5 +682,19 @@ def add_window_count_constraint(model, block_assigned, residents, blocks,
             for blk in blocks[ i : window_size + i ]:
                 for rot in rotations:
                     ct += block_assigned[(res, blk, rot)]
+            assert n_min is not None
+            assert n_max is not None
             model.Add(ct >= n_min)
             model.Add(ct <= n_max)
+
+def add_resident_group_constraint(model, block_assigned, residents, blocks,
+                                rotation, eligible_residents, ineligible_blocks = None):
+# If all blocks are indicated, adds a constrains that the sum of blocks = 0 if the resident is not in "eligible residents" group
+    for res in residents:
+        if ineligible_blocks is None:
+            n = sum(block_assigned[(res, block, rotation)] for block in blocks)
+            model.Add(n == 0).OnlyEnforceIf(res not in eligible_residents)
+# If only certain 'eligible blocks' have been indicated, makes sure that the eligible_residents are NOT assigned the rotation during an ineligible block)
+        else:
+            n = sum(block_assigned[(res, block, rotation)] for block in ineligible_blocks)
+            model.Add(n == 0).OnlyEnforceIf(res in eligible_residents)

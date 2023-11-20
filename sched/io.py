@@ -3,26 +3,86 @@ import csv
 import numpy as np
 import pandas as pd
 
-from . import csts
+from . import csts, parser
 
+
+def get_group_array(group, config, group_type):
+    
+    residents = list(config['residents'].keys())
+    blocks = list(config['blocks'].keys())
+    rotations = list(config['rotations'].keys())
+
+    n_res = len(residents)
+    n_blocks = len(blocks)
+    n_rots = len(rotations)
+
+    group_array = np.dstack([np.stack([[False]*n_res]*n_blocks).T]*n_rots)
+
+    if group_type == 'residents':
+        for res, params in config['residents'].items():
+            if not params: continue
+            if group in params.get('groups', []):
+                group_array[residents.index(res)] = True
+    elif group_type == 'blocks':
+        for block, params in config['blocks'].items():
+            if not params: continue
+            if group in params.get('groups', []):
+                for i, res in enumerate(group_array):
+                    group_array[i][blocks.index(block)] = True
+    elif group_type == 'rotations':
+        for rotation, params in config['rotations'].items():
+            if not params: continue
+            if group in params.get('groups', []):
+                for i, res in enumerate(group_array):
+                    for j, block in enumerate(group_array[i]):
+                        group_array[i][j][rotations.index(rotation)] = True
+    
+    elif group_type == 'res_name':
+        group_array[residents.index(group)] = True
+    elif group_type == 'block_name':
+        for i,res in enumerate(residents): 
+            group_array[i][blocks.index(group)] = True
+    elif group_type == 'rotation_name':
+        for i, res in enumerate(residents):
+            for j, block in enumerate(blocks):
+                group_array[i][j][rotations.index(group)] = True
+
+    return group_array
 
 def process_config(config):
 
     residents = list(config['residents'].keys())
     blocks = list(config['blocks'].keys())
     rotations = list(config['rotations'].keys())
+    
+    groups = {
+        'residents': [],
+        'blocks': [],
+        'rotations': []
+    }
 
-    groups = []
-    for rot, params in config['rotations'].items():
-        if not params:
-            continue
-        groups.extend(params.get('groups', []))
-    groups = list(set(groups))
+    for config_type in ['residents', 'blocks', 'rotations']:
+        for item, params in config[config_type].items():
+            if not params: continue
+            groups[config_type].extend(params.get('groups', []))
+        groups[config_type] = list(set(groups[config_type]))
 
-    return residents, blocks, rotations, groups
+    groups_array = {}
+    for group_type in groups:
+        for group in groups[group_type]:
+            groups_array[group] = get_group_array(group, config, group_type = group_type)
+    
+    for res in residents:
+        groups_array[res] = get_group_array(res,config, group_type = "res_name")
+    for block in blocks: 
+        groups_array[block] = get_group_array(block,config, group_type = "block_name")
+    for rotation in rotations: 
+        groups_array[rotation] = get_group_array(rotation,config, group_type = "rotation_name")
+
+    return residents, blocks, rotations, groups_array
 
 
-def generate_resident_constraints(config):
+def generate_resident_constraints(config, groups_array):
 
     cst_list = []
 
@@ -30,10 +90,18 @@ def generate_resident_constraints(config):
         if not params:
             continue
 
-        if 'pin_rotation' in params:
-            for pinned_rotation, pinned_blocks in params['pin_rotation'].items():
+        if 'true_somewhere' in params:
+            for selector_string in params['true_somewhere']:
+
+                eligible_field = parser.resolve_eligible_field(
+                    f"{res} and <{selector_string}>",
+                    groups_array,
+                    config['residents'].keys(),
+                    config['blocks'].keys(),
+                    config['rotations'].keys()
+                )
                 cst_list.append(
-                    csts.PinnedRotationConstraint(res, pinned_blocks, pinned_rotation)
+                    csts.PinnedRotationConstraint(eligible_field)
                 )
 
     return cst_list
@@ -67,23 +135,34 @@ def generate_backup_constraints(
         csts.BackupEligibleBlocksBackupConstraint(backup_eligible)
     )
 
+    for res, res_params in config['residents'].items():
+        if not res_params: continue
+        if 'no_backup' in res_params: 
+            for block in res_params['no_backup']:
+                constraints.append(csts.BanBackupBlockContraint(res, block))
     return constraints
 
 
-def generate_constraints_from_configs(config):
+def generate_constraints_from_configs(config, groups_array):
 
     constraints = []
 
-    constraints.extend(generate_rotation_constraints(config))
+    constraints.extend(generate_rotation_constraints(config, groups_array))
 
-    constraints.extend(generate_resident_constraints(config))
+    constraints.extend(generate_resident_constraints(config, groups_array))
 
     for cst in config['group_constraints']:
+
         if cst['kind'] == 'all_group_count_per_resident':
+            if 'apply_to_residents' in cst:
+                res_list = cst['apply_to_residents']
+            else: 
+                res_list = None 
+        
             constraints.append(
                 csts.GroupCountPerResidentPerWindow(
                     rotations_in_group=resolve_group(cst['group'], config['rotations']),
-                    n_min=cst['count'][0], n_max=cst['count'][1], window_size = len(config['blocks']))
+                    n_min=cst['count'][0], n_max=cst['count'][1], window_size = len(config['blocks']),res_list = res_list)
             )
         if cst['kind'] == 'window_group_count_per_resident':
             constraints.append(
@@ -95,9 +174,16 @@ def generate_constraints_from_configs(config):
         if cst['kind'] == 'time_to_first':
             constraints.append(
                 csts.TimeToFirstConstraint(
-                    rotations_in_group=resolve_group(cst['group'], config['rotations']),
+                    eligible_field=parser.resolve_eligible_field(
+                        cst['group'],
+                        groups_array,
+                        config['residents'],
+                        config['blocks'],
+                        config['rotations']
+                    ),
                     window_size = cst['window_size'])
             )
+
     return constraints
 
 
@@ -146,19 +232,24 @@ def add_group_count_per_resident_constraint(
         model.Add(ct >= n_min)
         model.Add(ct <= n_max)
 
-
-def generate_rotation_constraints(config):
+def generate_rotation_constraints(config, groups_array):
 
     constraints = []
 
-    for rotation, params in config['rotations'].items():
+    available_csts = {
+        'coverage': csts.RotationCoverageConstraint,
+        'cool_down': csts.CoolDownConstraint
+    }
 
+    for rotation, params in config['rotations'].items():
         if not params:
             continue
-        if 'coverage' in params:
-            rmin, rmax = handle_count_specification(params['coverage'], len(config['blocks']))
-            constraints.append(csts.RotationCoverageConstraint(rotation, rmin=rmin, rmax=rmax))
-        if 'must_be_followed_by' in params:
+
+        for k in params.keys():
+            if k in available_csts:
+                constraints.append(available_csts[k].from_yml_dict(rotation, params))
+
+        if 'must_be_followed_by' in params: 
             following_rotations = []
             for key in params['must_be_followed_by']:
                 if key in config['rotations']:
@@ -191,11 +282,6 @@ def generate_rotation_constraints(config):
                     rotation=rotation, prerequisites=params['prerequisite']
                 ))
 
-        if 'cool_down' in params:
-            constraints.append(
-                csts.CoolDownConstraint.from_yml_dict(rotation, params)
-            )
-
         if params.get('always_paired', False):
             constraints.append(
                 csts.AlwaysPairedRotationConstraint(rotation)
@@ -213,7 +299,7 @@ def generate_rotation_constraints(config):
             constraints.append(
                 csts.RotationCountNotConstraint(rotation, ct)
             )
-
+            
     return constraints
 
 
@@ -248,30 +334,9 @@ def coverage_constraints_from_csv(fname, rmin_or_rmax):
     return constraints
 
 
-def pin_constraints_from_csv(fname):
-
-    coverage_pins = pd.read_csv(fname, header=0, index_col=0, comment='#')
-
-    constraints = []
-    for block, rot_dict in coverage_pins.to_dict().items():
-        for resident, rotation in rot_dict.items():
-            if hasattr(rotation, '__len__'):
-                # TODO: it sucks this is hard-coded
-                if block == "Rotation(s) Somewhere":
-                    constraints.append(
-                        csts.PinnedRotationConstraint(resident, [], rotation)
-                    )
-                else:
-                    constraints.append(
-                        csts.PinnedRotationConstraint(resident, [block], rotation)
-                    )
-
-    return constraints
-
-
 def rankings_from_csv(fname):
     ranking_df = pd.read_csv(fname, header=0, index_col=0, comment='#')
-
+    
     for c in ranking_df.columns:
         ranking_df[c] = ranking_df[c].fillna(0)
         ranking_df[c] = ranking_df[c].astype(int)
