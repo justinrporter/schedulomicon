@@ -58,16 +58,15 @@ def score_dict_from_df(rankings, residents, blocks, rotations, block_resident_ra
 
 
 def generate_model(residents, blocks, rotations, groups_array):
-
     model = cp_model.CpModel()
 
     # Creates shift variables.
     block_assigned = {}
-    for resident in residents:
-        for block in blocks:
+    for res in residents:
+        for blk in blocks:
             for rot in rotations:
-                block_assigned[(resident, block, rot)] = model.NewBoolVar(
-                    f'block_assigned-r{resident}-b{block}-{rot}')
+                block_assigned[(res, blk, rot)] = model.NewBoolVar(
+                    f'block_assigned-r{res}-b{blk}-{rot}')
 
     # Each resident must work some rotation each block
     for res in residents:

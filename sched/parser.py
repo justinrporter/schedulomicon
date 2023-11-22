@@ -14,7 +14,7 @@ def resolve_eligible_field(statement, groups_array, residents, blocks, rotations
     string_literal = pp.QuotedString('\'') | pp.QuotedString('"')
     operator = pp.oneOf('and or not & | !')
     term = pp.Combine(
-        pp.OneOrMore(pp.Word(pp.alphanums + '-_.,\'()'),
+        pp.OneOrMore(pp.Word(pp.alphanums + '-_.,\''),
                      stop_on=operator),
         adjacent=False,
         join_string=' '
@@ -31,7 +31,7 @@ def resolve_eligible_field(statement, groups_array, residents, blocks, rotations
             (pp.Keyword("and"), 2, pp.opAssoc.LEFT, _and_parse_action),
             (pp.Keyword("or"), 2, pp.opAssoc.LEFT, _or_parse_action)
         ],
-        lpar=pp.Suppress('<'), rpar=pp.Suppress('>')
+        lpar=pp.Suppress('('), rpar=pp.Suppress(')')
     )
 
     eligible_field = expression.parse_string(statement)
