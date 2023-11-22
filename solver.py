@@ -84,42 +84,6 @@ def parse_args(argv):
 
     return args
 
-# def rank_sum_objective_old(block_assigned, rankings, residents, blocks, rotations):
-
-#     # at least one resident from `residents` should appear in rankings dict
-#     assert any([res in residents for res in rankings.keys()])
-
-#     # at least one non-empty rankings dict for one of the residents
-#     assert any([rankings[res] for res in residents])
-
-#     obj = 0
-#     for res in residents:
-#         for blk in blocks:
-#             for rot in rotations:
-#                 if res in rankings and rot in rankings[res]:
-#                     # print('rankings', res, rot, rankings[res][rot], type(rankings[res][rot]))
-#                     obj += int(rankings[res][rot]) * block_assigned[res, blk, rot]
-#                 else:
-#                     obj += 0
-
-#     return obj
-
-# def rank_sum_objective_new(block_assigned, rankings, residents, blocks, rotations):
-
-#     # at least one resident from `residents` should appear in rankings dict
-#     assert any([res in residents for res in rankings.keys()])
-
-#     # at least one non-empty rankings dict for one of the residents
-#     assert any([rankings[res] for res in residents])
-
-#     obj = 0
-#     for resident, rnk in rankings.items():
-#         for rotation, score in rnk.items():
-#             for block in blocks:
-#                 obj += score * block_assigned[(resident, block, rotation)]
-
-#     return obj
-
 
 def generate_block_constraints(config):
 
@@ -160,9 +124,9 @@ def main(argv):
     with open(args.config, 'r') as f:
         config = yaml.safe_load(f)
 
-    residents, blocks, rotations, groups = io.process_config(config)
+    residents, blocks, rotations, groups_array = io.process_config(config)
 
-    cst_list = io.generate_constraints_from_configs(config)
+    cst_list = io.generate_constraints_from_configs(config, groups_array)
 
     if args.coverage_min:
         cst_list.extend(
@@ -183,7 +147,7 @@ def main(argv):
         )
 
     if not args.no_backup:
-        for c in generate_backup_constraints(config):
+        for c in io.generate_backup_constraints(config):
             cst_list.append(c)
 
     if args.hint is not None:
@@ -213,16 +177,16 @@ def main(argv):
         scores=scores
     )
 
-    status, solver, solution_printer, model = solve.solve(
-        residents, blocks, rotations, groups, cst_list,
+    status, solver, solution_printer, model, wall_runtime = solve.solve(
+        residents, blocks, rotations, groups_array, cst_list,
         soln_printer=partial(
             callback.BlockSchedulePartialSolutionPrinter,
+            # callback.JugScheduleSolutionPrinter,
             scores=scores,
             outfile=args.results,
             solution_limit=args.n_solutions,
         ),
         objective_fn=objective_fn,
-        dump_model=args.dump_model,
         n_processes=args.n_processes,
         hint=hint,
         max_time_in_mins=None

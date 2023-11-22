@@ -113,7 +113,8 @@ def generate_backup_constraints(
     constraints = []
 
     for block, blk_params in config['blocks'].items():
-        if blk_params.get('backup_required', True):
+        # sometimes blk_params can be None, for which .get won't work
+        if blk_params and blk_params.get('backup_required', True):
             constraints.append(
                 csts.BackupRequiredOnBlockBackupConstraint(
                     block=block,
@@ -122,7 +123,7 @@ def generate_backup_constraints(
             )
 
     for rotation, rot_params in config['rotations'].items():
-        if 'backup_count' in rot_params:
+        if rot_params and 'backup_count' in rot_params:
             ct = int(rot_params['backup_count'])
             constraints.append(
                 csts.RotationBackupCountConstraint(rotation, ct)
@@ -130,7 +131,8 @@ def generate_backup_constraints(
 
     backup_eligible = {}
     for rotation, rot_params in config['rotations'].items():
-        backup_eligible[rotation] = backup_group_name in rot_params.get('groups', {})
+        if rot_params:
+            backup_eligible[rotation] = backup_group_name in rot_params.get('groups', {})
     constraints.append(
         csts.BackupEligibleBlocksBackupConstraint(backup_eligible)
     )
@@ -151,7 +153,13 @@ def generate_constraints_from_configs(config, groups_array):
 
     constraints.extend(generate_resident_constraints(config, groups_array))
 
-    for cst in config['group_constraints']:
+    for cst in config.get('group_constraints', []):
+
+        if 'kind' not in cst:
+            raise exceptions.YAMLParseError(
+                "All group_constraint definitions require a value for 'kind'. "
+                "Constraint looked like: " + str(cst)
+            )
 
         if cst['kind'] == 'all_group_count_per_resident':
             if 'apply_to_residents' in cst:
@@ -164,7 +172,7 @@ def generate_constraints_from_configs(config, groups_array):
                     rotations_in_group=resolve_group(cst['group'], config['rotations']),
                     n_min=cst['count'][0], n_max=cst['count'][1], window_size = len(config['blocks']),res_list = res_list)
             )
-        if cst['kind'] == 'window_group_count_per_resident':
+        elif cst['kind'] == 'window_group_count_per_resident':
             constraints.append(
                 csts.GroupCountPerResidentPerWindow(
                     rotations_in_group=resolve_group(cst['group'], config['rotations']),
