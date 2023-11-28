@@ -166,18 +166,48 @@ def generate_constraints_from_configs(config, groups_array):
                 res_list = cst['apply_to_residents']
             else: 
                 res_list = None 
-        
+
             constraints.append(
                 csts.GroupCountPerResidentPerWindow(
                     rotations_in_group=resolve_group(cst['group'], config['rotations']),
                     n_min=cst['count'][0], n_max=cst['count'][1], window_size = len(config['blocks']),res_list = res_list)
             )
-        elif cst['kind'] == 'window_group_count_per_resident':
+        if cst['kind'] == 'window_group_count_per_resident':
             constraints.append(
                 csts.GroupCountPerResidentPerWindow(
                     rotations_in_group=resolve_group(cst['group'], config['rotations']),
                     n_min=cst['count'][0], n_max=cst['count'][1], window_size = cst['window_size'])
             )
+
+        if cst['kind'] == 'time_to_first':
+            constraints.append(
+                csts.TimeToFirstConstraint(
+                    eligible_field=parser.resolve_eligible_field(
+                        cst['group'],
+                        groups_array,
+                        config['residents'],
+                        config['blocks'],
+                        config['rotations']
+                    ),
+                    window_size = cst['window_size'])
+            )
+
+        if cst['kind'] == 'apply_to_all_residents':
+            for res in config['residents'].items():
+                for constraint in cst['constraint'].items():
+                    if 'true_somewhere' in constraint:
+                        for selector_string in constraint['true_somewhere']:
+
+                            eligible_field = parser.resolve_eligible_field(
+                                f"{res} and <{selector_string}>",
+                                groups_array,
+                                config['residents'].keys(),
+                                config['blocks'].keys(),
+                                config['rotations'].keys()
+                            )
+                            constraints.append(
+                                csts.PinnedRotationConstraint(eligible_field)
+                            )
 
     return constraints
 
