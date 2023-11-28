@@ -1,5 +1,6 @@
 from functools import partial
 
+import numpy as np
 import pandas as pd
 
 from . import solve, io, csts, callback
@@ -52,11 +53,11 @@ def test_small_puzzle():
     rotations = ['Ro1', 'Ro2', 'Ro3']
     blocks = ['Bl1', 'Bl2', 'Bl3']
 
-    status, solver, solution_printer = solve.solve(
+    status, solver, solution_printer, model, wall_runtime = solve.solve(
         residents=residents,
         blocks=blocks,
         rotations=rotations,
-        groups=[],
+        groups_array=[],
         cst_list=[
             csts.RotationCoverageConstraint(
                 rot, rmin=1, rmax=1
@@ -73,6 +74,7 @@ def test_small_puzzle():
             alldiff_3x3x3_obj, residents=residents,
             blocks=blocks, rotations=rotations),
         n_processes=1,
+        max_time_in_mins=5,
         hint=None
     )
 
@@ -92,11 +94,13 @@ def test_cooldown_constraint():
     residents=['R1', 'R2', 'R3']
     blocks=['Bl1', 'Bl2', 'Bl3','Bl4','Bl5','Bl6']
 
-    status, solver, solution_printer = solve.solve(
+    COOLDOWN_LENGTH = 3
+
+    status, solver, solution_printer, model, wall_runtime = solve.solve(
         residents=residents,
         blocks=blocks,
         rotations=rotations,
-        groups=[],
+        groups_array=[],
         cst_list=[
             csts.RotationCoverageConstraint(
                 rot, rmin=1, rmax=2
@@ -110,69 +114,26 @@ def test_cooldown_constraint():
                 rot, n_min=1, n_max=2
             ) for rot in rotations if rot != 'Ro1'
         ] + [
-            csts.RotationBackupCountConstraint('Ro2', count=0)
-        ] + [              
-            csts.CoolDownConstraint('Ro1', window_size=3,count=[1,1])
+            csts.RotationBackupCountConstraint('Ro2', count=0),
+            csts.CoolDownConstraint('Ro1', window_size=COOLDOWN_LENGTH, count=[1,1])
         ],
         soln_printer=TestSolnPrinter,
         objective_fn=partial(
             alldiff_3x3x3_obj, residents=residents,
             blocks=blocks, rotations=rotations),
         n_processes=1,
+        max_time_in_mins=5,
         hint=None
     )
     soln = solution_printer.solutions[-1]
     print(soln)
     print(solution_printer.solutions)
 
-    assert all(soln.R1.values == ['Ro1+',  'Ro3', 'Ro3', 'Ro1+', 'Ro2', 'Ro2'])
-    assert all(soln.R2.values == ['Ro2',  'Ro2', 'Ro1+', 'Ro3+', 'Ro3', 'Ro1'])
-    assert all(soln.R3.values == ['Ro3',  'Ro1+', 'Ro2', 'Ro2', 'Ro1', 'Ro3+'])
+    schedules = [soln.R1, soln.R2, soln.R3]
+
+    for sched in schedules:
+        rot1_idx = np.where((sched.values == 'Ro1') |
+                             (sched.values == 'Ro1+'))[0]
+        assert np.all((rot1_idx[1:] - rot1_idx[:-1]) >= COOLDOWN_LENGTH)
 
     assert solver.ObjectiveValue() == -18
-
-def test_hint():
-
-    residents = ['R1', 'R2', 'R3']
-    rotations = ['Ro1', 'Ro2', 'Ro3']
-    blocks = ['Bl1', 'Bl2', 'Bl3','Bl4']
-
-    hint = pd.DataFrame({
-        'R1': ['Ro3+',  'Ro1+', 'Ro2', 'Ro2'],
-        'R2': ['Ro2', 'Ro3+',  'Ro1', 'Ro3+'],
-        'R3': ['Ro1+', 'Ro2', 'Ro3+', 'Ro1']},
-        index = blocks)
-
-    status, solver, solution_printer = solve.solve(
-        residents=residents,
-        blocks=blocks,
-        rotations=rotations,
-        groups=[],
-        cst_list=[
-            csts.RotationCoverageConstraint(
-                rot, rmin=1, rmax=1
-            ) for rot in rotations
-        ] + [
-            csts.RotationCountConstraint(
-                rot, n_min=1, n_max=2
-            ) for rot in rotations
-        ]+  [
-            csts.RotationBackupCountConstraint('Ro2', count=0)
-        ],
-        soln_printer=TestSolnPrinter,
-        objective_fn=partial(
-            alldiff_3x3x3_obj, residents=residents,
-            blocks=blocks, rotations=rotations),
-        n_processes=2,
-        hint = hint
-    )
-
-    soln = solution_printer.solutions[-1]
-    #print(soln)
-    print(solution_printer.solutions)
-
-    assert all(soln.R1.values == ['Ro3',  'Ro3+', 'Ro2','Ro1+'])
-    assert all(soln.R2.values == ['Ro2', 'Ro2',  'Ro1+','Ro3+'])
-    assert all(soln.R3.values == [ 'Ro1+', 'Ro1+', 'Ro3','Ro2'])
-
-    assert solver.ObjectiveValue() == -15

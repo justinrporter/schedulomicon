@@ -194,7 +194,7 @@ def generate_constraints_from_configs(config, groups_array):
 
         if cst['kind'] == 'apply_to_all_residents':
             for res in config['residents'].items():
-                for constraint in cst['constraint'].items():
+                for constraint in cst['constraints'].items():
                     if 'true_somewhere' in constraint:
                         for selector_string in constraint['true_somewhere']:
 
