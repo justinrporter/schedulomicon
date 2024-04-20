@@ -247,6 +247,21 @@ def resolve_group(group, rotation_config):
     return rots
 
 
+def accumulate_prior_counts(rotation, resident_config):
+
+    # options for 'history' are:
+    # 1) history: [Tutorial, Tutorial, Ortho, ..., Cardiac]
+
+    prior_counts = {r: 0 for r in resident_config.keys()}
+    for resident, params in resident_config.items():
+        if 'history' in params:
+            for rot in params['history']:
+                if rot == rotation:
+                    prior_counts[resident] += 1
+
+    return prior_counts
+
+
 def add_group_count_per_resident_constraint(
         model, block_assigned, residents, blocks,
         rotations, n_min, n_max):
@@ -268,7 +283,8 @@ def generate_rotation_constraints(config, groups_array):
     available_csts = {
         'coverage': csts.RotationCoverageConstraint,
         'cool_down': csts.CoolDownConstraint,
-        'rot_count': csts.RotationCountConstraint
+        'rot_count': csts.RotationCountConstraint,
+        'prerequisite': csts.PrerequisiteRotationConstraint,
     }
 
     for rotation, params in config['rotations'].items():
@@ -294,37 +310,30 @@ def generate_rotation_constraints(config, groups_array):
                 rotation=rotation, following_rotations=following_rotations
             ))
 
-        if 'prerequisite' in params:
-            if hasattr(params['prerequisite'], 'keys'):
-                # prereq defn is a dictionary
-                prereq_counts = {}
-                for p, c in params['prerequisite'].items():
-                    if p in config['rotations']:
-                        prereq_counts[(p,)] = c
-                    else:
-                        prereq_counts[tuple(resolve_group(p, config['rotations']))] = c
+        # if 'prerequisite' in params:
+        #     if hasattr(params['prerequisite'], 'keys'):
+        #         # prereq defn is a dictionary
+        #         prereq_counts = {}
+        #         for p, c in params['prerequisite'].items():
+        #             if p in config['rotations']:
+        #                 prereq_counts[(p,)] = c
+        #             else:
+        #                 prereq_counts[tuple(resolve_group(p, config['rotations']))] = c
 
-                constraints.append(csts.PrerequisiteRotationConstraint(
-                    rotation=rotation,
-                    prereq_counts=prereq_counts
-                ))
-            else:
-                # prereq defn is a list
-                constraints.append(csts.PrerequisiteRotationConstraint(
-                    rotation=rotation, prerequisites=params['prerequisite']
-                ))
+        #         constraints.append(csts.PrerequisiteRotationConstraint(
+        #             rotation=rotation,
+        #             prereq_counts=prereq_counts
+        #         ))
+        #     else:
+        #         # prereq defn is a list
+        #         constraints.append(csts.PrerequisiteRotationConstraint(
+        #             rotation=rotation, prerequisites=params['prerequisite']
+        #         ))
 
         if params.get('always_paired', False):
             constraints.append(
                 csts.AlwaysPairedRotationConstraint(rotation)
             )
-
-        # if 'rot_count' in params:
-        #     rmin, rmax = handle_count_specification(
-        #         params['rot_count'], len(config['residents']))
-        #     constraints.append(
-        #         csts.RotationCountConstraint(rotation, rmin, rmax)
-        #     )
 
         if 'not_rot_count' in params:
             ct = params['not_rot_count']

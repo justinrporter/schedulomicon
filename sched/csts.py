@@ -4,7 +4,7 @@ import logging
 import numpy as np
 
 from .exceptions import YAMLParseError
-from .io import resolve_group
+from .io import resolve_group, accumulate_prior_counts
 
 
 logger = logging.getLogger(__name__)
@@ -231,24 +231,49 @@ class RotationCoverageConstraint(Constraint):
 
 class PrerequisiteRotationConstraint(Constraint):
 
-    def __init__(self, rotation, prerequisites=None, prereq_counts=None):
-        self.rotation = rotation
+    KEY_NAME = 'prerequisite'
 
-        assert prerequisites is not None or prereq_counts is not None
-        assert prerequisites is None or prereq_counts is None
+    @classmethod
+    def from_yml_dict(cls, rotation, params, config):
 
-        if prerequisites is not None:
-            assert prereq_counts is None
+        assert cls.KEY_NAME in params
 
-            self.prerequisites = {}
-            for p in prerequisites:
-                self.prerequisites[(p,)] = 1
+        prior_counts = accumulate_prior_counts(
+            rotation, config['residents'])
+
+        if hasattr(params['prerequisite'], 'keys'):
+            # prereq defn is a dictionary
+            prereq_counts = {}
+            for p, c in params['prerequisite'].items():
+                if p in config['rotations']:
+                    prereq_counts[(p,)] = c
+                else:
+                    prereq_counts[
+                        tuple(resolve_group(p, config['rotations']))
+                    ] = c
+
+            cst = cls(
+                rotation=rotation,
+                prereq_counts=prereq_counts,
+                prior_counts=prior_counts
+            )
         else:
-            # has the form {(rot1, rot2): 2, (rot3,): 1}
-            # indicates rot1 and/or rot2 twice, rot3 once
-            self.prerequisites = prereq_counts
+            # prereq defn is a list
+            cst = cls(
+                rotation=rotation,
+                prerequisites={(p,): 1 for p in params['prerequisite']},
+                prior_counts=prior_counts
+            )
 
+        return cst
+
+
+    def __init__(self, rotation, prereq_counts, prior_counts=None):
+        self.rotation = rotation
+        self.prerequisites = prereq_counts
+        self.prior_counts=prior_counts
         logger.debug('Rotation %s prerequisites %s', rotation, self.prerequisites)
+
 
     def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
 
@@ -260,7 +285,7 @@ class PrerequisiteRotationConstraint(Constraint):
 
                 for prereq_grp, req_ct in self.prerequisites.items():
                     for prereq in prereq_grp:
-                        n_prereq_instances = 0
+                        n_prereq_instances = 0 + self.prior_counts[resident]
                         for j in range(0, i):
                             n_prereq_instances += block_assigned[(resident, blocks[j], prereq)]
 
