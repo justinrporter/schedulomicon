@@ -167,15 +167,18 @@ def main(argv):
     else:
         block_resident_ranking = None
 
-    scores = solve.score_dict_from_df(
-        io.rankings_from_csv(args.rankings),
-        residents, blocks, rotations, block_resident_ranking
-    )
-
-    objective_fn = partial(
-        solve.objective_from_score_dict,
-        scores=scores
-    )
+    if args.rankings:
+        scores = solve.score_dict_from_df(
+            io.rankings_from_csv(args.rankings),
+            residents, blocks, rotations, block_resident_ranking
+        )
+        objective_fn = partial(
+            solve.objective_from_score_dict,
+            scores=scores
+        )
+    else:
+        scores = None
+        objective_fn = None
 
     status, solver, solution_printer, model, wall_runtime = solve.solve(
         residents, blocks, rotations, groups_array, cst_list,

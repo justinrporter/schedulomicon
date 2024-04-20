@@ -130,17 +130,17 @@ def run_optimizer(model, objective_fn, n_processes=None, solution_printer=None, 
     return status, solver
 
 
-def run_enumerator(model, objective_fn, solution_printer=None):
+def run_enumerator(model, solution_printer=None):
 
     solver = cp_model.CpSolver()
     solver.parameters.linearization_level = 2
 
-    model.Minimize(objective_fn)
-    solver.parameters.enumerate_all_solutions = True
+    solver.parameters.enumerate_all_solutions = False
+    status = solver.Solve(model, solution_printer)
 
-    solver.SearchForAllSolutions(model, solution_printer)
+    status = ["UNKNOWN", "MODEL_INVALID", "FEASIBLE", "INFEASIBLE", "OPTIMAL"][status]
 
-    return solver
+    return status, solver
 
 
 def solve(
@@ -186,11 +186,10 @@ def solve(
             max_time_in_mins=max_time_in_mins
         )
     else:
-        raise NotImplementedError("Still working on enumerator mode.")
+        # raise NotImplementedError("Still working on enumerator mode.")
 
         status, solver = run_enumerator(
             model,
-            objective_fn,
             solution_printer=solution_printer
         )
 

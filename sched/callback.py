@@ -144,24 +144,21 @@ class BlockSchedulePartialSolutionPrinter(BaseSolutionPrinter):
             self._outfile.replace('npz', 'csv') % self._solution_count
         )
 
-        score_table = io.compute_score_table(
-            self._scores,
-            {k: self.Value(v) for k, v in self._block_assigned.items()},
-            self._residents, self._blocks, self._rotations
-        )
+        if self._scores is not None:
+            score_table = io.compute_score_table(
+                self._scores,
+                {k: self.Value(v) for k, v in self._block_assigned.items()},
+                self._residents, self._blocks, self._rotations
+            )
 
-        with open(self._outfile.replace('.npz', '-scores.csv') % self._solution_count, 'w') as f:
-            writer = csv.writer(f, delimiter=',')
-            writer.writerow(['']+self._blocks)
-            for row in score_table:
-                writer.writerow(row)
+            with open(self._outfile.replace('.npz', '-scores.csv') % self._solution_count, 'w') as f:
+                writer = csv.writer(f, delimiter=',')
+                writer.writerow(['']+self._blocks)
+                for row in score_table:
+                    writer.writerow(row)
 
-            logger.info("  - worst resident utility:", max([sum(row[1:]) for row in score_table]))
-            logger.info("  - best resident utility:", min([sum(row[1:]) for row in score_table]))
-
-        # for row in score_table:
-        #     print('['+','.join([str(i) for i in row])+'],')
-
+                logger.info("  - worst resident utility:", max([sum(row[1:]) for row in score_table]))
+                logger.info("  - best resident utility:", min([sum(row[1:]) for row in score_table]))
 
         if (self._solution_limit is not Ellipsis) and \
             (self._solution_limit is not None) and \
