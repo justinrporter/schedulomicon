@@ -218,8 +218,12 @@ def handle_count_specification(count_config, n_items):
         rmin = expand_to_length_if_needed(count_config['min'], n_items)
         rmax = expand_to_length_if_needed(count_config['max'], n_items)
     else:
-        rmin = expand_to_length_if_needed(count_config[0], n_items)
-        rmax = expand_to_length_if_needed(count_config[1], n_items)
+        try:
+            rmin = expand_to_length_if_needed(count_config[0], n_items)
+            rmax = expand_to_length_if_needed(count_config[1], n_items)
+        except:
+            print("Failed to parse count spec:", count_config)
+            raise
 
     return rmin, rmax
 
