@@ -36,7 +36,7 @@ def get_group_array(group, config, group_type):
                 for i, res in enumerate(group_array):
                     for j, block in enumerate(group_array[i]):
                         group_array[i][j][rotations.index(rotation)] = True
-    
+
     elif group_type == 'res_name':
         group_array[residents.index(group)] = True
     elif group_type == 'block_name':
@@ -70,14 +70,14 @@ def process_config(config):
     groups_array = {}
     for group_type in groups:
         for group in groups[group_type]:
-            groups_array[group] = get_group_array(group, config, group_type = group_type)
+            groups_array[group] = get_group_array(group, config, group_type=group_type)
     
     for res in residents:
-        groups_array[res] = get_group_array(res,config, group_type = "res_name")
+        groups_array[res] = get_group_array(res,config, group_type="res_name")
     for block in blocks: 
-        groups_array[block] = get_group_array(block,config, group_type = "block_name")
+        groups_array[block] = get_group_array(block,config, group_type="block_name")
     for rotation in rotations: 
-        groups_array[rotation] = get_group_array(rotation,config, group_type = "rotation_name")
+        groups_array[rotation] = get_group_array(rotation,config, group_type="rotation_name")
 
     return residents, blocks, rotations, groups_array
 
@@ -267,7 +267,8 @@ def generate_rotation_constraints(config, groups_array):
 
     available_csts = {
         'coverage': csts.RotationCoverageConstraint,
-        'cool_down': csts.CoolDownConstraint
+        'cool_down': csts.CoolDownConstraint,
+        'rot_count': csts.RotationCountConstraint
     }
 
     for rotation, params in config['rotations'].items():
@@ -276,7 +277,9 @@ def generate_rotation_constraints(config, groups_array):
 
         for k in params.keys():
             if k in available_csts:
-                constraints.append(available_csts[k].from_yml_dict(rotation, params))
+                constraints.append(
+                    available_csts[k].from_yml_dict(
+                        rotation, params, config))
 
         if 'must_be_followed_by' in params: 
             following_rotations = []
@@ -316,12 +319,12 @@ def generate_rotation_constraints(config, groups_array):
                 csts.AlwaysPairedRotationConstraint(rotation)
             )
 
-        if 'rot_count' in params:
-            rmin, rmax = handle_count_specification(
-                params['rot_count'], len(config['residents']))
-            constraints.append(
-                csts.RotationCountConstraint(rotation, rmin, rmax)
-            )
+        # if 'rot_count' in params:
+        #     rmin, rmax = handle_count_specification(
+        #         params['rot_count'], len(config['residents']))
+        #     constraints.append(
+        #         csts.RotationCountConstraint(rotation, rmin, rmax)
+        #     )
 
         if 'not_rot_count' in params:
             ct = params['not_rot_count']

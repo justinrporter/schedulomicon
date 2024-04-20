@@ -4,6 +4,7 @@ import logging
 import numpy as np
 
 from .exceptions import YAMLParseError
+from .io import resolve_group
 
 
 logger = logging.getLogger(__name__)
@@ -138,7 +139,7 @@ class RotationCoverageConstraint(Constraint):
     KEY_NAME = 'coverage'
 
     @classmethod
-    def from_yml_dict(cls, rotation, params):
+    def from_yml_dict(cls, rotation, params, config):
 
         assert cls.KEY_NAME in params
         cls._check_yaml_params(rotation, params[cls.KEY_NAME])
@@ -311,7 +312,7 @@ class CoolDownConstraint(Constraint):
     ALLOWED_YAML_OPTIONS = ['window', 'count', 'suppress_for']
 
     @classmethod
-    def from_yml_dict(cls, rotation, params):
+    def from_yml_dict(cls, rotation, params, config):
 
         assert 'cool_down' in params
         cls._check_yaml_params(rotation, params['cool_down'])
@@ -368,24 +369,64 @@ class CoolDownConstraint(Constraint):
 
 class RotationCountConstraint(Constraint):
 
-    def __init__(self, rotation, n_min, n_max):
+    ALLOWED_YAML_OPTIONS = []
+    KEY_NAME = 'rot_count'
+
+    def __init__(self, rotation, count_map):
         self.rotation = rotation
-        self.n_min = n_min
-        self.n_max = n_max
+        self.count_map = count_map
+
+        for v in count_map.values():
+            assert len(v) == 2
+            int(v[0])
+            int(v[1])
+
+    @classmethod
+    def from_yml_dict(cls, rotation, params, config):
+
+        assert cls.KEY_NAME in params
+
+        # options are:
+        # 1) rot_count: {CA1: [0, 1], CA2: [0, 1]}
+        # 2) rot_count: [0, 10]
+
+        options = params[cls.KEY_NAME]
+
+        if hasattr(options, 'keys'):
+            count_map = {}
+            for res_or_res_group, (n_min, n_max) in options.items():
+                assert int(n_min) <= int(n_max)
+
+                if res_or_res_group in config['residents'].keys():
+                    count_map[res_or_res_group] = (n_min, n_max)
+                else:
+                    residents = resolve_group(res_or_res_group, config['residents'])
+                    assert len(residents)
+                    for resident in residents:
+                        count_map[resident] = (int(n_min), int(n_max))
+
+            cst = cls(rotation, count_map)
+        elif len(options) == 2:
+            self.n_min, self.n_max = int(options[0]), int(options[1])
+            cst = cls(
+                rotation,
+                {
+                 resident: (self.n_min, self.n_max) for resident in
+                 config['residents'].keys()
+                }
+            )
+        else:
+            assert False, (
+                "Unrecognized format for RotationCountConstraint %s" % params
+            )
+
+        return cst
 
     def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
 
         super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
 
-        n_min = self.n_min
-        n_max = self.n_max
-
-        if not hasattr(n_min, '__len__'):
-            n_min = itertools.repeat(n_min)
-        if not hasattr(n_max, '__len__'):
-            n_max = itertools.repeat(n_max)
-
-        for resident, nmin, nmax in zip(residents, n_min, n_max):
+        for resident, (nmin, nmax) in self.count_map.items():
             r_tot = sum(block_assigned[(resident, block, self.rotation)] for block in blocks)
             assert nmin is not None
             assert nmax is not None
