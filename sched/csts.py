@@ -142,7 +142,6 @@ class RotationCoverageConstraint(Constraint):
     def from_yml_dict(cls, rotation, params, config):
 
         assert cls.KEY_NAME in params
-        cls._check_yaml_params(rotation, params[cls.KEY_NAME])
 
         # options are 1) coverage: [rmin, rmax]
         # or 2) coverage: allowed_values: [v1, v2, ...]
@@ -238,9 +237,6 @@ class PrerequisiteRotationConstraint(Constraint):
 
         assert cls.KEY_NAME in params
 
-        prior_counts = accumulate_prior_counts(
-            rotation, config['residents'])
-
         if hasattr(params['prerequisite'], 'keys'):
             # prereq defn is a dictionary
             prereq_counts = {}
@@ -252,16 +248,26 @@ class PrerequisiteRotationConstraint(Constraint):
                         tuple(resolve_group(p, config['rotations']))
                     ] = c
 
+            prior_counts = {}
+            for rot_grp in prereq_counts.keys():
+                for rot in rot_grp:
+                    prior_counts[rot] = accumulate_prior_counts(
+                        rot, config['residents']
+                    )
+
             cst = cls(
                 rotation=rotation,
                 prereq_counts=prereq_counts,
                 prior_counts=prior_counts
             )
         else:
+            prior_counts = {rotation: accumulate_prior_counts(
+                rotation, config['residents'])}
+
             # prereq defn is a list
             cst = cls(
                 rotation=rotation,
-                prerequisites={(p,): 1 for p in params['prerequisite']},
+                prereq_counts={(p,): 1 for p in params['prerequisite']},
                 prior_counts=prior_counts
             )
 
@@ -271,7 +277,14 @@ class PrerequisiteRotationConstraint(Constraint):
     def __init__(self, rotation, prereq_counts, prior_counts=None):
         self.rotation = rotation
         self.prerequisites = prereq_counts
-        self.prior_counts=prior_counts
+
+        # has format:
+        # {
+        #     "rotation1": {"resident1": count_res1_rot1, "resident2": count_res1_rot2},
+        #     "rotation2": {"resident1": count_res2_rot1, "resident2": count_res2_rot2}
+        # }
+        self.prior_counts = prior_counts
+
         logger.debug('Rotation %s prerequisites %s', rotation, self.prerequisites)
 
 
@@ -284,8 +297,14 @@ class PrerequisiteRotationConstraint(Constraint):
                 rot_is_assigned = block_assigned[(resident, blocks[i], self.rotation)]
 
                 for prereq_grp, req_ct in self.prerequisites.items():
+                    # n_prepreq_instances is initialized at zero
+                    n_prereq_instances = 0
                     for prereq in prereq_grp:
-                        n_prereq_instances = 0 + self.prior_counts[resident]
+                        # for each rotation in the prereq group, add in first
+                        # historical instances of that rotation (from prior_counts)
+                        n_prereq_instances += self.prior_counts.get(prereq, {}).get(resident, 0)
+
+                        # then iterate over instances in the solution space
                         for j in range(0, i):
                             n_prereq_instances += block_assigned[(resident, blocks[j], prereq)]
 
@@ -432,11 +451,11 @@ class RotationCountConstraint(Constraint):
 
             cst = cls(rotation, count_map)
         elif len(options) == 2:
-            self.n_min, self.n_max = int(options[0]), int(options[1])
+            n_min, n_max = int(options[0]), int(options[1])
             cst = cls(
                 rotation,
                 {
-                 resident: (self.n_min, self.n_max) for resident in
+                 resident: (n_min, n_max) for resident in
                  config['residents'].keys()
                 }
             )
@@ -568,7 +587,6 @@ class MinIndividualScoreConstraint(Constraint):
         self.scores = scores
 
         self.min_score = int(min_score)
-        print(self.min_score)
 
         logger.info(f"Created MinIndividualScoreConstraint with "
                      f"min_score {self.min_score}")

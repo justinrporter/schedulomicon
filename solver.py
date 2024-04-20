@@ -183,10 +183,10 @@ def main(argv):
     status, solver, solution_printer, model, wall_runtime = solve.solve(
         residents, blocks, rotations, groups_array, cst_list,
         soln_printer=partial(
-            callback.BlockSchedulePartialSolutionPrinter,
-            # callback.JugScheduleSolutionPrinter,
+            # callback.BlockSchedulePartialSolutionPrinter,
+            callback.JugScheduleSolutionPrinter,
             scores=scores,
-            outfile=args.results,
+            # outfile=args.results,
             solution_limit=args.n_solutions,
         ),
         objective_fn=objective_fn,
@@ -203,7 +203,14 @@ def main(argv):
     print('  - wall time      : %f s' % solver.WallTime())
     print('  - solutions found: %i' % solution_printer.solution_count())
     print('  - objective value: %i' % solver.ObjectiveValue())
-    print("Best solution at ", args.results % solution_printer.solution_count())
+
+    if status in ['OPTIMAL', 'FEASIBLE']:
+        with open(args.results, 'w') as f:
+            solution_printer._solutions[-1].to_csv(f)
+
+        print("Best solution at ", args.results)
+    else:
+        print("No best solution.")
 
 
 if __name__ == '__main__':

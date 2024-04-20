@@ -27,6 +27,21 @@ class BaseSolutionPrinter(cp_model.CpSolverSolutionCallback):
         self._solution_limit = solution_limit
         self._solution_count = 0
 
+    def on_solution_callback_initial(self):
+
+        self._solution_count += 1
+        print(f"Solution {self._solution_count:02d} at {datetime.datetime.now()} w objective value {self.ObjectiveValue()}")
+        logger.info(f"Solution {self._solution_count:02d} at {datetime.datetime.now()} w objective value {self.ObjectiveValue()}")
+
+    def check_for_stop_iterating(self):
+
+        if (self._solution_limit is not Ellipsis) and \
+            (self._solution_limit is not None) and \
+           (self._solution_count >= self._solution_limit):
+            self.StopSearch()
+
+    def solution_count(self):
+        return self._solution_count
 
     def df_from_solution(self):
 
@@ -89,26 +104,23 @@ class JugScheduleSolutionPrinter(BaseSolutionPrinter):
         self._solutions = []
 
     def on_solution_callback(self):
-        self._solution_count += 1
-        print(f"Solution {self._solution_count:02d} at {datetime.datetime.now()} w objective value {self.ObjectiveValue()}")
-        logger.info(f"Solution {self._solution_count:02d} at {datetime.datetime.now()} w objective value {self.ObjectiveValue()}")
+
+        self.on_solution_callback_initial()
 
         solution_df = self.df_from_solution()
-
-        scores_df = self.df_from_scores()
-
-        self._solution_scores.append(scores_df)
         self._solutions.append(solution_df)
 
-        print("  - worst resident utility:", scores_df.sum(axis=1).max())
-        print("  - best resident utility:", scores_df.sum(axis=1).min())
-        logger.info("  - worst resident utility:", scores_df.sum(axis=1).max())
-        logger.info("  - best resident utility:", scores_df.sum(axis=1).min())
+        if self._scores is not None:
 
-        if (self._solution_limit is not None) and \
-           (self._solution_count >= self._solution_limit):
-            print('Stopping search after %i solutions' % self._solution_limit)
-            self.StopSearch()
+            scores_df = self.df_from_scores()
+            self._solution_scores.append(scores_df)
+
+            print("  - worst resident utility:", scores_df.sum(axis=1).max())
+            print("  - best resident utility:", scores_df.sum(axis=1).min())
+            logger.info("  - worst resident utility:", scores_df.sum(axis=1).max())
+            logger.info("  - best resident utility:", scores_df.sum(axis=1).min())
+
+        self.check_for_stop_iterating()
 
 
 class BlockSchedulePartialSolutionPrinter(BaseSolutionPrinter):
@@ -134,9 +146,7 @@ class BlockSchedulePartialSolutionPrinter(BaseSolutionPrinter):
 
     def on_solution_callback(self):
 
-        self._solution_count += 1
-
-        logger.info(f"Solution {self._solution_count:02d} at {datetime.datetime.now()} w objective value {self.ObjectiveValue()}")
+        self.on_solution_callback_initial()
 
         solution_df = self.df_from_solution()
 
@@ -160,12 +170,4 @@ class BlockSchedulePartialSolutionPrinter(BaseSolutionPrinter):
                 logger.info("  - worst resident utility:", max([sum(row[1:]) for row in score_table]))
                 logger.info("  - best resident utility:", min([sum(row[1:]) for row in score_table]))
 
-        if (self._solution_limit is not Ellipsis) and \
-            (self._solution_limit is not None) and \
-           (self._solution_count >= self._solution_limit):
-            self.StopSearch()
-
-
-    def solution_count(self):
-        return self._solution_count
-
+        self.check_for_stop_iterating()

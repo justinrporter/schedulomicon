@@ -116,7 +116,9 @@ def run_optimizer(model, objective_fn, n_processes=None, solution_printer=None, 
     solver = cp_model.CpSolver()
     solver.parameters.linearization_level = 2
 
-    model.Minimize(objective_fn)
+    if objective_fn is not None:
+        model.Minimize(objective_fn)
+
     solver.parameters.enumerate_all_solutions = False
     solver.parameters.num_search_workers = n_processes
 
@@ -130,10 +132,15 @@ def run_optimizer(model, objective_fn, n_processes=None, solution_printer=None, 
     return status, solver
 
 
-def run_enumerator(model, solution_printer=None):
+def run_enumerator(model, solution_printer=None, n_processes=None):
+
+    if n_processes is None:
+        n_processes = util.get_parallelism()
 
     solver = cp_model.CpSolver()
     solver.parameters.linearization_level = 2
+
+    solver.parameters.num_search_workers = n_processes
 
     solver.parameters.enumerate_all_solutions = False
     status = solver.Solve(model, solution_printer)

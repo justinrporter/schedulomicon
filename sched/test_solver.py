@@ -64,7 +64,7 @@ def test_small_puzzle():
             ) for rot in rotations
         ] + [
             csts.RotationCountConstraint(
-                rot, n_min=1, n_max=1
+                rot, {res: (1, 1) for res in residents}
             ) for rot in rotations
         ] + [
             csts.RotationBackupCountConstraint('Ro1', count=0)
@@ -107,11 +107,11 @@ def test_cooldown_constraint():
             ) for rot in rotations
         ] + [
             csts.RotationCountConstraint(
-                'Ro1', n_min=2, n_max=2
+                'Ro1', {res: (2, 2) for res in residents}
             )
         ] + [
             csts.RotationCountConstraint(
-                rot, n_min=1, n_max=2
+                rot, {res: (1, 2) for res in residents}
             ) for rot in rotations if rot != 'Ro1'
         ] + [
             csts.RotationBackupCountConstraint('Ro2', count=0),
