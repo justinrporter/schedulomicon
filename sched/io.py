@@ -284,6 +284,7 @@ def generate_rotation_constraints(config, groups_array):
         'coverage': csts.RotationCoverageConstraint,
         'cool_down': csts.CoolDownConstraint,
         'rot_count': csts.RotationCountConstraint,
+        'rot_count_including_history': csts.RotationCountConstraintWithHistory,
         'prerequisite': csts.PrerequisiteRotationConstraint,
     }
 
@@ -309,26 +310,6 @@ def generate_rotation_constraints(config, groups_array):
             constraints.append(csts.MustBeFollowedByRotationConstraint(
                 rotation=rotation, following_rotations=following_rotations
             ))
-
-        # if 'prerequisite' in params:
-        #     if hasattr(params['prerequisite'], 'keys'):
-        #         # prereq defn is a dictionary
-        #         prereq_counts = {}
-        #         for p, c in params['prerequisite'].items():
-        #             if p in config['rotations']:
-        #                 prereq_counts[(p,)] = c
-        #             else:
-        #                 prereq_counts[tuple(resolve_group(p, config['rotations']))] = c
-
-        #         constraints.append(csts.PrerequisiteRotationConstraint(
-        #             rotation=rotation,
-        #             prereq_counts=prereq_counts
-        #         ))
-        #     else:
-        #         # prereq defn is a list
-        #         constraints.append(csts.PrerequisiteRotationConstraint(
-        #             rotation=rotation, prerequisites=params['prerequisite']
-        #         ))
 
         if params.get('always_paired', False):
             constraints.append(

@@ -413,12 +413,16 @@ class CoolDownConstraint(Constraint):
 
 class RotationCountConstraint(Constraint):
 
-    ALLOWED_YAML_OPTIONS = []
     KEY_NAME = 'rot_count'
 
-    def __init__(self, rotation, count_map):
+    def __init__(self, rotation, count_map, prior_counts=None):
         self.rotation = rotation
         self.count_map = count_map
+
+        if prior_counts is None:
+            self.prior_counts = {}
+        else:
+            self.prior_counts = prior_counts
 
         for v in count_map.values():
             assert len(v) == 2
@@ -426,19 +430,37 @@ class RotationCountConstraint(Constraint):
             int(v[1])
 
     @classmethod
-    def from_yml_dict(cls, rotation, params, config):
+    def from_yml_dict(cls, rotation, params, config, include_history=False):
 
         assert cls.KEY_NAME in params
 
         # options are:
-        # 1) rot_count: {CA1: [0, 1], CA2: [0, 1]}
+        # 1) rot_count: {CA1: [0, 1], CA2: [0, 1], CA3: 1}
         # 2) rot_count: [0, 10]
+        # 3) rot_count: 2
 
         options = params[cls.KEY_NAME]
 
+        if include_history:
+            prior_counts = {rotation: accumulate_prior_counts(
+                rotation, config['residents'])}
+        else:
+            prior_counts = None
+
         if hasattr(options, 'keys'):
             count_map = {}
-            for res_or_res_group, (n_min, n_max) in options.items():
+            for res_or_res_group, min_and_max in options.items():
+
+                if hasattr(min_and_max, '__len__'):
+                    assert len(min_and_max) == 2
+                    n_min, n_max = min_and_max
+                else:
+                    n_min = n_max = int(min_and_max)
+                    # assert False, (
+                    #     "Unrecognized format for RotationCountConstraint %s, "
+                    #     "specifically count for group %s" % (params, res_or_res_group)
+                    # )
+
                 assert int(n_min) <= int(n_max)
 
                 if res_or_res_group in config['residents'].keys():
@@ -449,7 +471,7 @@ class RotationCountConstraint(Constraint):
                     for resident in residents:
                         count_map[resident] = (int(n_min), int(n_max))
 
-            cst = cls(rotation, count_map)
+            cst = cls(rotation, count_map, prior_counts)
         elif len(options) == 2:
             n_min, n_max = int(options[0]), int(options[1])
             cst = cls(
@@ -457,7 +479,18 @@ class RotationCountConstraint(Constraint):
                 {
                  resident: (n_min, n_max) for resident in
                  config['residents'].keys()
-                }
+                },
+                prior_counts
+            )
+        elif len(options) == 1:
+            n_rot = int(options[0])
+            cst = cls(
+                rotation,
+                {
+                 resident: (n_rot, n_rot) for resident in
+                 config['residents'].keys()
+                },
+                prior_counts
             )
         else:
             assert False, (
@@ -474,8 +507,28 @@ class RotationCountConstraint(Constraint):
             r_tot = sum(block_assigned[(resident, block, self.rotation)] for block in blocks)
             assert nmin is not None
             assert nmax is not None
-            model.Add(r_tot >= nmin)
-            model.Add(r_tot <= nmax)
+
+            prior_count = self.prior_counts.get(self.rotation, {}).get(resident, 0)
+
+            # raise an error if the given prior_counts create an infeasible
+            # problem using this constraint
+            if prior_count > nmax:
+                assert False, (
+                    "Trying to apply RotationCountConstraint (%s, %s) on %s "
+                    "for %s is imposible as prior count is %s" %
+                    (nmin, nmax, resident, self.rotation, prior_count))
+
+            model.Add((r_tot + prior_count) >= nmin)
+            model.Add((r_tot + prior_count) <= nmax)
+
+
+class RotationCountConstraintWithHistory(RotationCountConstraint):
+
+    KEY_NAME = 'rot_count_including_history'
+
+    @classmethod
+    def from_yml_dict(cls, *args, **kwargs):
+        return super().from_yml_dict(*args, **kwargs, include_history=True)
 
 
 class RotationCountNotConstraint(Constraint):
