@@ -261,8 +261,10 @@ class PrerequisiteRotationConstraint(Constraint):
                 prior_counts=prior_counts
             )
         else:
-            prior_counts = {rotation: accumulate_prior_counts(
-                rotation, config['residents'])}
+            prior_counts = {
+                rot: accumulate_prior_counts(rot, config['residents'])
+                for rot in params['prerequisite']
+            }
 
             # prereq defn is a list
             cst = cls(
@@ -302,11 +304,12 @@ class PrerequisiteRotationConstraint(Constraint):
                     for prereq in prereq_grp:
                         # for each rotation in the prereq group, add in first
                         # historical instances of that rotation (from prior_counts)
-                        n_prereq_instances += self.prior_counts.get(prereq, {}).get(resident, 0)
+                        n_prereq_instances += self.prior_counts.get(prereq).get(resident)
 
                         # then iterate over instances in the solution space
                         for j in range(0, i):
                             n_prereq_instances += block_assigned[(resident, blocks[j], prereq)]
+
 
                     model.Add(n_prereq_instances >= req_ct).OnlyEnforceIf(rot_is_assigned)
 

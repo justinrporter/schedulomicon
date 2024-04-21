@@ -191,8 +191,7 @@ def generate_constraints_from_configs(config, groups_array):
                     ),
                     window_size = cst['window_size'])
             )
-
-        if cst['kind'] == 'apply_to_all_residents':
+        elif cst['kind'] == 'apply_to_all_residents':
             for res in config['residents'].items():
                 for constraint in cst['constraints'].items():
                     if 'true_somewhere' in constraint:
@@ -208,6 +207,11 @@ def generate_constraints_from_configs(config, groups_array):
                             constraints.append(
                                 csts.PinnedRotationConstraint(eligible_field)
                             )
+        else:
+            raise exceptions.YAMLParseError(
+                "Constraint with kind " + cst['kind'] + " not recognized; "
+                "the constraint looked like: " + str(cst)
+            )
 
     return constraints
 
@@ -261,20 +265,6 @@ def accumulate_prior_counts(rotation, resident_config):
 
     return prior_counts
 
-
-def add_group_count_per_resident_constraint(
-        model, block_assigned, residents, blocks,
-        rotations, n_min, n_max):
-
-    for res in residents:
-        ct = 0
-
-        for blk in blocks:
-            for rot in rotations:
-                ct += block_assigned[(res, blk, rot)]
-
-        model.Add(ct >= n_min)
-        model.Add(ct <= n_max)
 
 def generate_rotation_constraints(config, groups_array):
 

@@ -209,8 +209,12 @@ def main(argv):
             solution_printer._solutions[-1].to_csv(f)
 
         print("Best solution at ", args.results)
+
+        return 1
     else:
         print("No best solution.")
+
+        return 0
 
 
 if __name__ == '__main__':
