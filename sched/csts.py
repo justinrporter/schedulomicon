@@ -159,8 +159,13 @@ class RotationCoverageConstraint(Constraint):
         return "RotationCoverageConstraint(%s,%s,%s,%s)" % (
              self.rotation, self.blocks, self.rmin, self.rmax)
 
-    def __init__(self, rotation, blocks=Ellipsis, rmin=None, rmax=None, allowed_vals=None):
-        self.rotation = rotation
+    def __init__(self, rotation_or_rotations, blocks=Ellipsis, rmin=None, rmax=None, allowed_vals=None):
+
+        if isinstance(rotation_or_rotations, str):
+            self.rotations = [rotation_or_rotations]
+        else:
+            self.rotations = rotation_or_rotations
+
         self.blocks = blocks
 
         if allowed_vals is not None:
@@ -201,17 +206,18 @@ class RotationCoverageConstraint(Constraint):
         for block, rmin, rmax in zip(apply_to_blocks, rmin_list, rmax_list):
 
             if None not in [rmin, rmax]:
-                assert rmin <= rmax, f"For rotation '{self.rotation}' block '{block}', rmin {rmin} > rmax {rmax}"
+                assert rmin <= rmax, f"For rotations '{self.rotations}' block '{block}', rmin {rmin} > rmax {rmax}"
 
             # r_tot is the total number of residents on this rotation for this block
             # need to make a new IntVar for r_tot, since AddAllowedAssignments takes
             # an OR-Tools IntVar
             r_tot = 0
-            for res in residents:
-                r_tot += block_assigned[(res, block, self.rotation)]
+            for rot in self.rotations:
+                for res in residents:
+                    r_tot += block_assigned[(res, block, rot)]
 
             r_tot_var = model.NewIntVar(
-                0, len(residents), f"r_tot_{self.rotation}_{block}")
+                0, len(residents), "r_tot_" + '_'.join(self.rotations) + f"_{block}")
 
             # OR-Tools requires a separate variable to constrain (below)
             # via AddAllowedAssignments, so we name it separately and make it
@@ -227,6 +233,55 @@ class RotationCoverageConstraint(Constraint):
                 allowed_vals = [[value] for value in self.allowed_vals]
                 model.AddAllowedAssignments([r_tot_var], allowed_vals)
 
+
+class GroupCoverageConstraint(RotationCoverageConstraint):
+
+    KEY_NAME = 'group_coverage_constraint'
+
+    @classmethod
+    def from_yml_dict(cls, params, config):
+
+        assert params['kind'] == cls.KEY_NAME, params
+
+        # run through the config's rotations to identify the rotations
+        # in the group
+        rotations = resolve_group(params['group'], config['rotations'])
+
+        # allowed formats:
+        # 1) {min: 1, max: 2}
+        # 2) {allowed_coverage: [1, 3, 5]}
+        # 3) {count: [0, 3]}
+        coverage_spec = {}
+        if 'min' in params:
+            coverage_spec['rmin'] = params['min']
+            assert 'allowed_values' not in params
+            assert 'count' not in params
+        if 'max' in params:
+            coverage_spec['rmax'] = params['max']
+            assert 'allowed_values' not in params
+            assert 'count' not in params
+
+        if 'count' in params:
+            coverage_spec['rmin'] = params['count'][0]
+            coverage_spec['rmax'] = params['count'][1]
+            assert 'min' not in params
+            assert 'max' not in params
+            assert 'allowed_values' not in params
+        if 'allowed_values' in params:
+            return cls(
+                rotations,
+                blocks=params.get('blocks', Ellipsis),
+                allowed_coverage=params['allowed_coverage']
+            )
+            assert 'min' not in params
+            assert 'max' not in params
+            assert 'count' not in params
+
+        return cls(
+            rotations,
+            blocks=params.get('blocks', Ellipsis),
+            **coverage_spec
+        )
 
 class PrerequisiteRotationConstraint(Constraint):
 
@@ -807,13 +862,17 @@ def add_window_count_constraint(model, block_assigned, residents, blocks,
             model.Add(ct <= n_max)
 
 def add_resident_group_constraint(model, block_assigned, residents, blocks,
-                                rotation, eligible_residents, ineligible_blocks = None):
-# If all blocks are indicated, adds a constrains that the sum of blocks = 0 if the resident is not in "eligible residents" group
+                                  rotation, eligible_residents, ineligible_blocks = None):
+    # If all blocks are indicated, adds a constrains that the sum of
+    # blocks = 0 if the resident is not in "eligible residents" group
     for res in residents:
         if ineligible_blocks is None:
             n = sum(block_assigned[(res, block, rotation)] for block in blocks)
             model.Add(n == 0).OnlyEnforceIf(res not in eligible_residents)
-# If only certain 'eligible blocks' have been indicated, makes sure that the eligible_residents are NOT assigned the rotation during an ineligible block)
+
+    # If only certain 'eligible blocks' have been indicated,
+    # makes sure that the eligible_residents are NOT assigned the rotation
+    # during an ineligible block)
         else:
             n = sum(block_assigned[(res, block, rotation)] for block in ineligible_blocks)
             model.Add(n == 0).OnlyEnforceIf(res in eligible_residents)

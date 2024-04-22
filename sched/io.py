@@ -170,16 +170,23 @@ def generate_constraints_from_configs(config, groups_array):
             constraints.append(
                 csts.GroupCountPerResidentPerWindow(
                     rotations_in_group=resolve_group(cst['group'], config['rotations']),
-                    n_min=cst['count'][0], n_max=cst['count'][1], window_size = len(config['blocks']),res_list = res_list)
-            )
-        if cst['kind'] == 'window_group_count_per_resident':
+                    n_min=cst['count'][0], n_max=cst['count'][1],
+                    window_size=len(config['blocks']),
+                    res_list=res_list
+            ))
+        elif cst['kind'] == 'window_group_count_per_resident':
             constraints.append(
                 csts.GroupCountPerResidentPerWindow(
                     rotations_in_group=resolve_group(cst['group'], config['rotations']),
-                    n_min=cst['count'][0], n_max=cst['count'][1], window_size = cst['window_size'])
-            )
-
-        if cst['kind'] == 'time_to_first':
+                    n_min=cst['count'][0], n_max=cst['count'][1],
+                    window_size=cst['window_size']
+            ))
+        elif cst['kind'] == 'group_coverage_constraint':
+           constraints.append(
+                csts.GroupCoverageConstraint.from_yml_dict(
+                    cst, config
+            ))
+        elif cst['kind'] == 'time_to_first':
             constraints.append(
                 csts.TimeToFirstConstraint(
                     eligible_field=parser.resolve_eligible_field(
