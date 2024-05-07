@@ -53,10 +53,6 @@ def parse_args(argv):
     )
 
     parser.add_argument(
-        '--no-backup', default=False, action='store_true',
-    )
-
-    parser.add_argument(
         '-p', '--n_processes', default=1, type=int,
         help='The number of search workers for OR-Tools to use.'
     )
@@ -124,9 +120,11 @@ def main(argv):
     with open(args.config, 'r') as f:
         config = yaml.safe_load(f)
 
-    residents, blocks, rotations, groups_array = io.process_config(config)
+    residents, blocks, rotations, cogrids_avail, groups_array = io.process_config(config)
 
-    cst_list = io.generate_constraints_from_configs(config, groups_array)
+    cst_list = io.generate_constraints_from_configs(
+        config, groups_array
+    )
 
     if args.coverage_min:
         cst_list.extend(
@@ -146,9 +144,9 @@ def main(argv):
             csts.MinIndividualScoreConstraint(rankings, args.min_individual_rank)
         )
 
-    if not args.no_backup:
-        for c in io.generate_backup_constraints(config):
-            cst_list.append(c)
+    cst_list.extend(
+        io.generate_backup_constraints(config)
+    )
 
     if args.hint is not None:
         hint = pd.read_csv(args.hint, header=0, index_col=0, comment='#')
@@ -189,6 +187,7 @@ def main(argv):
             # outfile=args.results,
             solution_limit=args.n_solutions,
         ),
+        cogrids={c: config[c] for c in cogrids_avail},
         objective_fn=objective_fn,
         n_processes=args.n_processes,
         hint=hint,

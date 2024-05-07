@@ -48,3 +48,37 @@ def test_prereq_cst_yaml_parsing():
                      'Resident 3': 1, 'Resident 4': 1}
     }
     assert cst.prerequisites == {('Tutorial',): 1, ('Gen Surg',): 1}
+
+
+def test_coverage_cst_yaml_parsing():
+    config = {
+        'residents': {
+            'Resident 1': {'group': ['CA1']},
+            'Resident 2': {'group': ['CA1']},
+            'Resident 3': {'group': ['CA2']},
+            'Resident 4': {'group': ['CA3']}
+        },
+        'rotations': {
+            'Gen Surg': {'group': ['mor']},
+            'Ortho': {'group': ['mor']},
+            'Ob': {},
+            'PATA': {},
+            'SICU-E4': {}
+        },
+        'blocks': {
+            'Spring': {},
+            'Summer': {},
+            'Fall': {},
+            'Winter': {}
+        },
+        'group_constraints': {
+            'kind': 'group_coverage_constraint',
+            'group': 'mor',
+            'count': [2, 2]
+        }
+    }
+
+    cst = csts.PrerequisiteRotationConstraint.from_yml_dict(
+        "Gen Surg", config['rotations']['Gen Surg'], config
+    )
+

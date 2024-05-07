@@ -13,16 +13,25 @@ logger = logging.getLogger(__name__)
 
 class BaseSolutionPrinter(cp_model.CpSolverSolutionCallback):
 
-    def __init__(self, block_assigned, block_backup, residents, blocks, rotations,
-                 solution_limit=None):
+    def __init__(self, grids, solution_limit=None):
 
         cp_model.CpSolverSolutionCallback.__init__(self)
-        self._block_assigned = block_assigned
-        self._block_backup = block_backup
 
-        self._residents = residents
-        self._blocks = blocks
-        self._rotations = rotations
+        self._block_assigned = grids['main']['variables']
+
+        if grids.get('backup', None):
+            self._block_backup = grids['backup'].get('variables', None)
+        else:
+            self._block_backup = None
+
+        if grids.get('vacation', None):
+            self._vacation_assigned = grids['vacation']['variables']
+        else:
+            self._vacation_assigned = None
+
+        self._residents = grids['main']['dimensions']['residents']
+        self._blocks = grids['main']['dimensions']['blocks']
+        self._rotations = grids['main']['dimensions']['rotations']
 
         self._solution_limit = solution_limit
         self._solution_count = 0
@@ -52,7 +61,7 @@ class BaseSolutionPrinter(cp_model.CpSolverSolutionCallback):
                 for rotation in self._rotations:
                     if self.Value(self._block_assigned[(resident, block, rotation)]):
                         row.append(rotation)
-                        if self.Value(self._block_backup[(resident, block)]):
+                        if self._block_backup and self.Value(self._block_backup[(resident, block)]):
                             row[-1] += '+'
             rows.append(row)
 
@@ -90,6 +99,19 @@ class BaseSolutionPrinter(cp_model.CpSolverSolutionCallback):
         return df
 
 
+    def vacation_df(self):
+        d = [
+            k + (self.Value(v),) for k, v in self._vacation_assigned.items()
+        ]
+
+        df = pd.DataFrame.from_records(
+            d, columns=['resident', 'week', 'rotation', 'on_vacation'])
+
+        print(df[df['on_vacation'] == 1].sort_values(['week']))
+
+        print(df.groupby('resident')['on_vacation'].sum())
+        print(df.groupby('rotation')['on_vacation'].sum())
+
 class JugScheduleSolutionPrinter(BaseSolutionPrinter):
 
     def __init__(self, scores, *args, **kwargs):
@@ -110,6 +132,8 @@ class JugScheduleSolutionPrinter(BaseSolutionPrinter):
         solution_df = self.df_from_solution()
         self._solutions.append(solution_df)
 
+        print(self.vacation_df())
+
         if self._scores is not None:
 
             scores_df = self.df_from_scores()
@@ -125,12 +149,9 @@ class JugScheduleSolutionPrinter(BaseSolutionPrinter):
 
 class BlockSchedulePartialSolutionPrinter(BaseSolutionPrinter):
 
-    def __init__(
-            self, block_assigned, block_backup, residents, blocks, rotations, outfile,
-            scores, solution_limit=Ellipsis
-            ):
+    def __init__(self, grids, outfile, scores, solution_limit=Ellipsis):
 
-        super().__init__(block_assigned, block_backup, residents, blocks, rotations)
+        super().__init__(grids, solution_limit=solution_limit)
 
         self._outfile = outfile
 

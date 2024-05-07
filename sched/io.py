@@ -3,7 +3,7 @@ import csv
 import numpy as np
 import pandas as pd
 
-from . import csts, parser
+from . import csts, parser, cogrid_csts, util
 
 
 def get_group_array(group, config, group_type):
@@ -54,11 +54,15 @@ def process_config(config):
     residents = list(config['residents'].keys())
     blocks = list(config['blocks'].keys())
     rotations = list(config['rotations'].keys())
-    
+    cogrids = list(
+        k for k in config.keys()
+        if k in ['vacation', 'backup']
+    )
+
     groups = {
         'residents': [],
         'blocks': [],
-        'rotations': []
+        'rotations': [],
     }
 
     for config_type in ['residents', 'blocks', 'rotations']:
@@ -79,7 +83,7 @@ def process_config(config):
     for rotation in rotations: 
         groups_array[rotation] = get_group_array(rotation,config, group_type="rotation_name")
 
-    return residents, blocks, rotations, groups_array
+    return residents, blocks, rotations, cogrids, groups_array
 
 
 def generate_resident_constraints(config, groups_array):
@@ -108,9 +112,16 @@ def generate_resident_constraints(config, groups_array):
 
 
 def generate_backup_constraints(
-    config, n_residents_needed=2, backup_group_name='backup_eligible'):
+    config, backup_group_name='backup_eligible'):
 
     constraints = []
+
+    # if backup: No, then skip this whole thing
+    if not config.get('backup', False):
+        return constraints
+
+    if config['backup']:
+        n_residents_needed = int(config['backup']['coverage'])
 
     for block, blk_params in config['blocks'].items():
         # sometimes blk_params can be None, for which .get won't work
@@ -145,6 +156,13 @@ def generate_backup_constraints(
     return constraints
 
 
+def generate_vacation_constraints(config, groups_array):
+
+    return [
+        cogrid_csts.VacationMappingConstraint.from_yml_dict(
+            rotation=None, params=None, config=config)
+    ]
+
 def generate_constraints_from_configs(config, groups_array):
 
     constraints = []
@@ -152,6 +170,8 @@ def generate_constraints_from_configs(config, groups_array):
     constraints.extend(generate_rotation_constraints(config, groups_array))
 
     constraints.extend(generate_resident_constraints(config, groups_array))
+
+    constraints.extend(generate_vacation_constraints(config, groups_array))
 
     for cst in config.get('group_constraints', []):
 
@@ -169,7 +189,7 @@ def generate_constraints_from_configs(config, groups_array):
 
             constraints.append(
                 csts.GroupCountPerResidentPerWindow(
-                    rotations_in_group=resolve_group(cst['group'], config['rotations']),
+                    rotations_in_group=util.resolve_group(cst['group'], config['rotations']),
                     n_min=cst['count'][0], n_max=cst['count'][1],
                     window_size=len(config['blocks']),
                     res_list=res_list
@@ -177,7 +197,7 @@ def generate_constraints_from_configs(config, groups_array):
         elif cst['kind'] == 'window_group_count_per_resident':
             constraints.append(
                 csts.GroupCountPerResidentPerWindow(
-                    rotations_in_group=resolve_group(cst['group'], config['rotations']),
+                    rotations_in_group=util.resolve_group(cst['group'], config['rotations']),
                     n_min=cst['count'][0], n_max=cst['count'][1],
                     window_size=cst['window_size']
             ))
@@ -248,31 +268,6 @@ def expand_to_length_if_needed(var, length):
         return var
 
 
-def resolve_group(group, rotation_config):
-
-    rots = [
-        r for r, params in rotation_config.items()
-        if params and group in params.get('groups', [])
-    ]
-
-    return rots
-
-
-def accumulate_prior_counts(rotation, resident_config):
-
-    # options for 'history' are:
-    # 1) history: [Tutorial, Tutorial, Ortho, ..., Cardiac]
-
-    prior_counts = {r: 0 for r in resident_config.keys()}
-    for resident, params in resident_config.items():
-        if 'history' in params:
-            for rot in params['history']:
-                if rot == rotation:
-                    prior_counts[resident] += 1
-
-    return prior_counts
-
-
 def generate_rotation_constraints(config, groups_array):
 
     constraints = []
@@ -302,7 +297,7 @@ def generate_rotation_constraints(config, groups_array):
                     following_rotations.append(key)
                 else:
                     following_rotations.extend(
-                        resolve_group(key, config['rotations']))
+                        util.resolve_group(key, config['rotations']))
 
             constraints.append(csts.MustBeFollowedByRotationConstraint(
                 rotation=rotation, following_rotations=following_rotations

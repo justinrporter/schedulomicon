@@ -4,6 +4,7 @@ import logging
 from ortools.sat.python import cp_model
 
 from . import csts, util
+from . import model as mdl
 
 logger = logging.getLogger(__name__)
 
@@ -55,44 +56,6 @@ def score_dict_from_df(rankings, residents, blocks, rotations, block_resident_ra
         accumulate_score_res_block_scores(scores, rot_blk_scores, rotation)
 
     return scores
-
-
-def generate_model(residents, blocks, rotations, groups_array):
-    model = cp_model.CpModel()
-
-    # Creates shift variables.
-    block_assigned = {}
-    for res in residents:
-        for blk in blocks:
-            for rot in rotations:
-                block_assigned[(res, blk, rot)] = model.NewBoolVar(
-                    f'block_assigned-r{res}-b{blk}-{rot}')
-
-    # Each resident must work some rotation each block
-    for res in residents:
-        for block in blocks:
-            model.AddExactlyOne(
-                block_assigned[(res, block, rot)] for rot in rotations)
-
-    return block_assigned, model
-
-
-def generate_backup(model, residents, blocks, n_backup_blocks):
-
-    block_backup = {}
-    for resident in residents:
-        for block in blocks:
-            block_backup[(resident, block)] = model.NewBoolVar(
-                f'backup_assigned-r{resident}-b{block}')
-
-    for resident in residents:
-        ct = 0
-        for block in blocks:
-            ct += block_backup[(resident, block)]
-        model.Add(ct == n_backup_blocks)
-
-    return block_backup
-
 
 def add_result_as_hint(model, block_assigned, residents, blocks, rotations, hint):
     for res in residents:
@@ -152,31 +115,73 @@ def run_enumerator(model, solution_printer=None, n_processes=None):
 
 def solve(
         residents, blocks, rotations, groups_array, cst_list, soln_printer,
-        objective_fn, max_time_in_mins, n_processes=None, hint=None,
+        cogrids, objective_fn, max_time_in_mins, n_processes=None, hint=None,
     ):
 
-    block_assigned, model = generate_model(
+    block_assigned, model = mdl.generate_model(
         residents, blocks, rotations, groups_array
     )
 
-    block_backup = generate_backup(model, residents, blocks, n_backup_blocks=2)
+    grids = {
+        'main': {
+            'dimensions': {
+                'residents': residents,
+                'blocks': blocks,
+                'rotations': rotations
+            }, 'variables': block_assigned
+        }
+    }
+
+    if 'backup' in cogrids and cogrids['backup']:
+        grids['backup'] = {
+            'dimensions': {
+                'residents': residents,
+                'blocks': blocks
+            },
+            'variables': mdl.generate_backup(
+                model,
+                residents,
+                blocks,
+                n_backup_blocks=cogrids['backup']['coverage']
+            )
+        }
+
+    if 'vacation' in cogrids:
+        blks = cogrids['vacation']['blocks']
+        pools = cogrids['vacation']['pools']
+
+        grids['vacation'] = {
+            'dimensions': {
+                'residents': residents,
+                'blocks': blks,
+                'pools': pools
+            }
+        }
+        grids['vacation']['variables'] = mdl.generate_vacation(
+            model,
+            residents,
+            rotations,
+            blks
+        )
 
     for cst in cst_list:
-        cst.apply(model, block_assigned, residents, blocks, rotations, block_backup)
+        cst.apply(
+            model,
+            block_assigned=grids['main']['variables'],
+            residents=grids['main']['dimensions']['residents'],
+            blocks=grids['main']['dimensions']['blocks'],
+            rotations=grids['main']['dimensions']['rotations'],
+            grids=grids
+        )
 
     if hint is not None:
         add_result_as_hint(model, block_assigned, residents, blocks, rotations, hint)
 
     # instantiate the soln printer using the prototype passed in
-    # eg soln_printer = partial(callback.JugScheduleSolutionPrinter, scores=scs, solution_limit=1)
+    # eg soln_printer = partial(callback.JugScheduleSolutionPrinter,
+    # scores=scs, solution_limit=1)
 
-    solution_printer = soln_printer(
-        block_assigned=block_assigned,
-        block_backup=block_backup,
-        residents=residents,
-        blocks=blocks,
-        rotations=rotations,
-    )
+    solution_printer = soln_printer(grids=grids)
 
     start_time = datetime.datetime.now()
     print('Starting search:', start_time)

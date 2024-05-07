@@ -4,7 +4,7 @@ import logging
 import numpy as np
 
 from .exceptions import YAMLParseError
-from .io import resolve_group, accumulate_prior_counts
+from .util import resolve_group, accumulate_prior_counts
 
 
 logger = logging.getLogger(__name__)
@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 class Constraint:
 
-    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
+    def apply(self, model, block_assigned, residents, blocks, rotations, grids):
         pass
 
     @classmethod
@@ -30,9 +30,11 @@ class BackupRequiredOnBlockBackupConstraint(Constraint):
         self.block = block
         self.n_residents_needed = n_residents_needed
 
-    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
+    def apply(self, model, block_assigned, residents, blocks, rotations, grids):
 
-        super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
+        super().apply(model, block_assigned, residents, blocks, rotations, grids)
+
+        block_backup = grids['backup']['variables']
 
         ct = 0
         for resident in residents:
@@ -46,9 +48,11 @@ class RotationBackupCountConstraint(Constraint):
         self.rotation = rotation
         self.count = count
 
-    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
+    def apply(self, model, block_assigned, residents, blocks, rotations, grids):
 
-        super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
+        super().apply(model, block_assigned, residents, blocks, rotations, grids)
+
+        block_backup = grids['backup']['variables']
 
         backup_vars = {}
         for resident in residents:
@@ -90,9 +94,11 @@ class BanBackupBlockContraint(Constraint):
         self.block = block
         self.resident = resident
 
-    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
+    def apply(self, model, block_assigned, residents, blocks, rotations, grids):
 
-        super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
+        super().apply(model, block_assigned, residents, blocks, rotations, grids)
+
+        block_backup = grids['backup']['variables']
 
         model.Add(block_backup[(self.resident, self.block)] == 0)
 
@@ -102,9 +108,17 @@ class BackupEligibleBlocksBackupConstraint(Constraint):
     def __init__(self, backup_eligible):
         self.backup_eligible = {k: 1 if v else 0 for k, v in backup_eligible.items()}
 
-    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
+        if not any(v for v in self.backup_eligible.values()):
+            s = (
+                "WARNING: No blocks are backup eligible, but "
+                "BackupEligibleBlocksBackupConstraint is present."
+            )
+            logger.warning(s)
 
-        super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
+    def apply(self, model, block_assigned, residents, blocks, rotations, grids):
+
+        super().apply(model, block_assigned, residents, blocks, rotations, grids)
+        block_backup = grids['backup']['variables']
 
         for resident in residents:
             for block in blocks:
@@ -125,9 +139,9 @@ class BanRotationBlockConstraint(Constraint):
         self.block = block
         self.rotation = rotation
 
-    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
+    def apply(self, model, block_assigned, residents, blocks, rotations, grids):
 
-        super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
+        super().apply(model, block_assigned, residents, blocks, rotations, grids)
 
         for resident in residents:
             model.Add(block_assigned[(resident, self.block, self.rotation)] == 0)
@@ -183,9 +197,9 @@ class RotationCoverageConstraint(Constraint):
             self.rmax = rmax
 
 
-    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
+    def apply(self, model, block_assigned, residents, blocks, rotations, grids):
 
-        super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
+        super().apply(model, block_assigned, residents, blocks, rotations, grids)
 
         # ellipsis just means all blocks
         if self.blocks is Ellipsis:
@@ -345,9 +359,9 @@ class PrerequisiteRotationConstraint(Constraint):
         logger.debug('Rotation %s prerequisites %s', rotation, self.prerequisites)
 
 
-    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
+    def apply(self, model, block_assigned, residents, blocks, rotations, grids):
 
-        super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
+        super().apply(model, block_assigned, residents, blocks, rotations, grids)
 
         for resident in residents:
             for i in range(len(blocks)):
@@ -378,9 +392,9 @@ class AlwaysPairedRotationConstraint(Constraint):
     def __init__(self, rotation):
         self.rotation = rotation
 
-    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
+    def apply(self, model, block_assigned, residents, blocks, rotations, grids):
 
-        super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
+        super().apply(model, block_assigned, residents, blocks, rotations, grids)
 
         add_must_be_paired_constraint(
             model, block_assigned, residents, blocks,
@@ -398,9 +412,9 @@ class MustBeFollowedByRotationConstraint(Constraint):
         self.rotation = rotation
         self.following_rotations = following_rotations
 
-    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
+    def apply(self, model, block_assigned, residents, blocks, rotations, grids):
 
-        super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
+        super().apply(model, block_assigned, residents, blocks, rotations, grids)
 
         add_must_be_followed_by_constraint(
             model, block_assigned, residents, blocks,
@@ -454,9 +468,9 @@ class CoolDownConstraint(Constraint):
         self.n_max = count[1]
         self.suppress_for = suppress_for
 
-    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
+    def apply(self, model, block_assigned, residents, blocks, rotations, grids):
 
-        super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
+        super().apply(model, block_assigned, residents, blocks, rotations, grids)
 
         residents = [res for res in residents if res not in self.suppress_for]
         
@@ -557,9 +571,9 @@ class RotationCountConstraint(Constraint):
 
         return cst
 
-    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
+    def apply(self, model, block_assigned, residents, blocks, rotations, grids):
 
-        super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
+        super().apply(model, block_assigned, residents, blocks, rotations, grids)
 
         for resident, (nmin, nmax) in self.count_map.items():
             r_tot = sum(block_assigned[(resident, block, self.rotation)] for block in blocks)
@@ -595,9 +609,9 @@ class RotationCountNotConstraint(Constraint):
         self.rotation = rotation
         self.ct = ct
 
-    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
+    def apply(self, model, block_assigned, residents, blocks, rotations, grids):
 
-        super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
+        super().apply(model, block_assigned, residents, blocks, rotations, grids)
 
         for resident in residents:
             r_tot = sum(block_assigned[(resident, block, self.rotation)] for block in blocks)
@@ -609,9 +623,9 @@ class TrueSomewhereConstraint(Constraint):
     def __init__(self, eligible_field):
         self.eligible_field = eligible_field
     
-    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
+    def apply(self, model, block_assigned, residents, blocks, rotations, grids):
 
-        super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
+        super().apply(model, block_assigned, residents, blocks, rotations, grids)
 
         s = 0
         for loc,value in np.ndenumerate(self.eligible_field[0]):
@@ -629,9 +643,9 @@ class ProhibitedCombinationConstraint(Constraint):
     def __init__(self, prohibited_fields):
         self.prohibited_fields = prohibited_fields
     
-    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
+    def apply(self, model, block_assigned, residents, blocks, rotations, grids):
 
-        super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
+        super().apply(model, block_assigned, residents, blocks, rotations, grids)
         
         list_length = len(self.prohibited_fields)
         sum = 0
@@ -651,9 +665,9 @@ class MarkIneligibleConstraint(Constraint):
     def __init__(self, eligible_field):
         self.eligible_field = eligible_field
     
-    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
+    def apply(self, model, block_assigned, residents, blocks, rotations, grids):
 
-        super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
+        super().apply(model, block_assigned, residents, blocks, rotations, grids)
 
         sum = 0
         for (x,y,z), value in np.ndenumerate(~self.eligible_field[0]):
@@ -703,9 +717,9 @@ class MinIndividualScoreConstraint(Constraint):
                      f"min_score {self.min_score}")
 
 
-    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
+    def apply(self, model, block_assigned, residents, blocks, rotations, grids):
 
-        super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
+        super().apply(model, block_assigned, residents, blocks, rotations, grids)
 
         assert set(residents) == set([res for res, _, _ in block_assigned.keys()])
 
@@ -743,9 +757,9 @@ class GroupCountPerResidentPerWindow(Constraint):
         self.window = window_size
         self.res_list = res_list
 
-    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
+    def apply(self, model, block_assigned, residents, blocks, rotations, grids):
 
-        super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
+        super().apply(model, block_assigned, residents, blocks, rotations, grids)
 
         if self.res_list is not None: 
             residents = self.res_list
