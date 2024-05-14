@@ -22,7 +22,7 @@ def accumulate_prior_counts(rotation, resident_config):
 
     prior_counts = {r: 0 for r in resident_config.keys()}
     for resident, params in resident_config.items():
-        if 'history' in params:
+        if params and 'history' in params:
             for rot in params['history']:
                 if rot == rotation:
                     prior_counts[resident] += 1
