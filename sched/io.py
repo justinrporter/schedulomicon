@@ -182,13 +182,7 @@ def generate_constraints_from_configs(config, groups_array):
         if cst['kind'] == 'time_to_first':
             constraints.append(
                 csts.TimeToFirstConstraint(
-                    eligible_field=parser.resolve_eligible_field(
-                        cst['group'],
-                        groups_array,
-                        config['residents'],
-                        config['blocks'],
-                        config['rotations']
-                    ),
+                    rotations_in_group=resolve_group(cst['group'], config['rotations']),
                     window_size = cst['window_size'])
             )
 
