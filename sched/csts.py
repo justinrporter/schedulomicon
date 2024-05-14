@@ -808,6 +808,25 @@ class EligibleAfterBlockConstraint(Constraint):
         )
 
 
+class TimeToFirstConstraint(Constraint):
+
+    def __init__(self, rotations_in_group, window_size):
+        self.rotations_in_group = rotations_in_group
+        self.window_size = window_size
+
+    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
+
+        super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
+
+        for res in residents:
+            count = 0
+            for blk in blocks[:self.window_size]:
+                for rot in self.rotations_in_group:
+                    count += block_assigned[(res, blk, rot)]
+
+            model.Add(count > 1)
+
+
 def add_must_be_paired_constraint(model, block_assigned, residents, blocks,
                                   rot_name):
 
