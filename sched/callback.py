@@ -100,17 +100,22 @@ class BaseSolutionPrinter(cp_model.CpSolverSolutionCallback):
 
 
     def vacation_df(self):
-        d = [
-            k + (self.Value(v),) for k, v in self._vacation_assigned.items()
-        ]
 
-        df = pd.DataFrame.from_records(
-            d, columns=['resident', 'week', 'rotation', 'on_vacation'])
+        if self._vacation_assigned:
+            d = [
+                k + (self.Value(v),) for k, v in self._vacation_assigned.items()
+            ]
 
-        print(df[df['on_vacation'] == 1].sort_values(['week']))
+            df = pd.DataFrame.from_records(
+                d, columns=['resident', 'week', 'rotation', 'on_vacation'])
 
-        print(df.groupby('resident')['on_vacation'].sum())
-        print(df.groupby('rotation')['on_vacation'].sum())
+            print(df[df['on_vacation'] == 1].sort_values(['week']))
+
+            print(df.groupby('resident')['on_vacation'].sum())
+            print(df.groupby('rotation')['on_vacation'].sum())
+
+            return df
+
 
 class JugScheduleSolutionPrinter(BaseSolutionPrinter):
 

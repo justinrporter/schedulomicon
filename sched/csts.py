@@ -171,7 +171,7 @@ class RotationCoverageConstraint(Constraint):
 
     def __repr__(self):
         return "RotationCoverageConstraint(%s,%s,%s,%s)" % (
-             self.rotation, self.blocks, self.rmin, self.rmax)
+             self.rotations, self.blocks, self.rmin, self.rmax)
 
     def __init__(self, rotation_or_rotations, blocks=Ellipsis, rmin=None, rmax=None, allowed_vals=None):
 
@@ -691,7 +691,7 @@ class RotationWindowConstraint(Constraint):
         self.rotation = rotation
         self.possible_blocks = possible_blocks
 
-    def apply(self, model, block_assigned, residents, blocks, rotations):
+    def apply(self, model, block_assigned, residents, blocks, rotations, grids):
 
         super().apply(model, block_assigned, residents, blocks, rotations)
 
@@ -777,7 +777,7 @@ class ResidentGroupConstraint(Constraint):
         self.rotation = rotation
         self.eligible_residents = eligible_residents
 
-    def apply(self, model, block_assigned, residents, blocks):
+    def apply(self, model, block_assigned, residents, blocks, grids):
 
         super().apply(model, block_assigned, residents, blocks)
 
@@ -795,7 +795,7 @@ class EligibleAfterBlockConstraint(Constraint):
         self.resident_group = resident_group
         self.eligible_after_block = eligible_after_block
 
-    def apply(self, model, block_assigned, residents, blocks, rotations):
+    def apply(self, model, block_assigned, residents, blocks, rotations, grids):
 
         super().apply(model, block_assigned, residents, blocks, rotations)
 
@@ -814,9 +814,9 @@ class TimeToFirstConstraint(Constraint):
         self.rotations_in_group = rotations_in_group
         self.window_size = window_size
 
-    def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
+    def apply(self, model, block_assigned, residents, blocks, rotations, grids):
 
-        super().apply(model, block_assigned, residents, blocks, rotations, block_backup)
+        super().apply(model, block_assigned, residents, blocks, rotations, grids)
 
         for res in residents:
             count = 0

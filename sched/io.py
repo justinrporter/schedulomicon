@@ -158,10 +158,13 @@ def generate_backup_constraints(
 
 def generate_vacation_constraints(config, groups_array):
 
-    return [
-        cogrid_csts.VacationMappingConstraint.from_yml_dict(
-            rotation=None, params=None, config=config)
-    ]
+    if config.get('vacation', None):
+        return [
+            cogrid_csts.VacationMappingConstraint.from_yml_dict(
+                rotation=None, params=None, config=config)
+        ]
+    else:
+        return []
 
 def generate_constraints_from_configs(config, groups_array):
 
@@ -209,7 +212,7 @@ def generate_constraints_from_configs(config, groups_array):
         elif cst['kind'] == 'time_to_first':
             constraints.append(
                 csts.TimeToFirstConstraint(
-                    rotations_in_group=resolve_group(cst['group'], config['rotations']),
+                    rotations_in_group=util.resolve_group(cst['group'], config['rotations']),
                     window_size = cst['window_size'])
             )
         elif cst['kind'] == 'apply_to_all_residents':
