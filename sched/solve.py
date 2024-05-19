@@ -1,3 +1,4 @@
+import math
 import datetime
 import logging
 
@@ -57,12 +58,52 @@ def score_dict_from_df(rankings, residents, blocks, rotations, block_resident_ra
 
     return scores
 
+
+def generate_model(residents, blocks, rotations, groups_array):
+    model = cp_model.CpModel()
+
+    # Creates shift variables.
+    block_assigned = {}
+    for res in residents:
+        for blk in blocks:
+            for rot in rotations:
+                block_assigned[(res, blk, rot)] = model.NewBoolVar(
+                    f'block_assigned-r{res}-b{blk}-{rot}')
+
+    # Each resident must work some rotation each block
+    for res in residents:
+        for block in blocks:
+            model.AddExactlyOne(
+                block_assigned[(res, block, rot)] for rot in rotations)
+
+    return block_assigned, model
+
+
+def generate_backup(model, residents, blocks, n_backup_blocks):
+
+    block_backup = {}
+    for resident in residents:
+        for block in blocks:
+            block_backup[(resident, block)] = model.NewBoolVar(
+                f'backup_assigned-r{resident}-b{block}')
+
+    # the number of backup blocks per resident is n_backup_blocks
+    for resident in residents:
+        ct = 0
+        for block in blocks:
+            ct += block_backup[(resident, block)]
+        model.Add(ct == n_backup_blocks)
+
+    return block_backup
+
+
 def add_result_as_hint(model, block_assigned, residents, blocks, rotations, hint):
+
     for res in residents:
         for block in blocks:
             for rot in rotations:
                 model.AddHint(
-                    block_assigned[res,block,rot],
+                    block_assigned[res, block, rot],
                     hint[res][block] == rot
                 )
 
