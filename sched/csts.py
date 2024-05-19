@@ -25,9 +25,10 @@ class Constraint:
 
 class BackupRequiredOnBlockBackupConstraint(Constraint):
 
-    def __init__(self, block, n_residents_needed):
+    def __init__(self, block, min_residents, max_residents):
         self.block = block
-        self.n_residents_needed = n_residents_needed
+        self.min_residents = min_residents
+        self.max_residents = max_residents
 
     def apply(self, model, block_assigned, residents, blocks, rotations, block_backup):
 
@@ -36,7 +37,9 @@ class BackupRequiredOnBlockBackupConstraint(Constraint):
         ct = 0
         for resident in residents:
             ct += block_backup[(resident, self.block)]
-        model.Add(ct == self.n_residents_needed)
+
+        model.Add(ct >= self.min_residents)
+        model.Add(ct <= self.max_residents)
 
 
 class RotationBackupCountConstraint(Constraint):

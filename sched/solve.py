@@ -1,3 +1,4 @@
+import math
 import datetime
 import logging
 
@@ -85,6 +86,7 @@ def generate_backup(model, residents, blocks, n_backup_blocks):
             block_backup[(resident, block)] = model.NewBoolVar(
                 f'backup_assigned-r{resident}-b{block}')
 
+    # the number of backup blocks per resident is n_backup_blocks
     for resident in residents:
         ct = 0
         for block in blocks:
@@ -95,11 +97,12 @@ def generate_backup(model, residents, blocks, n_backup_blocks):
 
 
 def add_result_as_hint(model, block_assigned, residents, blocks, rotations, hint):
+
     for res in residents:
         for block in blocks:
             for rot in rotations:
                 model.AddHint(
-                    block_assigned[res,block,rot],
+                    block_assigned[res, block, rot],
                     hint[res][block] == rot
                 )
 

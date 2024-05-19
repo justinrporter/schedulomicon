@@ -137,6 +137,7 @@ class BlockSchedulePartialSolutionPrinter(BaseSolutionPrinter):
         self._solution_count += 1
 
         logger.info(f"Solution {self._solution_count:02d} at {datetime.datetime.now()} w objective value {self.ObjectiveValue()}")
+        print(f"Solution {self._solution_count:02d} at {datetime.datetime.now()} w objective value {self.ObjectiveValue()}")
 
         solution_df = self.df_from_solution()
 

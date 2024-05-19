@@ -114,11 +114,15 @@ def generate_backup_constraints(
 
     for block, blk_params in config['blocks'].items():
         # sometimes blk_params can be None, for which .get won't work
-        if blk_params and blk_params.get('backup_required', True):
+        if blk_params and blk_params.get('backup_required', False):
+            min_residents = blk_params['backup_required'][0]
+            max_residents = blk_params['backup_required'][1]
+
             constraints.append(
                 csts.BackupRequiredOnBlockBackupConstraint(
                     block=block,
-                    n_residents_needed=n_residents_needed
+                    min_residents=min_residents,
+                    max_residents=max_residents
                 )
             )
 

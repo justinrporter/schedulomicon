@@ -151,7 +151,8 @@ def main(argv):
             cst_list.append(c)
 
     if args.hint is not None:
-        hint = pd.read_csv(args.hint, header=0, index_col=0, comment='#')
+        hint = pd.read_csv(args.hint, header=0, index_col=0, comment='#')\
+            .replace(r'\+', '', regex=True)
     else:
         hint = None
 
