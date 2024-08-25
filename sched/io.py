@@ -343,7 +343,8 @@ def coverage_constraints_from_csv(fname, rmin_or_rmax):
             if not np.isnan(ct):
                 constraints.append(
                     csts.RotationCoverageConstraint(
-                        rotation=rot, blocks=[block], **{rmin_or_rmax: int(ct)})
+                        rotation_or_rotations=rot,
+                        blocks=[block], **{rmin_or_rmax: int(ct)})
                 )
 
     return constraints
