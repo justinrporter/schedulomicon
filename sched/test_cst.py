@@ -59,8 +59,8 @@ def test_coverage_cst_yaml_parsing():
             'Resident 4': {'group': ['CA3']}
         },
         'rotations': {
-            'Gen Surg': {'group': ['mor']},
-            'Ortho': {'group': ['mor']},
+            'Gen Surg': {'groups': ['mor']},
+            'Ortho': {'groups': ['mor']},
             'Ob': {},
             'PATA': {},
             'SICU-E4': {}
@@ -71,14 +71,34 @@ def test_coverage_cst_yaml_parsing():
             'Fall': {},
             'Winter': {}
         },
-        'group_constraints': {
-            'kind': 'group_coverage_constraint',
-            'group': 'mor',
-            'count': [2, 2]
-        }
+        'group_constraints': [
+            {
+                'kind': 'group_coverage_constraint',
+                'group': 'mor',
+                'count': [2, 2]
+            },
+            {
+                'kind': 'group_coverage_constraint',
+                'group': 'mor',
+                'allowed_coverage': [2]
+            }
+        ]
     }
 
-    cst = csts.PrerequisiteRotationConstraint.from_yml_dict(
-        "Gen Surg", config['rotations']['Gen Surg'], config
+    cst = csts.GroupCoverageConstraint.from_yml_dict(
+        config['group_constraints'][0], config
     )
 
+    assert cst.rotations == ['Gen Surg', 'Ortho']
+    assert cst.rmin == 2
+    assert cst.rmax == 2
+    assert cst.allowed_vals is None
+
+    cst = csts.GroupCoverageConstraint.from_yml_dict(
+        config['group_constraints'][1], config
+    )
+
+    assert cst.rotations == ['Gen Surg', 'Ortho']
+    assert cst.rmin is None
+    assert cst.rmax is None
+    assert cst.allowed_vals == [2]

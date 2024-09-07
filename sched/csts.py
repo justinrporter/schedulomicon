@@ -271,11 +271,11 @@ class GroupCoverageConstraint(RotationCoverageConstraint):
         coverage_spec = {}
         if 'min' in params:
             coverage_spec['rmin'] = params['min']
-            assert 'allowed_values' not in params
+            assert 'allowed_coverage' not in params
             assert 'count' not in params
         if 'max' in params:
             coverage_spec['rmax'] = params['max']
-            assert 'allowed_values' not in params
+            assert 'allowed_coverage' not in params
             assert 'count' not in params
 
         if 'count' in params:
@@ -283,12 +283,12 @@ class GroupCoverageConstraint(RotationCoverageConstraint):
             coverage_spec['rmax'] = params['count'][1]
             assert 'min' not in params
             assert 'max' not in params
-            assert 'allowed_values' not in params
-        if 'allowed_values' in params:
+            assert 'allowed_coverage' not in params
+        if 'allowed_coverage' in params:
             return cls(
                 rotations,
                 blocks=params.get('blocks', Ellipsis),
-                allowed_coverage=params['allowed_coverage']
+                allowed_vals=params['allowed_coverage']
             )
             assert 'min' not in params
             assert 'max' not in params
@@ -307,7 +307,7 @@ class PrerequisiteRotationConstraint(Constraint):
     @classmethod
     def from_yml_dict(cls, rotation, params, config):
 
-        assert cls.KEY_NAME in params
+        assert cls.KEY_NAME in params, f"{cls.KEY_NAME} not in {params}"
 
         if hasattr(params['prerequisite'], 'keys'):
             # prereq defn is a dictionary

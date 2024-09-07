@@ -74,6 +74,7 @@ def test_small_puzzle():
             alldiff_3x3x3_obj, residents=residents,
             blocks=blocks, rotations=rotations),
         n_processes=1,
+        cogrids={'backup': {'coverage': 2}},
         max_time_in_mins=5,
         hint=None
     )
@@ -122,6 +123,7 @@ def test_cooldown_constraint():
             alldiff_3x3x3_obj, residents=residents,
             blocks=blocks, rotations=rotations),
         n_processes=1,
+        cogrids={'backup': {'coverage': 2}},
         max_time_in_mins=5,
         hint=None
     )
