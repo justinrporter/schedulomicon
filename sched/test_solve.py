@@ -139,3 +139,61 @@ def test_cooldown_constraint():
         assert np.all((rot1_idx[1:] - rot1_idx[:-1]) >= COOLDOWN_LENGTH)
 
     assert solver.ObjectiveValue() == -18
+
+
+
+
+def test_consecutive_rotation_constraint():
+
+    rotations = [f'Ro{i+1}' for i in range(6)]
+    residents=['R1', 'R2', 'R3']
+    blocks=['Bl1', 'Bl2', 'Bl3','Bl4','Bl5', 'Bl6']
+
+    status, solver, solution_printer, model, wall_runtime = solve.solve(
+        residents=residents,
+        blocks=blocks,
+        rotations=rotations,
+        groups_array=[],
+        cst_list=[
+            csts.RotationCoverageConstraint(
+                rot, rmin=1, rmax=1
+            ) for rot in ['Ro1', 'Ro2']
+        ] + [
+            csts.RotationCountConstraint(
+                rot, {res: (0, 1) for res in residents}
+            ) for rot in rotations if rot not in ['Ro1', 'Ro2']
+        ] + [
+            csts.ConsecutiveRotationCountConstraint('Ro1', count=3)
+        ] + [
+            csts.ConsecutiveRotationCountConstraint('Ro2', count=2)
+        ],
+        soln_printer=TestSolnPrinter,
+        objective_fn=partial(
+            alldiff_3x3x3_obj, residents=residents,
+            blocks=blocks, rotations=rotations),
+        n_processes=1,
+        cogrids={'backup': {'coverage': 0}},
+        max_time_in_mins=5,
+        hint=None
+    )
+
+    assert len(solution_printer.solutions)
+    soln = solution_printer.solutions[-1]
+    print(soln)
+
+    schedules = [soln.R1, soln.R2, soln.R3]
+    ro1_allowed_patterns = [
+        (1, 1, 1, 0, 0, 0),
+        (0, 0, 0, 1, 1, 1),
+        (0, 0, 0, 0, 0, 0),
+    ]
+
+    ro2_allowed_patterns = [
+        (1, 1, 0, 0, 0, 0),
+        (0, 0, 0, 0, 1, 1),
+        (0, 0, 1, 1, 0, 0),
+    ]
+
+    for s in schedules:
+        assert tuple((s == 'Ro1')) in ro1_allowed_patterns
+        assert tuple((s == 'Ro2')) in ro2_allowed_patterns

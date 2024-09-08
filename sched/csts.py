@@ -3,6 +3,7 @@ import numbers
 import logging
 import numpy as np
 
+from . import exceptions
 from .exceptions import YAMLParseError
 from .util import resolve_group, accumulate_prior_counts
 
@@ -13,7 +14,7 @@ logger = logging.getLogger(__name__)
 class Constraint:
 
     def apply(self, model, block_assigned, residents, blocks, rotations, grids):
-        pass
+        raise NotImplementedError("Constraint %s failed to implement apply" % self)
 
     @classmethod
     def _check_yaml_params(cls, root_entity, cst_params):
@@ -33,8 +34,6 @@ class BackupRequiredOnBlockBackupConstraint(Constraint):
 
     def apply(self, model, block_assigned, residents, blocks, rotations, grids):
 
-        super().apply(model, block_assigned, residents, blocks, rotations, grids)
-
         block_backup = grids['backup']['variables']
 
         ct = 0
@@ -52,8 +51,6 @@ class RotationBackupCountConstraint(Constraint):
         self.count = count
 
     def apply(self, model, block_assigned, residents, blocks, rotations, grids):
-
-        super().apply(model, block_assigned, residents, blocks, rotations, grids)
 
         block_backup = grids['backup']['variables']
 
@@ -99,8 +96,6 @@ class BanBackupBlockContraint(Constraint):
 
     def apply(self, model, block_assigned, residents, blocks, rotations, grids):
 
-        super().apply(model, block_assigned, residents, blocks, rotations, grids)
-
         block_backup = grids['backup']['variables']
 
         model.Add(block_backup[(self.resident, self.block)] == 0)
@@ -119,8 +114,6 @@ class BackupEligibleBlocksBackupConstraint(Constraint):
             logger.warning(s)
 
     def apply(self, model, block_assigned, residents, blocks, rotations, grids):
-
-        super().apply(model, block_assigned, residents, blocks, rotations, grids)
         block_backup = grids['backup']['variables']
 
         for resident in residents:
@@ -143,8 +136,6 @@ class BanRotationBlockConstraint(Constraint):
         self.rotation = rotation
 
     def apply(self, model, block_assigned, residents, blocks, rotations, grids):
-
-        super().apply(model, block_assigned, residents, blocks, rotations, grids)
 
         for resident in residents:
             model.Add(block_assigned[(resident, self.block, self.rotation)] == 0)
@@ -201,8 +192,6 @@ class RotationCoverageConstraint(Constraint):
 
 
     def apply(self, model, block_assigned, residents, blocks, rotations, grids):
-
-        super().apply(model, block_assigned, residents, blocks, rotations, grids)
 
         # ellipsis just means all blocks
         if self.blocks is Ellipsis:
@@ -364,8 +353,6 @@ class PrerequisiteRotationConstraint(Constraint):
 
     def apply(self, model, block_assigned, residents, blocks, rotations, grids):
 
-        super().apply(model, block_assigned, residents, blocks, rotations, grids)
-
         for resident in residents:
             for i in range(len(blocks)):
                 rot_is_assigned = block_assigned[(resident, blocks[i], self.rotation)]
@@ -386,23 +373,89 @@ class PrerequisiteRotationConstraint(Constraint):
                     model.Add(n_prereq_instances >= req_ct).OnlyEnforceIf(rot_is_assigned)
 
 
-class AlwaysPairedRotationConstraint(Constraint):
+class ConsecutiveRotationCountConstraint(Constraint):
+
+    KEY_NAME = 'consecutive_count'
+
+    @classmethod
+    def from_yml_dict(cls, rotation, params, config):
+
+        assert cls.KEY_NAME in params, f"{cls.KEY_NAME} not in {params}"
+        # cls._check_yaml_params(rotation, params[cls.KEY_NAME])
+
+        # Expected formats:
+        # consecutive_count: 3
+        # but also TODO:
+        # consecutive_count: [2, 3, 3, 2]
+
+        return cls(
+            rotation,
+            count=params['consecutive_count'],
+        )
+
 
     def __repr__(self):
-        return "AlwaysPairedRotationConstraint(%s)" % (
-             self.rotation)
+        return "ConsecutiveRotationCountConstraint(%s, n=%s)" % (
+             self.rotation, self.count)
 
-    def __init__(self, rotation):
+    def __init__(self, rotation, count):
         self.rotation = rotation
+        self.count = count
 
     def apply(self, model, block_assigned, residents, blocks, rotations, grids):
 
-        super().apply(model, block_assigned, residents, blocks, rotations, grids)
+        for res in residents:
 
-        add_must_be_paired_constraint(
-            model, block_assigned, residents, blocks,
-            rot_name=self.rotation
-        )
+            # scan through all blocks that could be the start of a self.count
+            # length stretch of instances of this rotation
+            for i in range(len(blocks)):
+                is_root = model.NewBoolVar(
+                    f'{blocks[i]}_root_of_consec_{self.rotation}_{res}')
+
+                if i == 0:
+                    model.Add(
+                        block_assigned[(res, blocks[0], self.rotation)] ==
+                        is_root
+                    )
+                else:
+
+                    model.AddBoolAnd(
+                        block_assigned[(res, blocks[i-1], self.rotation)].Not(),
+                        block_assigned[(res, blocks[i],   self.rotation)],
+                    ).OnlyEnforceIf(is_root)
+                    model.AddBoolOr(
+                        block_assigned[(res, blocks[i-1], self.rotation)],
+                        block_assigned[(res, blocks[i],   self.rotation)].Not(),
+                    ).OnlyEnforceIf(is_root.Not())
+
+                if i > len(blocks) - self.count:
+                    model.Add(is_root == 0)
+                else:
+                    # rest_of_window is the rest of the length of rotation
+                    # after the root (indices 1+), along with one past the
+                    # end of where the rotation should be with a not
+                    rest_of_window = []
+
+                    for j in range(1, self.count):
+                        rest_of_window.append(
+                            block_assigned[(res, blocks[i+j], self.rotation)]
+                        )
+
+                    if i+j < len(blocks)-1:
+                        rest_of_window.append(
+                            block_assigned[(res, blocks[i+j+1], self.rotation)].Not()
+                        )
+
+                    model.AddBoolAnd(rest_of_window).OnlyEnforceIf(is_root)
+
+            last_normal_block = i
+            last_normal_block_is_rot = block_assigned[(res, blocks[last_normal_block], self.rotation)]
+            for i in range(last_normal_block, len(blocks)):
+                blk = blocks[i]
+                model.AddImplication(
+                    last_normal_block_is_rot,
+                    block_assigned[(res, blocks[i], self.rotation)]
+                )
 
 
 class MustBeFollowedByRotationConstraint(Constraint):
@@ -417,8 +470,6 @@ class MustBeFollowedByRotationConstraint(Constraint):
 
     def apply(self, model, block_assigned, residents, blocks, rotations, grids):
 
-        super().apply(model, block_assigned, residents, blocks, rotations, grids)
-
         add_must_be_followed_by_constraint(
             model, block_assigned, residents, blocks,
             rotation=self.rotation,
@@ -428,13 +479,14 @@ class MustBeFollowedByRotationConstraint(Constraint):
 
 class CoolDownConstraint(Constraint):
 
+    KEY_NAME = 'cool_down'
     ALLOWED_YAML_OPTIONS = ['window', 'count', 'suppress_for']
 
     @classmethod
     def from_yml_dict(cls, rotation, params, config):
 
-        assert 'cool_down' in params
-        cls._check_yaml_params(rotation, params['cool_down'])
+        assert cls.KEY_NAME in params
+        cls._check_yaml_params(rotation, params[cls.KEY_NAME])
 
         # Expected format:
         # cool_down:
@@ -446,10 +498,10 @@ class CoolDownConstraint(Constraint):
         count = params['cool_down'].get('count', 1)
         suppress_for = params['cool_down'].get('suppress_for', [])
 
-        if params.get('always_paired', False) and window_size < 2:
-            assert False, (
-                f'Expected window_size > 1 (got {window_size}) for '
-                f'paired rotation {rotation}'
+        if params.get('consecutive_count', False):
+            raise exceptions.IncompatibleConstraintsException(
+                f"CoolDownConstraint (on rotation {rotation}) can't be used "
+                f"with ConsecutiveRotationCountConstraint yet."
             )
 
         return cls(
@@ -472,8 +524,6 @@ class CoolDownConstraint(Constraint):
         self.suppress_for = suppress_for
 
     def apply(self, model, block_assigned, residents, blocks, rotations, grids):
-
-        super().apply(model, block_assigned, residents, blocks, rotations, grids)
 
         residents = [res for res in residents if res not in self.suppress_for]
         
@@ -576,8 +626,6 @@ class RotationCountConstraint(Constraint):
 
     def apply(self, model, block_assigned, residents, blocks, rotations, grids):
 
-        super().apply(model, block_assigned, residents, blocks, rotations, grids)
-
         for resident, (nmin, nmax) in self.count_map.items():
             r_tot = sum(block_assigned[(resident, block, self.rotation)] for block in blocks)
             assert nmin is not None
@@ -614,8 +662,6 @@ class RotationCountNotConstraint(Constraint):
 
     def apply(self, model, block_assigned, residents, blocks, rotations, grids):
 
-        super().apply(model, block_assigned, residents, blocks, rotations, grids)
-
         for resident in residents:
             r_tot = sum(block_assigned[(resident, block, self.rotation)] for block in blocks)
             model.Add(r_tot != self.ct)
@@ -627,8 +673,6 @@ class TrueSomewhereConstraint(Constraint):
         self.eligible_field = eligible_field
     
     def apply(self, model, block_assigned, residents, blocks, rotations, grids):
-
-        super().apply(model, block_assigned, residents, blocks, rotations, grids)
 
         s = 0
         for loc,value in np.ndenumerate(self.eligible_field[0]):
@@ -647,8 +691,6 @@ class ProhibitedCombinationConstraint(Constraint):
         self.prohibited_fields = prohibited_fields
     
     def apply(self, model, block_assigned, residents, blocks, rotations, grids):
-
-        super().apply(model, block_assigned, residents, blocks, rotations, grids)
         
         list_length = len(self.prohibited_fields)
         sum = 0
@@ -669,8 +711,6 @@ class MarkIneligibleConstraint(Constraint):
         self.eligible_field = eligible_field
     
     def apply(self, model, block_assigned, residents, blocks, rotations, grids):
-
-        super().apply(model, block_assigned, residents, blocks, rotations, grids)
 
         sum = 0
         for (x,y,z), value in np.ndenumerate(~self.eligible_field[0]):
@@ -696,8 +736,6 @@ class RotationWindowConstraint(Constraint):
 
     def apply(self, model, block_assigned, residents, blocks, rotations, grids):
 
-        super().apply(model, block_assigned, residents, blocks, rotations)
-
         # Rotation is assigned to the resident somewhere in the "possible_blocks"
         sum = 0
         for block in self.possible_blocks:
@@ -721,8 +759,6 @@ class MinIndividualScoreConstraint(Constraint):
 
 
     def apply(self, model, block_assigned, residents, blocks, rotations, grids):
-
-        super().apply(model, block_assigned, residents, blocks, rotations, grids)
 
         assert set(residents) == set([res for res, _, _ in block_assigned.keys()])
 
@@ -762,8 +798,6 @@ class GroupCountPerResidentPerWindow(Constraint):
 
     def apply(self, model, block_assigned, residents, blocks, rotations, grids):
 
-        super().apply(model, block_assigned, residents, blocks, rotations, grids)
-
         if self.res_list is not None: 
             residents = self.res_list
 
@@ -782,8 +816,6 @@ class ResidentGroupConstraint(Constraint):
 
     def apply(self, model, block_assigned, residents, blocks, grids):
 
-        super().apply(model, block_assigned, residents, blocks)
-
         add_resident_group_constraint(
             model, block_assigned, residents, blocks,
             self.rotation, self.eligible_residents
@@ -799,8 +831,6 @@ class EligibleAfterBlockConstraint(Constraint):
         self.eligible_after_block = eligible_after_block
 
     def apply(self, model, block_assigned, residents, blocks, rotations, grids):
-
-        super().apply(model, block_assigned, residents, blocks, rotations)
 
         eligible_index = blocks.index(self.eligible_after_block)+1
         ineligible_blocks = blocks[:eligible_index]
@@ -819,8 +849,6 @@ class TimeToFirstConstraint(Constraint):
 
     def apply(self, model, block_assigned, residents, blocks, rotations, grids):
 
-        super().apply(model, block_assigned, residents, blocks, rotations, grids)
-
         for res in residents:
             count = 0
             for blk in blocks[:self.window_size]:
@@ -828,39 +856,6 @@ class TimeToFirstConstraint(Constraint):
                     count += block_assigned[(res, blk, rot)]
 
             model.Add(count > 1)
-
-
-def add_must_be_paired_constraint(model, block_assigned, residents, blocks,
-                                  rot_name):
-
-    # slide a window of size 3 across the blocks
-    # only one of the flanking rotations can be rot_name
-    # and that cst is only applied if the middle block is also rot_name
-    for resident in residents:
-        for b1, b2, b3 in zip(blocks[:-2], blocks[1:-1], blocks[2:]):
-            n_flanking = (
-                block_assigned[(resident, b1, rot_name)] +
-                block_assigned[(resident, b3, rot_name)]
-            )
-
-            model.Add(
-                n_flanking == 1
-            ).OnlyEnforceIf(block_assigned[(resident, b2, rot_name)])
-
-        #  the above constraint leaves off the edges.
-        b1 = blocks[0]
-        b2 = blocks[1]
-
-        model.Add(
-            block_assigned[(resident, b2, rot_name)] == 1
-        ).OnlyEnforceIf(block_assigned[(resident, b1, rot_name)])
-
-        b1 = blocks[-1]
-        b2 = blocks[-2]
-
-        model.Add(
-            block_assigned[(resident, b2, rot_name)] == 1
-        ).OnlyEnforceIf(block_assigned[(resident, b1, rot_name)])
 
 
 def add_must_be_followed_by_constraint(model, block_assigned, residents, blocks,

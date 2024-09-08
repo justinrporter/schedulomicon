@@ -1,4 +1,5 @@
 import csv
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -271,16 +272,22 @@ def expand_to_length_if_needed(var, length):
 
 def generate_rotation_constraints(config, groups_array):
 
+    # for constraints that know how to parse their own YAML, the KEY_NAME
+    # member variable is used to determine when to activate the constraint's
+    # from_yml_dict function
+    active_constraint_types = [
+        csts.RotationCoverageConstraint,
+        csts.CoolDownConstraint,
+        csts.RotationCountConstraint,
+        csts.RotationCountConstraintWithHistory,
+        csts.PrerequisiteRotationConstraint,
+        csts.ConsecutiveRotationCountConstraint
+    ]
+
+    available_csts = {c.KEY_NAME: c for c in active_constraint_types}
+
+
     constraints = []
-
-    available_csts = {
-        'coverage': csts.RotationCoverageConstraint,
-        'cool_down': csts.CoolDownConstraint,
-        'rot_count': csts.RotationCountConstraint,
-        'rot_count_including_history': csts.RotationCountConstraintWithHistory,
-        'prerequisite': csts.PrerequisiteRotationConstraint,
-    }
-
     for rotation, params in config['rotations'].items():
         if not params:
             continue
@@ -305,9 +312,7 @@ def generate_rotation_constraints(config, groups_array):
             ))
 
         if params.get('always_paired', False):
-            constraints.append(
-                csts.AlwaysPairedRotationConstraint(rotation)
-            )
+            constraints.append(csts.ConsecutiveRotationCountConstraint(rotation, count=2))
 
         if 'not_rot_count' in params:
             ct = params['not_rot_count']

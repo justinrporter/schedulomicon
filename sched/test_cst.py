@@ -1,4 +1,6 @@
-from . import csts
+import pytest
+
+from . import csts, io, exceptions
 
 
 def test_prereq_cst_yaml_parsing():
@@ -102,3 +104,30 @@ def test_coverage_cst_yaml_parsing():
     assert cst.rmin is None
     assert cst.rmax is None
     assert cst.allowed_vals == [2]
+
+
+def test_consecutive_cst_yaml_parsing():
+    config = {
+        'rotations': {
+            'Gen Surg': {'consecutive_count': 2},
+        },
+    }
+
+    constraints = io.generate_rotation_constraints(config, [])
+
+    assert constraints[0].rotation == 'Gen Surg'
+    assert constraints[0].count == 2
+
+
+def test_consecutive_cst_cool_down_incompatible():
+    config = {
+        'rotations': {
+            'Gen Surg': {
+                'consecutive_count': 2,
+                'cool_down': {'window': 2}
+            },
+        },
+    }
+
+    with pytest.raises(exceptions.IncompatibleConstraintsException):
+        constraints = io.generate_rotation_constraints(config, [])
