@@ -31,7 +31,6 @@ class VacationMappingConstraint(csts.Constraint):
         }
 
         rots_with_pool = list(itertools.chain(*pool_to_rotations.values()))
-        print(list(itertools.chain(*pool_to_rotations.values())))
 
         for r in config['rotations'].keys():
             assert r in rots_with_pool, f'Rotation "{r}" not found in vacation'
@@ -59,8 +58,6 @@ class VacationMappingConstraint(csts.Constraint):
                 self.rotation_to_pool[rot] = pool
 
     def apply(self, model, block_assigned, residents, blocks, rotations, grids):
-
-        super().apply(model, block_assigned, residents, blocks, rotations, grids)
 
         block_assigned = grids['main']['variables']
         vacation_assigned = grids['vacation']['variables']

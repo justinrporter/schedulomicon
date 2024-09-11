@@ -119,6 +119,25 @@ def test_consecutive_cst_yaml_parsing():
     assert constraints[0].count == 2
 
 
+
+def test_consecutive_cst_yaml_parsing():
+    config = {
+        'blocks': {'Bl1': {}, 'Bl2': {}, 'Bl3': {}},
+        'rotations': {
+            'Gen Surg': {'consecutive_count': {
+                'count': 3,
+                'forbidden_roots': ['Bl2', 'Bl3']
+            }},
+        },
+    }
+
+    constraints = io.generate_rotation_constraints(config, [])
+
+    assert constraints[0].rotation == 'Gen Surg'
+    assert constraints[0].count == 3
+    assert tuple(constraints[0].forbidden_roots) == ('Bl2', 'Bl3')
+
+
 def test_consecutive_cst_cool_down_incompatible():
     config = {
         'rotations': {
@@ -131,3 +150,26 @@ def test_consecutive_cst_cool_down_incompatible():
 
     with pytest.raises(exceptions.IncompatibleConstraintsException):
         constraints = io.generate_rotation_constraints(config, [])
+
+
+def test_consecutive_cst_forbidden_root_group():
+    config = {
+        'blocks': {
+            'Block 1A': {'groups': ['a_block']},
+            'Block 1B': {'groups': ['b_block']},
+            'Block 2A': {'groups': ['a_block']},
+            'Block 2B': {'groups': ['b_block']},
+        },
+        'rotations': {
+            'Gen Surg': {'consecutive_count': {
+                'count': 2,
+                'forbidden_roots': ['Block 1A', 'b_block']
+            }},
+        },
+    }
+
+    constraints = io.generate_rotation_constraints(config, [])
+
+    assert constraints[0].rotation == 'Gen Surg'
+    assert constraints[0].count == 2
+    assert tuple(constraints[0].forbidden_roots) == ('Block 1A', 'Block 1B', 'Block 2B')

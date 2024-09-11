@@ -25,6 +25,7 @@ class Constraint:
                     f'options are {cls.ALLOWED_YAML_OPTIONS}).'
                 )
 
+
 class BackupRequiredOnBlockBackupConstraint(Constraint):
 
     def __init__(self, block, min_residents, max_residents):
@@ -311,9 +312,11 @@ class PrerequisiteRotationConstraint(Constraint):
 
             prior_counts = {}
             for rot_grp in prereq_counts.keys():
+                # each rotation accumulates counts from every rotation in
+                # the group
                 for rot in rot_grp:
                     prior_counts[rot] = accumulate_prior_counts(
-                        rot, config['residents']
+                        [rot], config['residents']
                     )
 
             cst = cls(
@@ -323,7 +326,7 @@ class PrerequisiteRotationConstraint(Constraint):
             )
         else:
             prior_counts = {
-                rot: accumulate_prior_counts(rot, config['residents'])
+                rot: accumulate_prior_counts([rot], config['residents'])
                 for rot in params['prerequisite']
             }
 
@@ -369,7 +372,6 @@ class PrerequisiteRotationConstraint(Constraint):
                         for j in range(0, i):
                             n_prereq_instances += block_assigned[(resident, blocks[j], prereq)]
 
-
                     model.Add(n_prereq_instances >= req_ct).OnlyEnforceIf(rot_is_assigned)
 
 
@@ -386,23 +388,47 @@ class ConsecutiveRotationCountConstraint(Constraint):
         # Expected formats:
         # consecutive_count: 3
         # but also TODO:
-        # consecutive_count: [2, 3, 3, 2]
+        # consecutive_count: {count: 2, forbidden_roots: [Block 1, Block 3]}
 
-        return cls(
-            rotation,
-            count=params['consecutive_count'],
-        )
+        if hasattr(params['consecutive_count'], 'keys'):
 
+            forbidden_roots = []
+
+            for r in params['consecutive_count']['forbidden_roots']:
+                if r in config['blocks']:
+                    forbidden_roots.append(r)
+                else:
+                    forbidden_roots.extend(resolve_group(r, config['blocks']))
+
+            return cls(
+                rotation=rotation,
+                count=params['consecutive_count']['count'],
+                forbidden_roots=forbidden_roots
+            )
+        else:
+            return cls(
+                rotation=rotation,
+                count=params['consecutive_count'],
+                forbidden_roots=[]
+            )
 
     def __repr__(self):
         return "ConsecutiveRotationCountConstraint(%s, n=%s)" % (
              self.rotation, self.count)
 
-    def __init__(self, rotation, count):
+    def __init__(self, rotation, count, forbidden_roots=None):
         self.rotation = rotation
         self.count = count
+        self.forbidden_roots = forbidden_roots if forbidden_roots is not None else []
 
     def apply(self, model, block_assigned, residents, blocks, rotations, grids):
+
+        for root in self.forbidden_roots:
+            if root not in blocks:
+                raise exceptions.NameNotFound(
+                    f"In {self}, unable to find forbidden root named '{root}'",
+                    name=root
+                )
 
         for res in residents:
 
@@ -411,6 +437,9 @@ class ConsecutiveRotationCountConstraint(Constraint):
             for i in range(len(blocks)):
                 is_root = model.NewBoolVar(
                     f'{blocks[i]}_root_of_consec_{self.rotation}_{res}')
+
+                if blocks[i] in self.forbidden_roots:
+                    model.Add(is_root == False)
 
                 if i == 0:
                     model.Add(
@@ -568,7 +597,7 @@ class RotationCountConstraint(Constraint):
 
         if include_history:
             prior_counts = {rotation: accumulate_prior_counts(
-                rotation, config['residents'])}
+                [rotation], config['residents'])}
         else:
             prior_counts = None
 
@@ -784,27 +813,73 @@ class MinIndividualScoreConstraint(Constraint):
 
 class GroupCountPerResidentPerWindow(Constraint):
 
+    @classmethod
+    def from_yml_dict(cls, params, config):
+
+        # assert cls.KEY_NAME in params
+
+        rotations_in_group = resolve_group(params['group'], config['rotations'])
+
+        if params.get('include_history', False):
+            prior_counts = {
+            rot: accumulate_prior_counts(rotations_in_group,
+                                              config['residents'])
+            for rot in rotations_in_group
+        }
+        else:
+            prior_counts = {}
+
+        resident_to_count = {}
+        if type(params['count']) is list:
+            assert len(params['count']) == 2
+            nmin, nmax = params['count']
+            for res in config['residents'].keys():
+                resident_to_count[res] = (
+                    nmin - prior_counts.get(res, 0),
+                    nmax - prior_counts.get(res, 0)
+                )
+        else:
+            resident_to_count = {}
+            for k, ct in params['count'].items():
+                nmin, nmax = ct
+                for res in resolve_group(k, config['residents']):
+                    resident_to_count[res] = (
+                        nmin - prior_counts.get(res, 0),
+                        nmax - prior_counts.get(res, 0)
+                    )
+
+        return cls(
+            rotations_in_group=rotations_in_group,
+            resident_to_count=resident_to_count,
+            window_size=params.get('window_size', len(config['blocks']))
+        )
+
     def __repr__(self):
         return "GroupCountPerResident(%s,%s,%s)" % (
              self.rotations_in_group, self.n_min, self.n_max)
 
-    def __init__(self, rotations_in_group, n_min, n_max, window_size, res_list=None):
+    def __init__(self, rotations_in_group, resident_to_count, window_size):
 
         self.rotations_in_group = rotations_in_group
-        self.n_min = n_min
-        self.n_max = n_max
+        self.resident_to_count = resident_to_count
         self.window = window_size
-        self.res_list = res_list
 
     def apply(self, model, block_assigned, residents, blocks, rotations, grids):
 
-        if self.res_list is not None: 
-            residents = self.res_list
-
-        add_window_count_constraint(
-            model, block_assigned, residents, blocks,
-            self.rotations_in_group, self.window, self.n_min, self.n_max
-        )
+        for res, (nmin, nmax) in self.resident_to_count.items():
+            # although add_window_count_constraint accepts a list of
+            # residents, we want to change n_min and n_max using historical
+            # data on a per-resident level, so we call it multiple times
+            add_window_count_constraint(
+                model,
+                block_assigned,
+                [res],
+                blocks,
+                self.rotations_in_group,
+                self.window,
+                nmin,
+                nmax
+            )
 
 
 class ResidentGroupConstraint(Constraint):
