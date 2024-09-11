@@ -173,3 +173,34 @@ def test_consecutive_cst_forbidden_root_group():
     assert constraints[0].rotation == 'Gen Surg'
     assert constraints[0].count == 2
     assert tuple(constraints[0].forbidden_roots) == ('Block 1A', 'Block 1B', 'Block 2B')
+
+
+def test_all_group_count_per_resident():
+    config = {
+        'residents': {
+            'R1': {'groups': ['CA1'], 'history': ['Ro1']},
+            'R2': {'groups': ['CA1'], 'history': ['Ro2', 'Ro2']},
+        },
+        'rotations': {
+            'Ro1': {'groups': ['g1']},
+            'Ro2': {'groups': ['g1']},
+        },
+        'blocks': {
+            'Bl1': {}, 'Bl2': {}, 'Bl3': {}
+        },
+        'group_constraints': [{
+            'kind': 'all_group_count_per_resident',
+            'group': 'g1',
+            'count': {
+                'CA1': [0, 4],
+            },
+            'include_history': True
+        }]
+    }
+
+    constraints = io.generate_constraints_from_configs(config, [])
+    c = constraints[0]
+
+    assert c.rotations_in_group == ['Ro1', 'Ro2']
+    assert c.resident_to_count == {'R1': (-1, 3), 'R2': (-2, 2)}
+    assert c.window == 3

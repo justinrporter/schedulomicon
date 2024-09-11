@@ -821,11 +821,8 @@ class GroupCountPerResidentPerWindow(Constraint):
         rotations_in_group = resolve_group(params['group'], config['rotations'])
 
         if params.get('include_history', False):
-            prior_counts = {
-            rot: accumulate_prior_counts(rotations_in_group,
-                                              config['residents'])
-            for rot in rotations_in_group
-        }
+            prior_counts = accumulate_prior_counts(
+                rotations_in_group, config['residents'])
         else:
             prior_counts = {}
 
