@@ -2,61 +2,14 @@ import math
 import datetime
 import logging
 
+from functools import partial
+
 from ortools.sat.python import cp_model
 
-from . import csts, util
+from . import csts, util, score
 from . import model as mdl
 
 logger = logging.getLogger(__name__)
-
-
-def accumulate_score_res_block_scores(score_dict, resident_block_scores, rotation):
-    for resident, block_scores in resident_block_scores.items():
-        for block, score in block_scores.items():
-            score_dict[(resident, block, rotation)] += score
-
-
-def accumulate_score_res_rot_scores(score_dict, resident_rot_scores):
-
-    blocks = set([b for (re, b, ro) in score_dict.keys()])
-
-    for resident, rot_scores in resident_rot_scores.items():
-        for rot, score in rot_scores.items():
-            for block in blocks:
-                score_dict[(resident, block, rot)] += score
-
-
-def objective_from_score_dict(block_assigned, scores):
-
-    assert set(block_assigned.keys()) == set(scores.keys())
-
-    obj = 0
-
-    for k in block_assigned:
-        obj += block_assigned[k] * scores[k]
-
-    return obj
-
-
-def score_dict_from_df(rankings, residents, blocks, rotations, block_resident_ranking):
-
-    for res, rnk in rankings.items():
-        for rot in rnk:
-            assert rot in rotations, f"Rotation '{rot}' not found in YAML specification."
-
-    scores = {}
-    for res in residents:
-        for block in blocks:
-            for rot in rotations:
-                scores[(res, block, rot)] = 0
-
-    accumulate_score_res_rot_scores(scores, rankings)
-
-    if block_resident_ranking is not None:
-        rotation, rot_blk_scores = block_resident_ranking
-        accumulate_score_res_block_scores(scores, rot_blk_scores, rotation)
-
-    return scores
 
 
 def generate_model(residents, blocks, rotations, groups_array):
@@ -108,7 +61,8 @@ def add_result_as_hint(model, block_assigned, residents, blocks, rotations, hint
                 )
 
 
-def run_optimizer(model, objective_fn, n_processes=None, solution_printer=None, max_time_in_mins=60):
+def run_optimizer(model, objective_fn, n_processes=None, solution_printer=None,
+                  max_time_in_mins=60):
 
     if n_processes is None:
         n_processes = util.get_parallelism()
@@ -156,7 +110,7 @@ def run_enumerator(model, solution_printer=None, n_processes=None):
 
 def solve(
         residents, blocks, rotations, groups_array, cst_list, soln_printer,
-        cogrids, objective_fn, max_time_in_mins, n_processes=None, hint=None,
+        cogrids, score_functions, max_time_in_mins, n_processes=None, hint=None,
     ):
 
     block_assigned, model = mdl.generate_model(
@@ -169,7 +123,8 @@ def solve(
                 'residents': residents,
                 'blocks': blocks,
                 'rotations': rotations
-            }, 'variables': block_assigned
+            },
+            'variables': block_assigned
         }
     }
 
@@ -227,9 +182,12 @@ def solve(
     start_time = datetime.datetime.now()
     print('Starting search:', start_time)
 
-    if objective_fn:
+    if score_functions:
 
-        objective_fn = objective_fn(block_assigned)
+        objective_fn = score.aggregate_score_functions(
+            variables={k: grids[k]['variables'] for k in grids.keys()},
+            grid_and_functions=score_functions
+        )
 
         status, solver = run_optimizer(
             model,

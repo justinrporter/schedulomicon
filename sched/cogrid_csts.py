@@ -1,12 +1,12 @@
 import itertools
 
-from . import csts
+from . import csts, parser
 from .util import resolve_group
 
 class VacationMappingConstraint(csts.Constraint):
 
     @classmethod
-    def from_yml_dict(cls, rotation, params, config):
+    def from_yml_dict(cls, params, config):
 
         max_vacation_per_week = {
             k: v['max_vacation_per_week'] for k, v in config['vacation']['pools'].items()
@@ -16,7 +16,6 @@ class VacationMappingConstraint(csts.Constraint):
             k: v['max_total_vacation'] for k, v in config['vacation']['pools'].items()
             if 'max_total_vacation' in v
         }
-
 
         n_vacations_per_resident = int(config['vacation']['n_vacations_per_resident'])
 
@@ -110,5 +109,41 @@ class VacationMappingConstraint(csts.Constraint):
             for rot in rotations:
                 for week in weeks:
                     n_vac_this_resident += vacation_assigned[res, week, rot]
-
             model.Add(n_vac_this_resident == self.n_vacations_per_resident)
+
+
+class VacationCooldownConstraint(csts.Constraint):
+
+    KEY_NAME = 'cooldown'
+    ALLOWED_YAML_OPTIONS = ['window', 'count', 'where']
+
+    @classmethod
+    def from_yml_dict(cls, params, config, groups_array):
+
+        groups_array = util.build_groups_array(config)
+
+        return cls(
+            window=params['window'],
+            count=params.get('count', 1),
+            # selector=parser.Selector(params['where'], groups_array=groups_array)
+        )
+
+    def __init__(self, window, count):
+        self.window = window
+        self.count = count
+        # self.selector = selector
+
+    def apply(self, model, block_assigned, residents, blocks, rotations, grids):
+
+        vacation_assigned = grids['vacation']['variables']
+        residents = grids['vacation']['dimensions']['residents']
+        weeks = list(grids['vacation']['dimensions']['blocks'].keys())
+
+        for res in residents:
+            for i, w_i in enumerate(weeks):
+                ct = 0
+                for j in range(i, min(i+self.window, len(weeks))):
+                    week = weeks[j]
+                    for rot in rotations:
+                        ct += vacation_assigned[res, week, rot]
+                model.Add(ct <= self.count)

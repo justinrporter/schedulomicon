@@ -98,7 +98,6 @@ class BaseSolutionPrinter(cp_model.CpSolverSolutionCallback):
 
         return df
 
-
     def vacation_df(self):
 
         if self._vacation_assigned:
@@ -129,6 +128,7 @@ class JugScheduleSolutionPrinter(BaseSolutionPrinter):
         # self._solution_count = 0
         self._solution_scores = []
         self._solutions = []
+        self._vacations = []
 
     def on_solution_callback(self):
 
@@ -136,8 +136,7 @@ class JugScheduleSolutionPrinter(BaseSolutionPrinter):
 
         solution_df = self.df_from_solution()
         self._solutions.append(solution_df)
-
-        print(self.vacation_df())
+        self._vacations.append(self.vacation_df())
 
         if self._scores is not None:
 
