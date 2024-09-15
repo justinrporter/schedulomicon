@@ -9,7 +9,7 @@ from functools import partial
 import pandas as pd
 import numpy as np
 
-from sched import csts, io, solve, callback
+from sched import csts, io, solve, callback, score
 
 def parse_args(argv):
     parser = argparse.ArgumentParser(description='Process some integers.')
@@ -38,8 +38,7 @@ def parse_args(argv):
         help='A csv file with rankings of each resident for each rotation'
     )
     parser.add_argument(
-        '--score-list', nargs=2, default=None,
-        append=True,
+        '--score-list', nargs=2, default=[], action='append',
         metavar=('GRID', 'CSV_FILE'),
         help='A csv that specifies a score for particular combinations of '
              'variables for [GRID].'
@@ -198,12 +197,13 @@ def main(argv):
     for grid, score_file in args.score_list:
         df = pd.read_csv(score_file)
         sc_d = {
-            i: row[0] for i, row in
+            i: row.iloc[0] for i, row in
             df.groupby([df.columns[0], df.columns[1], df.columns[2]]).sum().iterrows()
         }
 
         score_functions.append(
-            (grid, partial(score.objective_from_score_dict, scores=sc_d))
+            (grid, partial(score.objective_from_score_dict,
+                           scores=sc_d, default_score=0))
         )
 
     status, solver, solution_printer, model, wall_runtime = solve.solve(
