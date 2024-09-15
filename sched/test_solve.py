@@ -276,3 +276,47 @@ def test_consecutive_rotation_constraint():
 
     assert tuple(soln.R1) == ('Ro2', 'Ro1')
     assert tuple(soln.R2) == ('Ro1', 'Ro1')
+
+
+def test_consecutive_rotation_constraint():
+
+    rotations = ['Ro1', 'Ro2']
+    residents=['R1', 'R2']
+    blocks=['Bl1', 'Bl2', 'Bl3']
+
+    def max_ro1_count(variables):
+        obj = 0
+        for res in residents:
+            for blk in blocks:
+                obj -= variables[res, blk, 'Ro1']
+        return obj
+
+    status, solver, solution_printer, model, wall_runtime = solve.solve(
+        residents=residents, blocks=blocks, rotations=rotations,
+        groups_array=[],
+        cst_list=[
+            csts.IneligibleAfterConstraint(
+                "Ro1", {('Ro1',): 1}
+            ),
+            csts.RotationCoverageConstraint(
+                'Ro1', rmin=0, rmax=0, blocks=['Bl3']
+            )
+        ],
+        soln_printer=TestSolnPrinter,
+        score_functions=[('main', max_ro1_count)],
+        n_processes=1,
+        cogrids={'backup': {'coverage': 0}},
+        max_time_in_mins=5,
+        hint=None
+    )
+
+    assert len(solution_printer.solutions)
+    soln = solution_printer.solutions[-1]
+    print(soln)
+
+    schedules = [soln.R1, soln.R2]
+
+    assert tuple(soln.R1) in [('Ro1', 'Ro2', 'Ro2'),
+                              ('Ro2', 'Ro1', 'Ro2')]
+    assert tuple(soln.R2) in [('Ro1', 'Ro2', 'Ro2'),
+                              ('Ro2', 'Ro1', 'Ro2')]

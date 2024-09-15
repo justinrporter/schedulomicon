@@ -204,3 +204,25 @@ def test_all_group_count_per_resident():
     assert c.rotations_in_group == ['Ro1', 'Ro2']
     assert c.resident_to_count == {'R1': (-1, 3), 'R2': (-2, 2)}
     assert c.window == 3
+
+def test_ineligible_before_cst():
+    config = {
+        'residents': {
+            'R1': {'groups': ['CA1'], 'history': ['Ro1']},
+            'R2': {'groups': ['CA1'], 'history': ['Ro2', 'Ro2']},
+        },
+        'rotations': {
+            'Ro1': {'ineligible_after': {'Ro2': 1}},
+            'Ro2': {},
+        },
+        'blocks': {
+            'Bl1': {}, 'Bl2': {}, 'Bl3': {}
+        },
+    }
+
+    constraints = io.generate_rotation_constraints(config, [])
+
+    c = constraints[0]
+    assert c.prior_counts == {'Ro2': {'R1': 0, 'R2': 2}}
+    assert c.prerequisites == {('Ro2',): 1}
+    assert c.rotation == 'Ro1'
