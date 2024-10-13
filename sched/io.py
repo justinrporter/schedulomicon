@@ -1,10 +1,11 @@
 import csv
 import warnings
+import yaml
 
 import numpy as np
 import pandas as pd
 
-from . import csts, parser, cogrid_csts, util
+from . import csts, parser, cogrid_csts, util, exceptions
 
 
 def get_group_array(group, config, group_type):
@@ -163,13 +164,29 @@ def generate_backup_constraints(
 
 def generate_vacation_constraints(config, groups_array):
 
+    constraints = []
+
+    vacation_root_constraints = [
+        cogrid_csts.VacationCooldownConstraint,
+    ]
+
     if config.get('vacation', None):
-        return [
+        constraints.append(
             cogrid_csts.VacationMappingConstraint.from_yml_dict(
-                rotation=None, params=None, config=config)
-        ]
-    else:
-        return []
+                params=None, config=config)
+        )
+
+        for c in vacation_root_constraints:
+            if config['vacation'].get(c.KEY_NAME, False):
+                constraints.append(
+                    c.from_yml_dict(
+                        params=config['vacation'][c.KEY_NAME],
+                        config=config,
+                        groups_array=groups_array
+                    )
+                )
+
+    return constraints
 
 def generate_constraints_from_configs(config, groups_array):
 
@@ -271,11 +288,11 @@ def generate_rotation_constraints(config, groups_array):
         csts.RotationCountConstraint,
         csts.RotationCountConstraintWithHistory,
         csts.PrerequisiteRotationConstraint,
+        csts.IneligibleAfterConstraint,
         csts.ConsecutiveRotationCountConstraint
     ]
 
     available_csts = {c.KEY_NAME: c for c in active_constraint_types}
-
 
     constraints = []
     for rotation, params in config['rotations'].items():

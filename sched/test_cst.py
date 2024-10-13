@@ -205,6 +205,27 @@ def test_all_group_count_per_resident():
     assert c.resident_to_count == {'R1': (-1, 3), 'R2': (-2, 2)}
     assert c.window == 3
 
+def test_ineligible_before_cst():
+    config = {
+        'residents': {
+            'R1': {'groups': ['CA1'], 'history': ['Ro1']},
+            'R2': {'groups': ['CA1'], 'history': ['Ro2', 'Ro2']},
+        },
+        'rotations': {
+            'Ro1': {'ineligible_after': {'Ro2': 1}},
+            'Ro2': {},
+        },
+        'blocks': {
+            'Bl1': {}, 'Bl2': {}, 'Bl3': {}
+        },
+    }
+
+    constraints = io.generate_rotation_constraints(config, [])
+
+    c = constraints[0]
+    assert c.prior_counts == {'Ro2': {'R1': 0, 'R2': 2}}
+    assert c.prerequisites == {('Ro2',): 1}
+    assert c.rotation == 'Ro1'
 
 #test _pools - write out the yaml at the top. it should be like test solve. test_cst shows how tests work. write a function that says test_whatever. write code and then write asserts. pytest will tell you if the asserts fail.
 #  longer tests in test_solve.  residents, blocks, rotations, cogrids_avail, groups_array = io.process_config(config)

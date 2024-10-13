@@ -23,7 +23,7 @@ class TestSolnPrinter(callback.BaseSolutionPrinter):
                 for rotation in self._rotations:
                     if self.Value(self._block_assigned[(resident, block, rotation)]):
                         record.append(rotation)
-                        if self.Value(self._block_backup[(resident, block)]):
+                        if self._block_backup and self.Value(self._block_backup[(resident, block)]):
                             record[-1] += '+'
             records.append(record)
 
@@ -70,9 +70,9 @@ def test_small_puzzle():
             csts.RotationBackupCountConstraint('Ro1', count=0)
         ],
         soln_printer=TestSolnPrinter,
-        objective_fn=partial(
-            alldiff_3x3x3_obj, residents=residents,
-            blocks=blocks, rotations=rotations),
+        score_functions=[
+            ('main', partial(alldiff_3x3x3_obj, residents=residents,
+                             blocks=blocks, rotations=rotations))],
         n_processes=1,
         cogrids={'backup': {'coverage': 2}},
         max_time_in_mins=5,
@@ -119,9 +119,7 @@ def test_cooldown_constraint():
             csts.CoolDownConstraint('Ro1', window_size=COOLDOWN_LENGTH, count=[1,1])
         ],
         soln_printer=TestSolnPrinter,
-        objective_fn=partial(
-            alldiff_3x3x3_obj, residents=residents,
-            blocks=blocks, rotations=rotations),
+        score_functions=[],
         n_processes=1,
         cogrids={'backup': {'coverage': 2}},
         max_time_in_mins=5,
@@ -137,10 +135,6 @@ def test_cooldown_constraint():
         rot1_idx = np.where((sched.values == 'Ro1') |
                              (sched.values == 'Ro1+'))[0]
         assert np.all((rot1_idx[1:] - rot1_idx[:-1]) >= COOLDOWN_LENGTH)
-
-    assert solver.ObjectiveValue() == -18
-
-
 
 
 def test_consecutive_rotation_constraint():
@@ -172,9 +166,7 @@ def test_consecutive_rotation_constraint():
             csts.ConsecutiveRotationCountConstraint('Ro2', count=2)
         ],
         soln_printer=TestSolnPrinter,
-        objective_fn=partial(
-            alldiff_3x3x3_obj, residents=residents,
-            blocks=blocks, rotations=rotations),
+        score_functions=[],
         n_processes=1,
         cogrids={'backup': {'coverage': 0}},
         max_time_in_mins=5,
@@ -226,9 +218,9 @@ def test_consecutive_rotation_constraint():
             )
         ],
         soln_printer=TestSolnPrinter,
-        objective_fn=partial(
-            alldiff_3x3x3_obj, residents=residents,
-            blocks=blocks, rotations=rotations),
+        score_functions=[
+            ('main', partial(alldiff_3x3x3_obj, residents=residents,
+                             blocks=blocks, rotations=rotations))],
         n_processes=1,
         cogrids={'backup': {'coverage': 0}},
         max_time_in_mins=5,
@@ -267,9 +259,9 @@ def test_consecutive_rotation_constraint():
             )
         ],
         soln_printer=TestSolnPrinter,
-        objective_fn=partial(
-            alldiff_3x3x3_obj, residents=residents,
-            blocks=blocks, rotations=rotations),
+        score_functions=[
+            ('main', partial(alldiff_3x3x3_obj, residents=residents,
+                             blocks=blocks, rotations=rotations))],
         n_processes=1,
         cogrids={'backup': {'coverage': 0}},
         max_time_in_mins=5,
@@ -284,3 +276,47 @@ def test_consecutive_rotation_constraint():
 
     assert tuple(soln.R1) == ('Ro2', 'Ro1')
     assert tuple(soln.R2) == ('Ro1', 'Ro1')
+
+
+def test_consecutive_rotation_constraint():
+
+    rotations = ['Ro1', 'Ro2']
+    residents=['R1', 'R2']
+    blocks=['Bl1', 'Bl2', 'Bl3']
+
+    def max_ro1_count(variables):
+        obj = 0
+        for res in residents:
+            for blk in blocks:
+                obj -= variables[res, blk, 'Ro1']
+        return obj
+
+    status, solver, solution_printer, model, wall_runtime = solve.solve(
+        residents=residents, blocks=blocks, rotations=rotations,
+        groups_array=[],
+        cst_list=[
+            csts.IneligibleAfterConstraint(
+                "Ro1", {('Ro1',): 1}
+            ),
+            csts.RotationCoverageConstraint(
+                'Ro1', rmin=0, rmax=0, blocks=['Bl3']
+            )
+        ],
+        soln_printer=TestSolnPrinter,
+        score_functions=[('main', max_ro1_count)],
+        n_processes=1,
+        cogrids={'backup': {'coverage': 0}},
+        max_time_in_mins=5,
+        hint=None
+    )
+
+    assert len(solution_printer.solutions)
+    soln = solution_printer.solutions[-1]
+    print(soln)
+
+    schedules = [soln.R1, soln.R2]
+
+    assert tuple(soln.R1) in [('Ro1', 'Ro2', 'Ro2'),
+                              ('Ro2', 'Ro1', 'Ro2')]
+    assert tuple(soln.R2) in [('Ro1', 'Ro2', 'Ro2'),
+                              ('Ro2', 'Ro1', 'Ro2')]

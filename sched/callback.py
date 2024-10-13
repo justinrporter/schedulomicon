@@ -39,8 +39,8 @@ class BaseSolutionPrinter(cp_model.CpSolverSolutionCallback):
     def on_solution_callback_initial(self):
 
         self._solution_count += 1
-        print(f"Solution {self._solution_count:02d} at {datetime.datetime.now()} w objective value {self.ObjectiveValue()}")
-        logger.info(f"Solution {self._solution_count:02d} at {datetime.datetime.now()} w objective value {self.ObjectiveValue()}")
+        print(f"Solution {self._solution_count:02d} at {datetime.datetime.now()} w objective value {int(self.ObjectiveValue())}")
+        logger.info(f"Solution {self._solution_count:02d} at {datetime.datetime.now()} w objective value {int(self.ObjectiveValue())}")
 
     def check_for_stop_iterating(self):
 
@@ -98,7 +98,6 @@ class BaseSolutionPrinter(cp_model.CpSolverSolutionCallback):
 
         return df
 
-
     def vacation_df(self):
 
         if self._vacation_assigned:
@@ -108,11 +107,6 @@ class BaseSolutionPrinter(cp_model.CpSolverSolutionCallback):
 
             df = pd.DataFrame.from_records(
                 d, columns=['resident', 'week', 'rotation', 'on_vacation'])
-
-            print(df[df['on_vacation'] == 1].sort_values(['week']))
-
-            print(df.groupby('resident')['on_vacation'].sum())
-            print(df.groupby('rotation')['on_vacation'].sum())
 
             return df
 
@@ -129,6 +123,7 @@ class JugScheduleSolutionPrinter(BaseSolutionPrinter):
         # self._solution_count = 0
         self._solution_scores = []
         self._solutions = []
+        self._vacations = []
 
     def on_solution_callback(self):
 
@@ -136,8 +131,7 @@ class JugScheduleSolutionPrinter(BaseSolutionPrinter):
 
         solution_df = self.df_from_solution()
         self._solutions.append(solution_df)
-
-        print(self.vacation_df())
+        self._vacations.append(self.vacation_df())
 
         if self._scores is not None:
 

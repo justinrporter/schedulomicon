@@ -9,7 +9,7 @@ from functools import partial
 import pandas as pd
 import numpy as np
 
-from sched import csts, io, solve, callback
+from sched import csts, io, solve, callback, score
 
 def parse_args(argv):
     parser = argparse.ArgumentParser(description='Process some integers.')
@@ -38,6 +38,13 @@ def parse_args(argv):
         help='A csv file with rankings of each resident for each rotation'
     )
     parser.add_argument(
+        '--score-list', nargs=2, default=[], action='append',
+        metavar=('GRID', 'CSV_FILE'),
+        help='A csv that specifies a score for particular combinations of '
+             'variables for [GRID].'
+    )
+
+    parser.add_argument(
         '--block-resident-ranking', default=None, nargs=2,
         help='A csv file specifying a score for a particular rotation for '
              'all residents for all blocks.'
@@ -45,6 +52,11 @@ def parse_args(argv):
     parser.add_argument(
         '--results', required=True,
         help='The place to write the schedule(s) as a csv.'
+    )
+    parser.add_argument(
+        '--vacation',
+        help='Where to write a vacation csv. Produces an error if there '
+        'is no vacation cogrid.'
     )
 
     parser.add_argument(
@@ -166,30 +178,43 @@ def main(argv):
     else:
         block_resident_ranking = None
 
+    score_functions = []
+
     if args.rankings:
         scores = solve.score_dict_from_df(
             io.rankings_from_csv(args.rankings),
             residents, blocks, rotations, block_resident_ranking
         )
-        objective_fn = partial(
-            solve.objective_from_score_dict,
-            scores=scores
+        score_functions.append(
+            ('main', partial(score.objective_from_score_dict,
+                             scores=scores)
+            )
         )
     else:
         scores = None
-        objective_fn = None
+        objective_fn = lambda x: 0
+
+    for grid, score_file in args.score_list:
+        df = pd.read_csv(score_file)
+        sc_d = {
+            i: row.iloc[0] for i, row in
+            df.groupby([df.columns[0], df.columns[1], df.columns[2]]).sum().iterrows()
+        }
+
+        score_functions.append(
+            (grid, partial(score.objective_from_score_dict,
+                           scores=sc_d, default_score=0))
+        )
 
     status, solver, solution_printer, model, wall_runtime = solve.solve(
         residents, blocks, rotations, groups_array, cst_list,
         soln_printer=partial(
-            # callback.BlockSchedulePartialSolutionPrinter,
             callback.JugScheduleSolutionPrinter,
             scores=scores,
-            # outfile=args.results,
             solution_limit=args.n_solutions,
         ),
         cogrids={c: config[c] for c in cogrids_avail},
-        objective_fn=objective_fn,
+        score_functions=score_functions,
         n_processes=args.n_processes,
         hint=hint,
         max_time_in_mins=None
@@ -207,8 +232,12 @@ def main(argv):
     if status in ['OPTIMAL', 'FEASIBLE']:
         with open(args.results, 'w') as f:
             solution_printer._solutions[-1].to_csv(f)
-
         print("Best solution at ", args.results)
+
+        if args.vacation:
+            with open(args.vacation, 'w') as f:
+                solution_printer._vacations[-1].to_csv(f)
+            print("Vacation solution at ", args.vacation)
 
         return 1
     else:

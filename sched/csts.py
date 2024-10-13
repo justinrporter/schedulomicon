@@ -299,10 +299,10 @@ class PrerequisiteRotationConstraint(Constraint):
 
         assert cls.KEY_NAME in params, f"{cls.KEY_NAME} not in {params}"
 
-        if hasattr(params['prerequisite'], 'keys'):
+        if hasattr(params[cls.KEY_NAME], 'keys'):
             # prereq defn is a dictionary
             prereq_counts = {}
-            for p, c in params['prerequisite'].items():
+            for p, c in params[cls.KEY_NAME].items():
                 if p in config['rotations']:
                     prereq_counts[(p,)] = c
                 else:
@@ -327,13 +327,13 @@ class PrerequisiteRotationConstraint(Constraint):
         else:
             prior_counts = {
                 rot: accumulate_prior_counts([rot], config['residents'])
-                for rot in params['prerequisite']
+                for rot in params[cls.KEY_NAME]
             }
 
             # prereq defn is a list
             cst = cls(
                 rotation=rotation,
-                prereq_counts={(p,): 1 for p in params['prerequisite']},
+                prereq_counts={(p,): 1 for p in params[cls.KEY_NAME]},
                 prior_counts=prior_counts
             )
 
@@ -360,19 +360,50 @@ class PrerequisiteRotationConstraint(Constraint):
             for i in range(len(blocks)):
                 rot_is_assigned = block_assigned[(resident, blocks[i], self.rotation)]
 
+                cst_spec_list = []
+
                 for prereq_grp, req_ct in self.prerequisites.items():
                     # n_prepreq_instances is initialized at zero
                     n_prereq_instances = 0
                     for prereq in prereq_grp:
                         # for each rotation in the prereq group, add in first
                         # historical instances of that rotation (from prior_counts)
-                        n_prereq_instances += self.prior_counts.get(prereq).get(resident)
+                        if self.prior_counts is not None:
+                            n_prereq_instances += self.prior_counts.get(prereq).get(resident)
 
                         # then iterate over instances in the solution space
                         for j in range(0, i):
                             n_prereq_instances += block_assigned[(resident, blocks[j], prereq)]
 
-                    model.Add(n_prereq_instances >= req_ct).OnlyEnforceIf(rot_is_assigned)
+                    cst_spec_list.append(
+                        (n_prereq_instances, req_ct)
+                    )
+
+                self._apply_csts(model, prereq_grp, rot_is_assigned, cst_spec_list)
+
+    def _apply_csts(self, model, prereq_grp, rot_is_assigned, cst_spec_list):
+
+        for n_prereq_instances, req_ct in cst_spec_list:
+            model.Add(n_prereq_instances >= req_ct).OnlyEnforceIf(rot_is_assigned)
+
+class IneligibleAfterConstraint(PrerequisiteRotationConstraint):
+
+    KEY_NAME = 'ineligible_after'
+
+    def _apply_csts(self, model, prereq_grp, rot_is_assigned, cst_spec_list):
+        # the only difference between this and PrerequisiteRotationConstraint
+        # is that here, whenever rot is assigned, we have to ensure that
+        # SOME prereq is UNsatisfied.
+
+        prereqs_unsatisfied = []
+        for n_prereq_instances, req_ct in cst_spec_list:
+            prereq_unsatisfied = model.NewBoolVar(f'prereq-{rot_is_assigned}-{prereq_grp}')
+            prereqs_unsatisfied.append(prereq_unsatisfied)
+
+            model.Add(n_prereq_instances < req_ct).OnlyEnforceIf(prereq_unsatisfied)
+            model.Add(n_prereq_instances >= req_ct).OnlyEnforceIf(prereq_unsatisfied.Not())
+
+        model.Add(sum(prereqs_unsatisfied) >= 1).OnlyEnforceIf(rot_is_assigned)
 
 
 class ConsecutiveRotationCountConstraint(Constraint):
