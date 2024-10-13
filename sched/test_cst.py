@@ -204,3 +204,7 @@ def test_all_group_count_per_resident():
     assert c.rotations_in_group == ['Ro1', 'Ro2']
     assert c.resident_to_count == {'R1': (-1, 3), 'R2': (-2, 2)}
     assert c.window == 3
+
+
+#test _pools - write out the yaml at the top. it should be like test solve. test_cst shows how tests work. write a function that says test_whatever. write code and then write asserts. pytest will tell you if the asserts fail.
+#  longer tests in test_solve.  residents, blocks, rotations, cogrids_avail, groups_array = io.process_config(config)
