@@ -190,25 +190,15 @@ def generate_constraints_from_configs(config, groups_array):
             )
 
         if cst['kind'] == 'all_group_count_per_resident':
-            if 'apply_to_residents' in cst:
-                res_list = cst['apply_to_residents']
-            else: 
-                res_list = None 
-
             constraints.append(
-                csts.GroupCountPerResidentPerWindow(
-                    rotations_in_group=util.resolve_group(cst['group'], config['rotations']),
-                    n_min=cst['count'][0], n_max=cst['count'][1],
-                    window_size=len(config['blocks']),
-                    res_list=res_list
-            ))
+                csts.GroupCountPerResidentPerWindow.from_yml_dict(cst, config)
+            )
+
         elif cst['kind'] == 'window_group_count_per_resident':
             constraints.append(
-                csts.GroupCountPerResidentPerWindow(
-                    rotations_in_group=util.resolve_group(cst['group'], config['rotations']),
-                    n_min=cst['count'][0], n_max=cst['count'][1],
-                    window_size=cst['window_size']
-            ))
+                csts.GroupCountPerResidentPerWindow.from_yml_dict(cst, config)
+            )
+
         elif cst['kind'] == 'group_coverage_constraint':
            constraints.append(
                 csts.GroupCoverageConstraint.from_yml_dict(

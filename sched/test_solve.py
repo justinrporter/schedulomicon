@@ -159,6 +159,10 @@ def test_consecutive_rotation_constraint():
                 rot, rmin=1, rmax=1
             ) for rot in ['Ro1', 'Ro2']
         ] + [
+            csts.RotationCoverageConstraint(
+                'Ro2', rmin=1, rmax=1
+            )
+        ] + [
             csts.RotationCountConstraint(
                 rot, {res: (0, 1) for res in residents}
             ) for rot in rotations if rot not in ['Ro1', 'Ro2']
@@ -197,3 +201,86 @@ def test_consecutive_rotation_constraint():
     for s in schedules:
         assert tuple((s == 'Ro1')) in ro1_allowed_patterns
         assert tuple((s == 'Ro2')) in ro2_allowed_patterns
+
+
+def test_consecutive_rotation_constraint():
+
+    rotations = [f'Ro{i+1}' for i in range(2)]
+    residents=['R1', 'R2']
+    blocks=[f'Bl{i+1}' for i in range(6)]
+
+    status, solver, solution_printer, model, wall_runtime = solve.solve(
+        residents=residents,
+        blocks=blocks,
+        rotations=rotations,
+        groups_array=[],
+        cst_list=[
+            csts.RotationCountConstraint(
+                "Ro1", {'R1': (4, 4)}
+            ),
+            csts.ConsecutiveRotationCountConstraint(
+                'Ro1', count=4,  forbidden_roots=['Bl1', 'Bl3']
+            ),
+            csts.RotationCoverageConstraint(
+                'Ro1', rmin=0, rmax=1
+            )
+        ],
+        soln_printer=TestSolnPrinter,
+        objective_fn=partial(
+            alldiff_3x3x3_obj, residents=residents,
+            blocks=blocks, rotations=rotations),
+        n_processes=1,
+        cogrids={'backup': {'coverage': 0}},
+        max_time_in_mins=5,
+        hint=None
+    )
+
+    assert len(solution_printer.solutions)
+    soln = solution_printer.solutions[-1]
+    print(soln)
+
+    schedules = [soln.R1, soln.R2]
+
+    assert tuple(soln.R1) == ('Ro2', 'Ro1', 'Ro1', 'Ro1', 'Ro1', 'Ro2')
+    assert tuple(soln.R2) == ('Ro2', 'Ro2', 'Ro2', 'Ro2', 'Ro2', 'Ro2')
+
+
+def test_consecutive_rotation_constraint():
+
+    rotations = [f'Ro{i+1}' for i in range(3)]
+    residents=['R1', 'R2']
+    blocks=[f'Bl{i+1}' for i in range(2)]
+
+    status, solver, solution_printer, model, wall_runtime = solve.solve(
+        residents=residents,
+        blocks=blocks,
+        rotations=rotations,
+        groups_array=[],
+        cst_list=[
+            csts.RotationCountConstraint(
+                "Ro1", {'R1': (1, 1), "R2": (2, 2)}
+            ),
+            csts.GroupCountPerResidentPerWindow(
+                rotations_in_group=['Ro1'],
+                resident_to_count={'R1': (1, 1), 'R2': (2, 2)},
+                window_size=len(blocks),
+            )
+        ],
+        soln_printer=TestSolnPrinter,
+        objective_fn=partial(
+            alldiff_3x3x3_obj, residents=residents,
+            blocks=blocks, rotations=rotations),
+        n_processes=1,
+        cogrids={'backup': {'coverage': 0}},
+        max_time_in_mins=5,
+        hint=None
+    )
+
+    assert len(solution_printer.solutions)
+    soln = solution_printer.solutions[-1]
+    print(soln)
+
+    schedules = [soln.R1, soln.R2]
+
+    assert tuple(soln.R1) == ('Ro2', 'Ro1')
+    assert tuple(soln.R2) == ('Ro1', 'Ro1')
