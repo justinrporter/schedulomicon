@@ -20,8 +20,8 @@ class VacationMappingConstraint(csts.Constraint):
 
         n_vacations_per_resident = int(config['vacation']['n_vacations_per_resident'])
 
-        week_to_block = {
-            week: spec['rotation'] for week, spec
+        week_to_blocks = {
+            week: spec['blocks'] for week, spec
             in config['vacation']['blocks'].items()
         }
 
@@ -40,16 +40,16 @@ class VacationMappingConstraint(csts.Constraint):
             n_vacations_per_resident=n_vacations_per_resident,
             max_vacation_per_week=max_vacation_per_week,
             max_total_vacation=max_total_vacation,
-            week_to_block=week_to_block,
+            week_to_blocks=week_to_blocks,
             pool_to_rotations=pool_to_rotations
         )
 
-    def __init__(self, n_vacations_per_resident, max_vacation_per_week, max_total_vacation, week_to_block, pool_to_rotations):
+    def __init__(self, n_vacations_per_resident, max_vacation_per_week, max_total_vacation, week_to_blocks, pool_to_rotations):
 
         self.n_vacations_per_resident = n_vacations_per_resident
         self.max_vacation_per_week = max_vacation_per_week
         self.max_total_vacation = max_total_vacation
-        self.week_to_block = week_to_block
+        self.week_to_blocks = week_to_blocks
 
         self.pool_to_rotations = pool_to_rotations
 
@@ -76,13 +76,14 @@ class VacationMappingConstraint(csts.Constraint):
         # vacation assigned must be 0 if block is 0
 
         for week in weeks:
-            block = self.week_to_block[week]
-            for rotation in rotations:
-                for resident in residents:
-                    model.Add(
-                        vacation_assigned[resident, week, rotation] <=
-                        block_assigned[resident, block, rotation]
-                    )
+            blocks = self.week_to_blocks[week]
+            for block in blocks:
+                for rotation in rotations:
+                    for resident in residents:
+                        model.Add(
+                            vacation_assigned[resident, week, rotation] <=
+                            block_assigned[resident, block, rotation]
+                        )
 
         # STEP 2: limit the number of vacations that can be assigned per
         # pool
