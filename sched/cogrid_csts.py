@@ -112,6 +112,21 @@ class VacationMappingConstraint(csts.Constraint):
                     n_vac_this_resident += vacation_assigned[res, week, rot]
             model.Add(n_vac_this_resident == self.n_vacations_per_resident)
 
+class ChosenVacationConstraint(csts.Constraint):
+
+    def __init__(self, res, week):
+
+        self.res = res
+        self.week = week
+
+    def apply(self, model, block_assigned, residents, blocks, rotations, grids):
+
+        vacation_assigned = grids['vacation']['variables']
+
+        ct = 0
+        for rot in rotations:
+            ct += vacation_assigned[self.res, self.week, rot]
+        model.Add(ct == 1)
 
 class VacationCooldownConstraint(csts.Constraint):
 
@@ -121,7 +136,7 @@ class VacationCooldownConstraint(csts.Constraint):
     @classmethod
     def from_yml_dict(cls, params, config, groups_array):
 
-        groups_array = util.build_groups_array(config)
+        #groups_array = util.build_groups_array(config)
 
         return cls(
             window=params['window'],
@@ -130,6 +145,7 @@ class VacationCooldownConstraint(csts.Constraint):
         )
 
     def __init__(self, window, count):
+
         self.window = window
         self.count = count
         # self.selector = selector
@@ -142,8 +158,10 @@ class VacationCooldownConstraint(csts.Constraint):
 
         for res in residents:
             for i, w_i in enumerate(weeks):
+
                 ct = 0
                 for j in range(i, min(i+self.window, len(weeks))):
+
                     week = weeks[j]
                     for rot in rotations:
                         ct += vacation_assigned[res, week, rot]

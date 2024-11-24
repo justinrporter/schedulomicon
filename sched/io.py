@@ -109,6 +109,13 @@ def generate_resident_constraints(config, groups_array):
                 cst_list.append(
                     csts.TrueSomewhereConstraint(eligible_field)
                 )
+        
+        if 'chosen-vacation' in params:
+            for week in params['chosen-vacation']:
+
+                cst_list.append(
+                    cogrid_csts.ChosenVacationConstraint(res, week)
+                )
 
     return cst_list
 
@@ -163,7 +170,6 @@ def generate_backup_constraints(
 
 
 def generate_vacation_constraints(config, groups_array):
-
     constraints = []
 
     vacation_root_constraints = [
@@ -171,13 +177,16 @@ def generate_vacation_constraints(config, groups_array):
     ]
 
     if config.get('vacation', None):
+
         constraints.append(
             cogrid_csts.VacationMappingConstraint.from_yml_dict(
                 params=None, config=config)
         )
 
         for c in vacation_root_constraints:
+
             if config['vacation'].get(c.KEY_NAME, False):
+
                 constraints.append(
                     c.from_yml_dict(
                         params=config['vacation'][c.KEY_NAME],
