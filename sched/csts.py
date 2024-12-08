@@ -395,6 +395,9 @@ class IneligibleAfterConstraint(PrerequisiteRotationConstraint):
         # is that here, whenever rot is assigned, we have to ensure that
         # SOME prereq is UNsatisfied.
 
+        # that is, the ineligibility list functions like an AND constraint,
+        # only being satisfied if all constraints are met
+
         prereqs_unsatisfied = []
         for n_prereq_instances, req_ct in cst_spec_list:
             prereq_unsatisfied = model.NewBoolVar(f'prereq-{rot_is_assigned}-{prereq_grp}')
