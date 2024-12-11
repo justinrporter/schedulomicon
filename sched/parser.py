@@ -8,7 +8,8 @@ from . import exceptions
 def resolve_eligible_field(statement, groups_array, residents, blocks, rotations):
 
     block = pp.Combine(
-        pp.Keyword("Block") + pp.White(' ', max=1) + pp.Word(pp.nums),
+
+        pp.Keyword("Block") + pp.White(' ', max=1) + pp.Word(pp.alphanums),
         adjacent=False
     )
     string_literal = pp.QuotedString('\'') | pp.QuotedString('"')

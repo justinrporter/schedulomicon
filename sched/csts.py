@@ -740,7 +740,7 @@ class TrueSomewhereConstraint(Constraint):
         s = 0
         for loc,value in np.ndenumerate(self.eligible_field[0]):
             x,y,z = loc
-            if value == True:
+            if value:
                 res = residents[x]
                 block = blocks[y]
                 rot = rotations[z]
