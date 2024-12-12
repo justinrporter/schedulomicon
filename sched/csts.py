@@ -22,7 +22,7 @@ class Constraint:
             if key not in cls.ALLOWED_YAML_OPTIONS:
                 raise YAMLParseError(
                     f'On {root_entity}, option {key} not allowed (allowed '
-                    f'options are {cls.ALLOWED_YAML_OPTIONS}).'
+                    f'options are {cls.xf_YAML_OPTIONS}).'
                 )
 
 
@@ -409,6 +409,54 @@ class IneligibleAfterConstraint(PrerequisiteRotationConstraint):
         model.Add(sum(prereqs_unsatisfied) >= 1).OnlyEnforceIf(rot_is_assigned)
 
 
+class AllowedRootsConstraint(Constraint):
+    
+    KEY_NAME = 'allowed_roots'
+
+    @classmethod
+    def from_yml_dict(cls, rotation, params, config):
+
+        assert cls.KEY_NAME in params, f"{cls.KEY_NAME} not in {params}"
+        # cls._check_yaml_params(rotation, params[cls.KEY_NAME])
+
+        if hasattr(params['allowed_roots']):
+
+            allowed_roots = []
+
+            for root in params['allowed_roots']:
+                if root in config['blocks']:
+                    allowed_roots.append(root)
+                else:
+                    allowed_roots.extend(resolve_group(root, config['blocks']))
+
+        return cls(
+            rotation=rotation,
+            allowed_roots=allowed_roots
+        )
+    
+    def __init__(self, rotation, allowed_roots=None):
+        self.rotation = rotation
+        self.allowed_roots = allowed_roots if allowed_roots is not None else []
+
+    def apply(self, model, block_assigned, residents, blocks, rotations, grids):
+
+        for root in self.allowed_roots:
+            if root not in blocks:
+                raise exceptions.NameNotFound(
+                    f"In {self}, unable to find allowed root named '{root}'",
+                    name=root
+                )
+
+        for res in residents:
+            # scan through all blocks
+            for i in range(len(blocks)):
+                is_root = model.NewBoolVar(
+                    f'{blocks[i]}_root_of_consec_{self.rotation}_{res}')
+
+                if blocks[i] in self.allowed_roots:
+                    model.Add(is_root == 1)
+                else: model.Add(is_root == 0)
+
 class ConsecutiveRotationCountConstraint(Constraint):
 
     KEY_NAME = 'consecutive_count'
@@ -420,19 +468,24 @@ class ConsecutiveRotationCountConstraint(Constraint):
         # cls._check_yaml_params(rotation, params[cls.KEY_NAME])
 
         # Expected formats:
-        # consecutive_count: 3
-        # but also TODO:
-        # consecutive_count: {count: 2, forbidden_roots: [Block 1, Block 3]}
-
+        # consecutive_count: {count: 2, forbidden_roots: [Block 1, Block 3], allowed_roots: [Block 5A, Block 10A]}
         if hasattr(params['consecutive_count'], 'keys'):
 
             forbidden_roots = []
+            allowed_roots = []
 
             for r in params['consecutive_count']['forbidden_roots']:
                 if r in config['blocks']:
                     forbidden_roots.append(r)
                 else:
                     forbidden_roots.extend(resolve_group(r, config['blocks']))
+
+            if 'allowed_roots' in params['consecutive_count']:
+                for r in params['consecutive_count']['allowed_roots']:
+                    if r in config['blocks']:
+                        allowed_roots.append(r)
+                    else:
+                        allowed_roots.extend(resolve_group(r, config['blocks']))
 
             try:
                 ct = params['consecutive_count']['count']
@@ -444,23 +497,26 @@ class ConsecutiveRotationCountConstraint(Constraint):
             return cls(
                 rotation=rotation,
                 count=ct,
-                forbidden_roots=forbidden_roots
+                forbidden_roots=forbidden_roots,
+                allowed_roots=allowed_roots
             )
         else:
             return cls(
                 rotation=rotation,
                 count=params['consecutive_count'],
-                forbidden_roots=[]
+                forbidden_roots=[],
+                allowed_roots=[]
             )
 
     def __repr__(self):
         return "ConsecutiveRotationCountConstraint(%s, n=%s)" % (
              self.rotation, self.count)
 
-    def __init__(self, rotation, count, forbidden_roots=None):
+    def __init__(self, rotation, count, forbidden_roots=None, allowed_roots=None):
         self.rotation = rotation
         self.count = count
         self.forbidden_roots = forbidden_roots if forbidden_roots is not None else []
+        self.allowed_roots = allowed_roots if allowed_roots is not None else []
 
     def apply(self, model, block_assigned, residents, blocks, rotations, grids):
 
@@ -470,6 +526,15 @@ class ConsecutiveRotationCountConstraint(Constraint):
                     f"In {self}, unable to find forbidden root named '{root}'",
                     name=root
                 )
+        #print(self.rotation, 'allowed roots: ', self.allowed_roots)
+
+        if len(self.allowed_roots) > 0:
+            for root in self.allowed_roots:
+                if root not in blocks:
+                    raise exceptions.NameNotFound(
+                        f"In {self}, unable to find allowed root named '{root}'",
+                        name=root
+                    )
 
         for res in residents:
 
@@ -481,6 +546,10 @@ class ConsecutiveRotationCountConstraint(Constraint):
 
                 if blocks[i] in self.forbidden_roots:
                     model.Add(is_root == False)
+
+                if self.allowed_roots is not False:
+                    if blocks[i] not in self.forbidden_roots and blocks[i] in self.allowed_roots:
+                        model.Add(is_root == True)
 
                 if i == 0:
                     model.Add(

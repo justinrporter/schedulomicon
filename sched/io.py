@@ -298,7 +298,8 @@ def generate_rotation_constraints(config, groups_array):
         csts.RotationCountConstraintWithHistory,
         csts.PrerequisiteRotationConstraint,
         csts.IneligibleAfterConstraint,
-        csts.ConsecutiveRotationCountConstraint
+        csts.ConsecutiveRotationCountConstraint,
+        csts.AllowedRootsConstraint
     ]
 
     available_csts = {c.KEY_NAME: c for c in active_constraint_types}
