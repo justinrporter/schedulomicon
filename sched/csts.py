@@ -434,9 +434,16 @@ class ConsecutiveRotationCountConstraint(Constraint):
                 else:
                     forbidden_roots.extend(resolve_group(r, config['blocks']))
 
+            try:
+                ct = params['consecutive_count']['count']
+            except KeyError as e:
+                raise KeyError(
+                    f"On {rotation} 'consecutive count': missing parameter {e}"
+                ) from e
+
             return cls(
                 rotation=rotation,
-                count=params['consecutive_count']['count'],
+                count=ct,
                 forbidden_roots=forbidden_roots
             )
         else:
