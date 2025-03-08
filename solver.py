@@ -181,7 +181,7 @@ def main(argv):
     score_functions = []
 
     if args.rankings:
-        scores = solve.score_dict_from_df(
+        scores = score.score_dict_from_df(
             io.rankings_from_csv(args.rankings),
             residents, blocks, rotations, block_resident_ranking
         )

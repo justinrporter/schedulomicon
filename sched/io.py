@@ -98,7 +98,6 @@ def generate_resident_constraints(config, groups_array):
 
         if 'true_somewhere' in params:
             for selector_string in params['true_somewhere']:
-
                 eligible_field = parser.resolve_eligible_field(
                     f"{res} and ({selector_string})",
                     groups_array,
@@ -235,27 +234,6 @@ def generate_constraints_from_configs(config, groups_array):
                 csts.TimeToFirstConstraint(
                     rotations_in_group=util.resolve_group(cst['group'], config['rotations']),
                     window_size = cst['window_size'])
-            )
-        elif cst['kind'] == 'apply_to_all_residents':
-            for res in config['residents'].items():
-                for constraint in cst['constraints'].items():
-                    if 'true_somewhere' in constraint:
-                        for selector_string in constraint['true_somewhere']:
-
-                            eligible_field = parser.resolve_eligible_field(
-                                f"{res} and <{selector_string}>",
-                                groups_array,
-                                config['residents'].keys(),
-                                config['blocks'].keys(),
-                                config['rotations'].keys()
-                            )
-                            constraints.append(
-                                csts.PinnedRotationConstraint(eligible_field)
-                            )
-        else:
-            raise exceptions.YAMLParseError(
-                "Constraint with kind " + cst['kind'] + " not recognized; "
-                "the constraint looked like: " + str(cst)
             )
 
     return constraints
