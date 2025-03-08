@@ -3,5 +3,6 @@
 sftp-config.json
 __pycache__
 results/*
+.vscode/*
 .DS_Store
 *.jugdata
