@@ -90,17 +90,12 @@ def run_optimizer(model, objective_fn, n_processes=None, solution_printer=None,
     return status, solver
 
 
-def run_enumerator(model, solution_printer=None, n_processes=None):
-
-    if n_processes is None:
-        n_processes = util.get_parallelism()
+def run_enumerator(model, solution_printer=None, objective_fn=None, score_pin=None):
 
     solver = cp_model.CpSolver()
-    solver.parameters.linearization_level = 2
+    # solver.parameters.linearization_level = 2
 
-    solver.parameters.num_search_workers = n_processes
-
-    solver.parameters.enumerate_all_solutions = False
+    solver.parameters.enumerate_all_solutions = True
     status = solver.Solve(model, solution_printer)
 
     status = ["UNKNOWN", "MODEL_INVALID", "FEASIBLE", "INFEASIBLE", "OPTIMAL"][status]
@@ -111,6 +106,7 @@ def run_enumerator(model, solution_printer=None, n_processes=None):
 def solve(
         residents, blocks, rotations, groups_array, cst_list, soln_printer,
         cogrids, score_functions, max_time_in_mins, n_processes=None, hint=None,
+        enumerate_all_solutions=False
     ):
 
     block_assigned, model = mdl.generate_model(
@@ -182,17 +178,20 @@ def solve(
     start_time = datetime.datetime.now()
     print('Starting search:', start_time)
 
+    objective_fn = None
     if score_functions:
-
         objective_fn = score.aggregate_score_functions(
             variables={k: grids[k]['variables'] for k in grids.keys()},
             grid_and_functions=score_functions
         )
 
+    if not enumerate_all_solutions:
+        assert objective_fn is not None
+
         status, solver = run_optimizer(
-            model,
-            objective_fn,
-            n_processes,
+            model=model,
+            n_processes=n_processes,
+            objective_fn=objective_fn,
             solution_printer=solution_printer,
             max_time_in_mins=max_time_in_mins
         )
@@ -201,7 +200,8 @@ def solve(
 
         status, solver = run_enumerator(
             model,
-            solution_printer=solution_printer
+            objective_fn=objective_fn,
+            solution_printer=solution_printer,
         )
 
     # compare the actual runtime to the requested runtime and throw an

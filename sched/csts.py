@@ -921,6 +921,36 @@ class MinIndividualScoreConstraint(Constraint):
                      f"{len(residents)} residents")
 
 
+class MinTotalScoreConstraint(Constraint):
+
+    def __init__(self, scores, min_score):
+        assert isinstance(min_score, numbers.Number)
+        assert min_score == int(min_score)
+
+        self.scores = scores
+        self.min_score = int(min_score)
+
+        logger.info(f"Created MinTotalScoreConstraint with "
+                     f"min_score {self.min_score}")
+
+    def apply(self, model, block_assigned, residents, blocks, rotations, grids):
+
+        obj = 0
+        for res in residents:
+            for rot in rotations:
+                for blk in blocks:
+                    k = (res, blk, rot)
+                    x = self.scores[k]
+
+                    assert int(x) == x, f"Score for {x} {k} is not an integer"
+
+                    obj += int(x) * block_assigned[k]
+
+        model.Add(obj <= self.min_score)
+
+        logger.info(f"Applied total utility < {self.min_score} to "
+                     f"{len(residents)} residents")
+
 class GroupCountPerResidentPerWindow(Constraint):
 
     @classmethod

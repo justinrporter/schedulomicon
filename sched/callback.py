@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 class BaseSolutionPrinter(cp_model.CpSolverSolutionCallback):
 
-    def __init__(self, grids, solution_limit=None):
+    def __init__(self, grids, scores=None, solution_limit=None):
 
         cp_model.CpSolverSolutionCallback.__init__(self)
 
@@ -35,6 +35,8 @@ class BaseSolutionPrinter(cp_model.CpSolverSolutionCallback):
 
         self._solution_limit = solution_limit
         self._solution_count = 0
+
+        self._scores = scores
 
     def on_solution_callback_initial(self):
 
@@ -111,13 +113,32 @@ class BaseSolutionPrinter(cp_model.CpSolverSolutionCallback):
             return df
 
 
+class SolutionCountEnumerator(BaseSolutionPrinter):
+
+    def __init__(self, save_solutions_as=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.save_solutions_as = save_solutions_as
+
+    def on_solution_callback(self):
+        self.on_solution_callback_initial()
+
+        if self.save_solutions_as:
+            solution_df = self.df_from_solution()
+            self.save_solutions_as(self._solution_count, solution_df)
+
+        if self._scores is not None:
+
+            scores_df = self.df_from_scores()
+            print("score_df sum", scores_df.values.sum())
+
+
+
 class JugScheduleSolutionPrinter(BaseSolutionPrinter):
 
     def __init__(self, scores, *args, **kwargs):
 
         super().__init__(*args, **kwargs)
-
-        self._scores = scores
 
         # _solution count is set in BaseSolutionPrinter
         # self._solution_count = 0
