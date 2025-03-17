@@ -40,11 +40,11 @@ def test_vacation_cooldown():
                 n_vacations_per_resident=2,
                 max_vacation_per_week={'mor': 1},
                 max_total_vacation={'mor': 4, 'Ortho': 2},
-                week_to_block={
-                    'Week 1': 'Spring',
-                    'Week 2': 'Spring',
-                    'Week 3': 'Summer',
-                    'Week 4': 'Summer',
+                week_to_blocks={
+                    'Week 1': ['Spring'],
+                    'Week 2': ['Spring'],
+                    'Week 3': ['Summer'],
+                    'Week 4': ['Summer'],
                 },
                 pool_to_rotations={'mor': ['Ortho', 'GS']}
             ),
