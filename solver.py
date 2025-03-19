@@ -151,11 +151,6 @@ def main(argv):
             io.pin_constraints_from_csv(args.rotation_pins)
         )
 
-    if args.min_individual_rank is not None:
-        cst_list.append(
-            csts.MinIndividualScoreConstraint(rankings, args.min_individual_rank)
-        )
-
     cst_list.extend(
         io.generate_backup_constraints(config)
     )
@@ -193,6 +188,11 @@ def main(argv):
     else:
         scores = None
         objective_fn = lambda x: 0
+
+    if args.min_individual_rank is not None:
+        cst_list.append(
+            csts.MinIndividualScoreConstraint(scores, args.min_individual_rank)
+        )
 
     for grid, score_file in args.score_list:
         df = pd.read_csv(score_file)
