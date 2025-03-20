@@ -1,11 +1,59 @@
 import csv
 import warnings
 import yaml
+import pickle
 
 import numpy as np
 import pandas as pd
 
 from . import csts, parser, cogrid_csts, util, exceptions
+
+
+import json
+import re
+
+
+def write_solution(fname, solution):
+
+    if fname.endswith('.csv'):
+        residents = list(set([k[0] for k in solution['main'].keys()]))
+        blocks = list(set([k[1] for k in solution['main'].keys()]))
+        rotations = list(set([k[2] for k in solution['main'].keys()]))
+
+        data = {}
+        for blk in blocks:
+            data[blk] = {}
+            for res in residents:
+                for rot in rotations:
+                    if solution['main'][res, blk, rot] == 1:
+                        data[blk][res] = rot
+
+                        if 'backup' in solution:
+                            if solution['backup'][res, blk]:
+                                data[blk][res] += '+'
+
+                        break  # Each resident has exactly one rotation per block
+
+        pd.DataFrame.from_dict(data, orient='index').T.to_csv(fname)
+
+    elif fname.endswith('.pkl'):
+        with open(fname, 'wb') as f:
+            pickle.dump(solution, f)
+
+
+def read_solution(fname):
+
+    if fname.endswith('.csv'):
+        raise NotImplementedError("Hints are only supported with pickled solutions")
+
+        hint = pd.read_csv(args.hint, header=0, index_col=0, comment='#')\
+            .replace(r'\+', '', regex=True)
+
+    elif fname.endswith('.pkl'):
+        with open(fname, 'rb') as f:
+            solution = pickle.load(f)
+
+    return solution
 
 
 def get_group_array(group, config, group_type):

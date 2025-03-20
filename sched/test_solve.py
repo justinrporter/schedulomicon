@@ -3,7 +3,7 @@ from functools import partial
 import numpy as np
 import pandas as pd
 
-from . import solve, io, csts, callback
+from . import solve, io, csts, callback, cogrid_csts
 
 
 class TestSolnPrinter(callback.BaseSolutionPrinter):
@@ -67,7 +67,7 @@ def test_small_puzzle():
                 rot, {res: (1, 1) for res in residents}
             ) for rot in rotations
         ] + [
-            csts.RotationBackupCountConstraint('Ro1', count=0)
+            cogrid_csts.RotationBackupCountConstraint('Ro1', count=0)
         ],
         soln_printer=TestSolnPrinter,
         score_functions=[
@@ -115,7 +115,7 @@ def test_cooldown_constraint():
                 rot, {res: (1, 2) for res in residents}
             ) for rot in rotations if rot != 'Ro1'
         ] + [
-            csts.RotationBackupCountConstraint('Ro2', count=0),
+            cogrid_csts.RotationBackupCountConstraint('Ro2', count=0),
             csts.CoolDownConstraint('Ro1', window_size=COOLDOWN_LENGTH, count=[1,1])
         ],
         soln_printer=TestSolnPrinter,

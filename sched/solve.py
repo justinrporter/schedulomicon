@@ -12,15 +12,11 @@ from . import model as mdl
 logger = logging.getLogger(__name__)
 
 
-def add_result_as_hint(model, block_assigned, residents, blocks, rotations, hint):
+def add_result_as_hint(model, grids, hint):
 
-    for res in residents:
-        for block in blocks:
-            for rot in rotations:
-                model.AddHint(
-                    block_assigned[res, block, rot],
-                    hint[res][block] == rot
-                )
+    for grid_name, grid in grids.items():
+        for key, var in grid['variables'].items():
+            model.AddHint(var, hint[grid_name][key])
 
 
 def run_optimizer(model, objective_fn, n_processes=None, solution_printer=None,
@@ -129,7 +125,7 @@ def solve(
         )
 
     if hint is not None:
-        add_result_as_hint(model, block_assigned, residents, blocks, rotations, hint)
+        add_result_as_hint(model, grids, hint)
 
     # instantiate the soln printer using the prototype passed in
     # eg soln_printer = partial(callback.JugScheduleSolutionPrinter,

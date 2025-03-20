@@ -38,6 +38,8 @@ class BaseSolutionPrinter(cp_model.CpSolverSolutionCallback):
 
         self._scores = scores
 
+        self._grids = grids
+
     def on_solution_callback_initial(self):
 
         self._solution_count += 1
@@ -112,6 +114,17 @@ class BaseSolutionPrinter(cp_model.CpSolverSolutionCallback):
 
             return df
 
+    def solution_dict(self):
+
+        soln = {}
+
+        for grid_name, grid in self._grids.items():
+            soln[grid_name] = {
+                k: self.Value(v) for k, v in grid['variables'].items()
+            }
+
+        return soln
+
 
 class SolutionCountEnumerator(BaseSolutionPrinter):
 
@@ -150,9 +163,9 @@ class JugScheduleSolutionPrinter(BaseSolutionPrinter):
 
         self.on_solution_callback_initial()
 
-        solution_df = self.df_from_solution()
-        self._solutions.append(solution_df)
-        self._vacations.append(self.vacation_df())
+        self._solutions.append(self.solution_dict())
+        # solution_df = self.df_from_solution()
+        # self._vacations.append(self.vacation_df())
 
         if self._scores is not None:
 
