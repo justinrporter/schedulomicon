@@ -1,3 +1,7 @@
+class YAMLConfigurationMalformedError(Exception):
+    def __init__(self, message):
+        super().__init__(message)
+
 class YAMLParseError(Exception):
     def __init__(self, message):
         super().__init__(message)

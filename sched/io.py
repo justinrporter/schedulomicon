@@ -124,13 +124,6 @@ def generate_backup_constraints(
 
     constraints = []
 
-    # if backup: No, then skip this whole thing
-    if not config.get('backup', False):
-        return constraints
-
-    if config['backup']:
-        n_residents_needed = int(config['backup']['coverage'])
-
     for block, blk_params in config['blocks'].items():
         # sometimes blk_params can be None, for which .get won't work
         if blk_params and blk_params.get('backup_required', False):
@@ -165,6 +158,15 @@ def generate_backup_constraints(
         if 'no_backup' in res_params: 
             for block in res_params['no_backup']:
                 constraints.append(csts.BanBackupBlockContraint(res, block))
+
+    print(config.get('backup', False))
+    print(len(constraints))
+    if constraints and not config.get('backup', False):
+        raise exceptions.YAMLConfigurationMalformedError(
+            "The top-level 'backup' directive is false or not present, but backup "
+            "parameters for rotations and/or residents have been set."
+        )
+
     return constraints
 
 
