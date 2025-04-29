@@ -174,6 +174,20 @@ class VacationCooldownConstraint(csts.Constraint):
 
 # BACKUP CONSTRAINTS ---------------------------------------------------
 
+
+class SetBackupConstraint(csts.Constraint):
+
+    def __init__(self, settings):
+        self.settings = settings
+
+    def apply(self, model, block_assigned, residents, blocks, rotations, grids):
+
+        for k, v in self.settings.items():
+            model.Add(
+                grids['backup']['variables'][k] == v
+            )
+
+
 class BackupRequiredOnBlockBackupConstraint(csts.Constraint):
 
     def __init__(self, block, min_residents, max_residents):

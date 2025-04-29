@@ -137,8 +137,8 @@ class SolutionCountEnumerator(BaseSolutionPrinter):
         self.on_solution_callback_initial()
 
         if self.save_solutions_as:
-            solution_df = self.df_from_solution()
-            self.save_solutions_as(self._solution_count, solution_df)
+            solution_dict = self.solution_dict()
+            self.save_solutions_as(self._solution_count, solution_dict)
 
         if self._scores is not None:
 

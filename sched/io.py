@@ -3,22 +3,28 @@ import warnings
 import yaml
 import pickle
 
+import json
+import re
+from collections import OrderedDict
+
 import numpy as np
 import pandas as pd
 
 from . import csts, parser, cogrid_csts, util, exceptions
 
 
-import json
-import re
+def deduplicate_ordered(seq):
+    """Remove duplicates from a list while preserving order."""
+    seen = set()
+    return [x for x in seq if not (x in seen or seen.add(x))]
 
 
 def write_solution(fname, solution):
 
     if fname.endswith('.csv'):
-        residents = list(set([k[0] for k in solution['main'].keys()]))
-        blocks = list(set([k[1] for k in solution['main'].keys()]))
-        rotations = list(set([k[2] for k in solution['main'].keys()]))
+        residents = deduplicate_ordered([k[0] for k in solution['main'].keys()])
+        blocks = deduplicate_ordered([k[1] for k in solution['main'].keys()])
+        rotations = deduplicate_ordered([k[2] for k in solution['main'].keys()])
 
         data = {}
         for blk in blocks:
