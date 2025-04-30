@@ -3,6 +3,7 @@ import datetime
 import math
 import argparse
 import yaml
+import json
 
 from functools import partial
 
@@ -151,18 +152,12 @@ def main(argv):
             io.pin_constraints_from_csv(args.rotation_pins)
         )
 
-    if args.min_individual_rank is not None:
-        cst_list.append(
-            csts.MinIndividualScoreConstraint(rankings, args.min_individual_rank)
-        )
-
     cst_list.extend(
         io.generate_backup_constraints(config)
     )
 
     if args.hint is not None:
-        hint = pd.read_csv(args.hint, header=0, index_col=0, comment='#')\
-            .replace(r'\+', '', regex=True)
+        hint = io.read_solution(args.hint)
     else:
         hint = None
 
@@ -193,6 +188,11 @@ def main(argv):
     else:
         scores = None
         objective_fn = lambda x: 0
+
+    if args.min_individual_rank is not None:
+        cst_list.append(
+            csts.MinIndividualScoreConstraint(scores, args.min_individual_rank)
+        )
 
     for grid, score_file in args.score_list:
         df = pd.read_csv(score_file)
@@ -230,14 +230,13 @@ def main(argv):
     print('  - objective value: %i' % solver.ObjectiveValue())
 
     if status in ['OPTIMAL', 'FEASIBLE']:
-        with open(args.results, 'w') as f:
-            solution_printer._solutions[-1].to_csv(f)
+        io.write_solution(args.results, solution_printer._solutions[-1])
         print("Best solution at ", args.results)
 
-        if args.vacation:
-            with open(args.vacation, 'w') as f:
-                solution_printer._vacations[-1].to_csv(f)
-            print("Vacation solution at ", args.vacation)
+        # if args.vacation:
+        #     with open(args.vacation, 'w') as f:
+        #         solution_printer._vacations[-1].to_csv(f)
+        #     print("Vacation solution at ", args.vacation)
 
         return 1
     else:
