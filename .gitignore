@@ -1,8 +1,7 @@
-.ipynb_checkpoints/
-*sched.sublime-workspace
+schedulomicon.sublime-workspace
+schedulomicon.sublime-project
 sftp-config.json
 __pycache__
-results/*
 .vscode/*
 .DS_Store
 *.jugdata

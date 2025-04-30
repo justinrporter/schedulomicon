@@ -10,7 +10,7 @@ from functools import partial
 import pandas as pd
 import numpy as np
 
-from sched import csts, io, solve, callback, score
+from schedulomicon import csts, io, solve, callback, score
 
 def parse_args(argv):
     parser = argparse.ArgumentParser(description='Process some integers.')
