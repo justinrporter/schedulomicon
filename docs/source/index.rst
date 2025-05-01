@@ -8,7 +8,7 @@ It uses Google OR-Tools CP-SAT solver to optimize schedules while respecting com
 rotation coverage, resident preferences, and vacation requests.
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Contents:
 
    configuration_files
