@@ -10,10 +10,10 @@ from functools import partial
 import pandas as pd
 import numpy as np
 
-from schedulomicon import csts, io, solve, callback, score
+from . import csts, io, solve, callback, score
 
 def parse_args(argv):
-    parser = argparse.ArgumentParser(description='Process some integers.')
+    parser = argparse.ArgumentParser()
 
     parser.add_argument(
         '--config', required=True,
@@ -126,7 +126,9 @@ def generate_block_constraints(config):
     return constraints
 
 
-def main(argv):
+def main(argv=None):
+    if argv is None:
+        argv = sys.argv[1:]
 
     args = parse_args(argv)
 
@@ -246,4 +248,4 @@ def main(argv):
 
 
 if __name__ == '__main__':
-    main(sys.argv[1:])
+    main()

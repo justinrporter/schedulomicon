@@ -257,6 +257,9 @@ class BanBackupBlockContraint(csts.Constraint):
         self.block = block
         self.resident = resident
 
+    def __str__(self):
+        return f"BanBackupBlockContraint('{self.resident}', '{self.block}')"
+
     def apply(self, model, block_assigned, residents, blocks, rotations, grids):
 
         block_backup = grids['backup']['variables']

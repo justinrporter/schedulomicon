@@ -185,7 +185,7 @@ def generate_backup_constraints(
             max_residents = blk_params['backup_required'][1]
 
             constraints.append(
-                csts.BackupRequiredOnBlockBackupConstraint(
+                cogrid_csts.BackupRequiredOnBlockBackupConstraint(
                     block=block,
                     min_residents=min_residents,
                     max_residents=max_residents
@@ -196,7 +196,7 @@ def generate_backup_constraints(
         if rot_params and 'backup_count' in rot_params:
             ct = int(rot_params['backup_count'])
             constraints.append(
-                csts.RotationBackupCountConstraint(rotation, ct)
+                cogrid_csts.RotationBackupCountConstraint(rotation, ct)
             )
 
     backup_eligible = {}
@@ -204,21 +204,22 @@ def generate_backup_constraints(
         if rot_params:
             backup_eligible[rotation] = backup_group_name in rot_params.get('groups', {})
     constraints.append(
-        csts.BackupEligibleBlocksBackupConstraint(backup_eligible)
+        cogrid_csts.BackupEligibleBlocksBackupConstraint(backup_eligible)
     )
 
     for res, res_params in config['residents'].items():
         if not res_params: continue
         if 'no_backup' in res_params: 
             for block in res_params['no_backup']:
-                constraints.append(csts.BanBackupBlockContraint(res, block))
+                constraints.append(cogrid_csts.BanBackupBlockContraint(res, block))
 
     print(config.get('backup', False))
     print(len(constraints))
     if constraints and not config.get('backup', False):
         raise exceptions.YAMLConfigurationMalformedError(
             "The top-level 'backup' directive is false or not present, but backup "
-            "parameters for rotations and/or residents have been set."
+            "parameters for rotations and/or residents have been set:" +
+            "\n".join([str(c) for c in constraints])
         )
 
     return constraints
