@@ -67,11 +67,3 @@ pytest schedulomicon/test_*.py
 # Run specific test
 pytest schedulomicon/test_solve.py::test_small_puzzle
 ```
-
-## License
-
-[Your license information here]
-
-## Contributing
-
-[Your contribution guidelines here]

@@ -1,0 +1,60 @@
+# Example Configuration for Schedulomicon
+# A simple scheduler for medical resident rotations
+
+# Define residents
+residents:
+  Resident A: {}
+  Resident B: {}
+  Resident C: {}
+  Resident D: {}
+
+# Define rotations with their properties
+rotations:
+  Emergency:
+    groups: hospital
+    coverage: [1, 2]  # min 1, max 2 residents per block
+  Surgery:
+    groups: hospital
+    coverage: [1, 1]  # exactly 1 resident per block
+  ICU:
+    groups: critical
+    coverage: [1, 1]
+  Clinic:
+    groups: outpatient
+    coverage: [1, 2]
+  Research:
+    groups: elective
+    coverage: [0, 1]  # optional rotation
+
+# Define time blocks (seasons in this example)
+blocks:
+  Spring: {}
+  Summer: {}
+  Fall: {}
+  Winter: {}
+
+# Define vacation rules
+vacation:
+  n_vacations_per_resident: 1  # Each resident gets 1 vacation
+  blocks:
+    Week 1: {rotation: Spring}
+    Week 2: {rotation: Summer}
+    Week 3: {rotation: Fall}
+    Week 4: {rotation: Winter}
+  pools:
+    hospital:
+      rotations: [Emergency, Surgery]
+      max_vacation_per_week: 1
+      max_total_vacation: 4
+    critical:
+      rotations: [ICU]
+      max_vacation_per_week: 0  # No vacations during ICU rotations
+    outpatient:
+      rotations: [Clinic]
+      max_vacation_per_week: 1
+    elective:
+      rotations: [Research]
+      max_vacation_per_week: 1
+
+# Backup coverage configuration (optional)
+backup: No
