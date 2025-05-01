@@ -136,15 +136,15 @@ Ensures specific assignments occur for certain residents.
 .. code-block:: yaml
 
     residents:
-      Abbott, Megan:
+      Rivera, Jessica:
         true_somewhere:
           - Block 12 and Vacation CBY
-      Falkson, Samuel:
+      Chen, David:
         true_somewhere:
           - Block 12 and Vacation CBY
           - Block 23 and Vacation CBY
           - Block 21 and Self-Design CBY
-      Baffoni, Gabriella:
+      Patel, Aisha:
         true_somewhere:
           - not PRIME CBY
           - Block 13 and Vacation CBY
@@ -160,10 +160,10 @@ Prevents certain assignment combinations.
 .. code-block:: yaml
 
     residents:
-      Falkson, Samuel:
+      Wilson, Michael:
         prohibit: 
           - Blood Bank CBY
-      Martinez, Elena:
+      Rodriguez, Sofia:
         prohibit:
           - Block 3 and ICU
           - Block 4 and ICU
@@ -181,7 +181,7 @@ Makes specific rotation-block combinations ineligible.
       - resident: "All"
         rotation: "ICU"
         blocks: [Block 1, Block 2]
-      - resident: "Johnson, Mark"
+      - resident: "Thompson, Robert"
         rotation: "Surgery"
         blocks: [Block 10, Block 11, Block 12]
 
@@ -213,9 +213,9 @@ Restricts rotations to eligible residents.
 .. code-block:: yaml
 
     residents:
-      Johnson, Mark:
+      Garcia, Carlos:
         groups: [senior, surgery]
-      Smith, Jane:
+      Kim, Olivia:
         groups: [junior, medicine]
         
     rotations:
@@ -247,7 +247,7 @@ Limits group rotations in a sliding window.
       - kind: all_group_count_per_resident
         group: pediatrics
         count: [0,2]
-        apply_to_residents: ["Faust, Millis"]  # constraint for specific resident
+        apply_to_residents: ["Nguyen, James"]  # constraint for specific resident
 
 Group constraints come in several varieties:
 - ``window_group_count_per_resident``: Limits group rotations in a sliding window
@@ -334,7 +334,7 @@ Complex scheduling rules often require combining multiple constraints. For examp
 
     # Make specific assignments for specific residents
     residents:
-      Martinez, Elena:
+      Sharma, Priya:
         true_somewhere:
           - Block 5 and Vacation
         prohibit:
