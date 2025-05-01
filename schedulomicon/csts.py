@@ -12,12 +12,36 @@ logger = logging.getLogger(__name__)
 
 
 class Constraint:
+    """Base class for all scheduling constraints.
+
+    Defines the interface for constraints that can be applied to a scheduling model.
+    All concrete constraints must implement the apply method.
+    """
 
     def apply(self, model, block_assigned, residents, blocks, rotations, grids):
+        """Apply this constraint to the scheduling model.
+
+        Args:
+            model: The CP-SAT model to apply constraints to
+            block_assigned: Dictionary mapping (resident, block, rotation) tuples to boolean variables
+            residents: List of resident names
+            blocks: List of block names (time periods)
+            rotations: List of rotation names
+            grids: Auxiliary data structures for constraint application
+        """
         raise NotImplementedError("Constraint %s failed to implement apply" % self)
 
     @classmethod
     def _check_yaml_params(cls, root_entity, cst_params):
+        """Validate parameters from YAML configuration.
+
+        Args:
+            root_entity: The entity (e.g., rotation name) this constraint is attached to
+            cst_params: Dictionary of parameters from YAML
+
+        Raises:
+            YAMLParseError: If parameter is not in allowed options
+        """
         for key in cst_params:
             if key not in cls.ALLOWED_YAML_OPTIONS:
                 raise YAMLParseError(
@@ -27,6 +51,18 @@ class Constraint:
 
 
 class RotationCoverageConstraint(Constraint):
+    """Enforces minimum and maximum number of residents assigned to a rotation per block.
+
+    This constraint controls how many residents can be assigned to a specific rotation
+    during each block. It can either specify minimum/maximum values or provide a list
+    of allowed values for the number of residents.
+
+    YAML Example:
+        coverage: [2, 4]  # Between 2 and 4 residents required
+        # OR
+        coverage:
+          allowed_values: [0, 2, 4]  # Only 0, 2 or 4 residents allowed
+    """
 
     ALLOWED_YAML_OPTIONS = ['allowed_values', 'rmin', 'rmax']
     KEY_NAME = 'coverage'
@@ -126,6 +162,19 @@ class RotationCoverageConstraint(Constraint):
 
 
 class GroupCoverageConstraint(RotationCoverageConstraint):
+    """Applies coverage constraints to a group of rotations rather than a single rotation.
+
+    Similar to RotationCoverageConstraint but operates on a group of rotations defined
+    in the configuration. This allows setting minimum/maximum values for multiple
+    rotations collectively.
+
+    YAML Example (in group_constraints section):
+        - kind: group_coverage_constraint
+          group: medicine  # Group name defined in rotations
+          min: 2  # Minimum residents
+          max: 4  # Maximum residents
+          blocks: [Block 1, Block 2]  # Optional: specific blocks
+    """
 
     KEY_NAME = 'group_coverage_constraint'
 
@@ -175,6 +224,18 @@ class GroupCoverageConstraint(RotationCoverageConstraint):
         )
 
 class PrerequisiteRotationConstraint(Constraint):
+    """Ensures a resident completes prerequisite rotations before being assigned to a rotation.
+
+    This constraint requires that a resident must have completed a specified number of
+    instances of prerequisite rotations before they can be assigned to the target rotation.
+    Supports both single rotations and rotation groups as prerequisites.
+
+    YAML Example:
+        prerequisite: [Tutorial 1, Tutorial 2]  # Must complete both before this rotation
+        # OR
+        prerequisite:
+          heavy-rc: 1  # Must complete 1 rotation from heavy-rc group
+    """
 
     KEY_NAME = 'prerequisite'
 
@@ -271,6 +332,16 @@ class PrerequisiteRotationConstraint(Constraint):
             model.Add(n_prereq_instances >= req_ct).OnlyEnforceIf(rot_is_assigned)
 
 class IneligibleAfterConstraint(PrerequisiteRotationConstraint):
+    """Makes a resident ineligible for a rotation after meeting specified conditions.
+
+    The inverse of PrerequisiteRotationConstraint - prevents assignment to a rotation
+    once a resident has completed specified rotations or reached count thresholds.
+    All constraints in the ineligibility list must be met for the resident to become ineligible.
+
+    YAML Example:
+        ineligible_after:
+          SICU-E4 CBY: 2  # Ineligible after completing 2 SICU rotations
+    """
 
     KEY_NAME = 'ineligible_after'
 
@@ -294,6 +365,15 @@ class IneligibleAfterConstraint(PrerequisiteRotationConstraint):
 
 
 class AllowedRootsConstraint(Constraint):
+    """Restricts where consecutive sequences of a rotation can begin.
+
+    Defines specific blocks where consecutive sequences of a rotation are allowed to start.
+    This constraint works in conjunction with ConsecutiveRotationCountConstraint to
+    control where multi-block sequences may begin.
+
+    YAML Example:
+        allowed_roots: [Block 1, Block 5]  # Only start sequences at blocks 1 or 5
+    """
     
     KEY_NAME = 'allowed_roots'
 
@@ -342,6 +422,20 @@ class AllowedRootsConstraint(Constraint):
                 else: model.Add(is_root == 0)
 
 class ConsecutiveRotationCountConstraint(Constraint):
+    """Enforces that a rotation must occur in consecutive blocks of a specified length.
+
+    This constraint ensures that when a resident is assigned to a rotation, they must
+    be assigned to it for a specific number of consecutive blocks. It can also specify
+    allowed or forbidden starting points (roots) for these consecutive sequences.
+
+    YAML Example:
+        consecutive_count: 2  # Must be assigned for exactly 2 consecutive blocks
+        # OR
+        consecutive_count:
+          count: 2
+          forbidden_roots: [Block 1, Block 3]  # Can't start sequences here
+          allowed_roots: [Block 5A, Block 10A]  # Can only start sequences here
+    """
 
     KEY_NAME = 'consecutive_count'
 
@@ -482,6 +576,15 @@ class ConsecutiveRotationCountConstraint(Constraint):
 
 
 class MustBeFollowedByRotationConstraint(Constraint):
+    """Requires that a rotation must be followed immediately by specified rotations.
+
+    This constraint ensures that after a resident completes this rotation,
+    they must be assigned to one of the specified following rotations in the next block.
+    Often used to ensure appropriate transitions between heavy rotations and lighter ones.
+
+    YAML Example:
+        must_be_followed_by: [elective, Nephrology (DOM) CBY, Neurology (DOM) CBY]
+    """
 
     def __repr__(self):
         return "RotationMustBeFollowedByConstraint(%s,%s)" % (
@@ -501,6 +604,17 @@ class MustBeFollowedByRotationConstraint(Constraint):
 
 
 class CoolDownConstraint(Constraint):
+    """Prevents residents from being assigned to a rotation too soon again.
+
+    Ensures that a resident cannot be assigned to a rotation more than a specified
+    number of times within a sliding window of blocks.
+
+    YAML Example:
+        cool_down:
+          window: 4  # Look at every 4-block window
+          count: 1   # Maximum 1 instance of this rotation in any 4-block window
+          suppress_for: ["Smith, John"]  # Optional: residents exempt from this constraint
+    """
 
     KEY_NAME = 'cool_down'
     ALLOWED_YAML_OPTIONS = ['window', 'count', 'suppress_for']
@@ -560,6 +674,21 @@ class CoolDownConstraint(Constraint):
 
 
 class RotationCountConstraint(Constraint):
+    """Controls the total number of times a resident is assigned to a rotation.
+
+    This constraint limits how many times a resident can be assigned to a specific rotation
+    across all blocks. It can specify different limits for different residents or resident groups,
+    and can be configured with minimum and maximum values.
+
+    YAML Example:
+        rot_count: 2  # Exactly 2 instances for all residents
+        # OR
+        rot_count: [0, 2]  # Between 0 and 2 instances for all residents
+        # OR
+        rot_count:
+          CA1: [0, 1]  # CA1 residents: 0-1 instances
+          CA2: [1, 2]  # CA2 residents: 1-2 instances
+    """
 
     KEY_NAME = 'rot_count'
 
@@ -669,6 +798,15 @@ class RotationCountConstraint(Constraint):
 
 
 class RotationCountConstraintWithHistory(RotationCountConstraint):
+    """Extension of RotationCountConstraint that includes historical assignments.
+
+    Similar to RotationCountConstraint, but also considers past rotation assignments
+    from resident history when calculating rotation counts. This is useful for
+    residents who have already completed parts of their training.
+
+    YAML Example:
+        rot_count_including_history: [0, 2]  # 0-2 total including historical assignments
+    """
 
     KEY_NAME = 'rot_count_including_history'
 
@@ -678,6 +816,15 @@ class RotationCountConstraintWithHistory(RotationCountConstraint):
 
 
 class RotationCountNotConstraint(Constraint):
+    """Prevents a specific exact count of a rotation from being assigned.
+
+    This constraint ensures that a resident is not assigned to a rotation
+    exactly a specified number of times. For example, it can be used to
+    prevent exactly 1 assignment (forcing either 0 or 2+ assignments).
+
+    YAML Example:
+        not_rot_count: 1  # Cannot have exactly 1 instance, must have 0 or 2+
+    """
 
     def __init__(self, rotation, ct):
         self.rotation = rotation
@@ -691,6 +838,16 @@ class RotationCountNotConstraint(Constraint):
 
 
 class TrueSomewhereConstraint(Constraint):
+    """Ensures that at least one assignment from a set of possible assignments is made.
+
+    This constraint forces the scheduler to make at least one assignment from a predefined
+    set of eligible assignments. It's often used to implement resident preferences or
+    requirements (e.g., "must do at least one of these rotations").
+
+    YAML Example (in residents section):
+        true_somewhere:
+          - (Block 1 or Block 2) and medicine  # Must do medicine in block 1 or 2
+    """
 
     def __init__(self, eligible_field):
         self.eligible_field = eligible_field
@@ -709,6 +866,16 @@ class TrueSomewhereConstraint(Constraint):
 
 
 class ProhibitedCombinationConstraint(Constraint):
+    """Prevents certain combinations of assignments from occurring simultaneously.
+
+    This constraint ensures that not all assignments in a specified set of prohibited
+    assignments can be made simultaneously. Useful for preventing conflicting assignments
+    or enforcing "either/or" style constraints.
+
+    YAML Example:
+        prohibited_combinations:
+          - [resident1 on rotation1, resident2 on rotation2]
+    """
 
     def __init__(self, prohibited_fields):
         self.prohibited_fields = prohibited_fields
@@ -729,6 +896,16 @@ class ProhibitedCombinationConstraint(Constraint):
 
 
 class MarkIneligibleConstraint(Constraint):
+    """Prevents assignments to ineligible resident-block-rotation combinations.
+
+    This constraint marks specific resident-block-rotation combinations as ineligible,
+    ensuring that these assignments cannot be made. The inverse of the eligibility field
+    is used to identify and prohibit ineligible assignments.
+
+    YAML Example:
+        ineligible:
+          - not surgery and Block 1  # Resident can't do surgery in Block 1
+    """
 
     def __init__(self, eligible_field):
         self.eligible_field = eligible_field
@@ -746,13 +923,24 @@ class MarkIneligibleConstraint(Constraint):
 
 
 class RotationWindowConstraint(Constraint):
+    """Ensures a resident is assigned to a rotation within a specific window of blocks.
+
+    This constraint requires that a resident must be assigned to a specific rotation
+    at least once within a defined set of blocks (the "window"). This is useful for
+    enforcing requirements that residents complete certain rotations during specific
+    time periods.
+
+    YAML Example:
+        rotation_windows:
+          Smith, John:
+            Cardiology: [Block 1, Block 2, Block 3]  # Must do Cardiology in one of these blocks
+    """
 
     def __repr__(self):
         return "%s(%s,%s,%s)" % (
             self.__class__, self.resident, self.rotation, self.possible_blocks)
 
     def __init__(self, resident, rotation, possible_blocks):
-
         self.resident = resident
         self.rotation = rotation
         self.possible_blocks = possible_blocks
@@ -768,13 +956,24 @@ class RotationWindowConstraint(Constraint):
 
 
 class MinIndividualScoreConstraint(Constraint):
+    """Enforces a minimum score/utility for each resident's schedule.
+
+    This constraint ensures that each resident's schedule has a total utility score
+    that meets or exceeds a specified minimum. Utilities/scores are assigned to
+    individual resident-block-rotation assignments and then summed.
+
+    Note: This constraint enforces a score LESS THAN the minimum (not ≥).
+    Commonly used with negative scores to set a maximum threshold for negative utility.
+
+    YAML Example:
+        min_individual_score: -100  # Each resident's schedule must have score ≥ -100
+    """
 
     def __init__(self, scores, min_score):
         assert isinstance(min_score, numbers.Number)
         assert min_score == int(min_score)
 
         self.scores = scores
-
         self.min_score = int(min_score)
 
         logger.info(f"Created MinIndividualScoreConstraint with "
@@ -806,6 +1005,18 @@ class MinIndividualScoreConstraint(Constraint):
 
 
 class MinTotalScoreConstraint(Constraint):
+    """Enforces a minimum score/utility for the entire schedule across all residents.
+
+    This constraint ensures that the total utility score of the entire schedule
+    (summed across all residents) meets or exceeds a specified minimum threshold.
+    Used to enforce overall schedule quality.
+
+    Note: This constraint enforces a score LESS THAN OR EQUAL TO the minimum (not ≥).
+    Commonly used with negative scores to set a maximum threshold for negative utility.
+
+    YAML Example:
+        min_total_score: -1000  # Total schedule score must be ≥ -1000
+    """
 
     def __init__(self, scores, min_score):
         assert isinstance(min_score, numbers.Number)
@@ -836,6 +1047,18 @@ class MinTotalScoreConstraint(Constraint):
                      f"{len(residents)} residents")
 
 class GroupCountPerResidentPerWindow(Constraint):
+    """Controls how many rotations from a group a resident can do within a time window.
+
+    This constraint limits how many rotations from a specified group a resident
+    can be assigned to within a sliding window of blocks. Can be configured with
+    different limits for different residents or resident groups.
+
+    YAML Example (in group_constraints section):
+        - kind: window_group_count_per_resident
+          group: tough  # Group name defined in rotations
+          count: [0, 2]  # Between 0 and 2 tough rotations
+          window_size: 3  # In any 3-block window
+    """
 
     @classmethod
     def from_yml_dict(cls, params, config):
@@ -904,9 +1127,17 @@ class GroupCountPerResidentPerWindow(Constraint):
 
 
 class ResidentGroupConstraint(Constraint):
+    """Restricts which residents can be assigned to a specific rotation.
+
+    This constraint limits a rotation to only be assigned to a specified group
+    of eligible residents. All other residents will be ineligible for this rotation.
+
+    YAML Example:
+        resident_groups:
+          Cardiology: ["Smith, John", "Jones, Mary"]  # Only these residents eligible
+    """
 
     def __init__(self, rotation, eligible_residents):
-
         self.rotation = rotation
         self.eligible_residents = eligible_residents
 
@@ -919,9 +1150,20 @@ class ResidentGroupConstraint(Constraint):
 
 
 class EligibleAfterBlockConstraint(Constraint):
+    """Makes residents eligible for a rotation only after a specified block.
+
+    This constraint prevents a group of residents from being assigned to a rotation
+    until after a specific block in the schedule. They become eligible for the rotation
+    in all blocks that follow the specified block.
+
+    YAML Example:
+        eligible_after:
+          Cardiology:
+            residents: ["Smith, John", "Jones, Mary"]
+            block: Block 10  # Only eligible after Block 10
+    """
 
     def __init__(self, rotation, resident_group, eligible_after_block):
-
         self.rotation = rotation
         self.resident_group = resident_group
         self.eligible_after_block = eligible_after_block
@@ -938,8 +1180,25 @@ class EligibleAfterBlockConstraint(Constraint):
 
 
 class TimeToFirstConstraint(Constraint):
+    """Ensures residents are assigned to a rotation group early in their schedule.
+
+    This constraint requires that a resident must be assigned to at least one rotation
+    from a specified group within an initial window of blocks at the beginning of
+    the schedule. Used to ensure early exposure to important rotation types.
+
+    YAML Example (in group_constraints section):
+        - kind: time_to_first
+          group: medicine  # Group name defined in rotations
+          window_size: 8   # Must do at least one medicine rotation in first 8 blocks
+    """
 
     def __init__(self, rotations_in_group, window_size):
+        """Initialize a time to first constraint.
+
+        Args:
+            rotations_in_group: List of rotations in the group
+            window_size: Number of initial blocks in which a rotation must be assigned
+        """
         self.rotations_in_group = rotations_in_group
         self.window_size = window_size
 
@@ -956,7 +1215,19 @@ class TimeToFirstConstraint(Constraint):
 
 def add_must_be_followed_by_constraint(model, block_assigned, residents, blocks,
                                        rotation, following_rotations):
-
+    """Helper function to apply a must-be-followed-by constraint.
+    
+    Ensures that when a resident is assigned to a rotation in a block, they must be
+    assigned to one of the specified following rotations in the next block.
+    
+    Args:
+        model: The CP-SAT model
+        block_assigned: Dictionary mapping (resident, block, rotation) tuples to boolean variables
+        residents: List of resident names
+        blocks: List of block names
+        rotation: The rotation that must be followed
+        following_rotations: List of allowed rotations that can follow
+    """
     for a_block, b_block in zip(blocks[0:-1], blocks[1:]):
         for resident in residents:
             a = block_assigned[(resident, a_block, rotation)]
@@ -973,7 +1244,22 @@ def add_must_be_followed_by_constraint(model, block_assigned, residents, blocks,
 
 def add_window_count_constraint(model, block_assigned, residents, blocks,
                                 rotations, window_size, n_min, n_max):
-
+    """Helper function to apply a sliding window count constraint.
+    
+    Ensures that within any consecutive window of blocks of a specified size,
+    the number of times a resident is assigned to rotations from a specified set
+    falls within given minimum and maximum bounds.
+    
+    Args:
+        model: The CP-SAT model
+        block_assigned: Dictionary mapping (resident, block, rotation) tuples to boolean variables
+        residents: List of resident names
+        blocks: List of block names
+        rotations: List of rotations to count
+        window_size: Size of the sliding window in blocks
+        n_min: Minimum number of assignments allowed in the window
+        n_max: Maximum number of assignments allowed in the window
+    """
     n_blocks = len(blocks)
     n_full_windows = n_blocks - window_size + 1
 
@@ -990,16 +1276,30 @@ def add_window_count_constraint(model, block_assigned, residents, blocks,
 
 def add_resident_group_constraint(model, block_assigned, residents, blocks,
                                   rotation, eligible_residents, ineligible_blocks = None):
-    # If all blocks are indicated, adds a constrains that the sum of
+    """Helper function to apply eligibility constraints for resident groups.
+    
+    Either restricts a rotation to only eligible residents, or prevents eligible residents
+    from being assigned to a rotation during specified ineligible blocks.
+    
+    Args:
+        model: The CP-SAT model
+        block_assigned: Dictionary mapping (resident, block, rotation) tuples to boolean variables
+        residents: List of resident names
+        blocks: List of block names
+        rotation: The rotation to restrict
+        eligible_residents: List of residents eligible for the rotation
+        ineligible_blocks: Optional list of blocks where eligible residents cannot be assigned
+    """
+    # If all blocks are indicated, adds a constraint that the sum of
     # blocks = 0 if the resident is not in "eligible residents" group
     for res in residents:
         if ineligible_blocks is None:
             n = sum(block_assigned[(res, block, rotation)] for block in blocks)
             model.Add(n == 0).OnlyEnforceIf(res not in eligible_residents)
 
-    # If only certain 'eligible blocks' have been indicated,
-    # makes sure that the eligible_residents are NOT assigned the rotation
-    # during an ineligible block)
+        # If only certain 'eligible blocks' have been indicated,
+        # makes sure that the eligible_residents are NOT assigned the rotation
+        # during an ineligible block)
         else:
             n = sum(block_assigned[(res, block, rotation)] for block in ineligible_blocks)
             model.Add(n == 0).OnlyEnforceIf(res in eligible_residents)
