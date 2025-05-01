@@ -1,11 +1,13 @@
 import itertools
+import logging
 
 from . import csts, parser
 from .util import resolve_group
 
 
-# VACATION CONSTRAINTS -------------------------------------------------
+logger = logging.getLogger(__name__)
 
+# VACATION CONSTRAINTS -------------------------------------------------
 
 class VacationMappingConstraint(csts.Constraint):
 

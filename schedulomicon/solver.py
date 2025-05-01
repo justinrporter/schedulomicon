@@ -149,10 +149,6 @@ def main(argv=None):
         cst_list.extend(
             io.coverage_constraints_from_csv(args.coverage_max, 'rmax')
         )
-    if args.rotation_pins:
-        cst_list.extend(
-            io.pin_constraints_from_csv(args.rotation_pins)
-        )
 
     cst_list.extend(
         io.generate_backup_constraints(config)
