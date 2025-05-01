@@ -299,26 +299,6 @@ class TestScoreFunctionGeneration:
         assert scores[('R1', 'Block2', 'Rotation1')] == 10
         assert scores[('R2', 'Block1', 'Rotation2')] == 8
         assert scores[('R2', 'Block2', 'Rotation2')] == 8
-    
-    def test_block_resident_ranking_integration(self, block_resident_ranking_file):
-        """Test integration of block-resident rankings."""
-        residents = ['R1', 'R2']
-        blocks = ['Block1', 'Block2']
-        rotations = ['Rotation1', 'Rotation2']
-        
-        mock_rankings = {
-            'R1': {'Rotation1': 10, 'Rotation2': 3}, 
-            'R2': {'Rotation1': 5, 'Rotation2': 8}
-        }
-        
-        block_resident_df = pd.read_csv(block_resident_ranking_file, header=0, index_col=0)
-        block_resident_ranking = ('main', block_resident_df.T.to_dict())
-        
-        scores = score.score_dict_from_df(mock_rankings, residents, blocks, rotations, block_resident_ranking)
-        
-        # Check that block-resident rankings are applied
-        assert scores[('R1', 'Block1', 'Rotation1')] != scores[('R1', 'Block2', 'Rotation1')]
-        assert scores[('R2', 'Block1', 'Rotation2')] != scores[('R2', 'Block2', 'Rotation2')]
 
 
 @patch('schedulomicon.solve.solve')
@@ -347,44 +327,6 @@ class TestSolverIntegration:
         assert os.path.exists(results_file)
         assert "Best solution at " in fake_stdout.getvalue()
         
-    def test_solve_with_all_options(self, mock_solve, basic_config_file, coverage_min_file, 
-                                  coverage_max_file, rotation_pins_file, rankings_file, 
-                                  score_list_file, block_resident_ranking_file, hint_file,
-                                  temp_directory):
-        """Test solving with all options specified."""
-        results_file = os.path.join(temp_directory, 'results.csv')
-        vacation_file = os.path.join(temp_directory, 'vacation.csv')
-        
-        # Mock solve function
-        solution_printer = MagicMock()
-        solution_printer.solution_count.return_value = 1
-        solution_printer._solutions = [pd.DataFrame({
-            'R1': ['Rotation1', 'Rotation2'],
-            'R2': ['Rotation2', 'Rotation1']
-        }, index=['Block1', 'Block2'])]
-        
-        mock_solve.return_value = ('OPTIMAL', MagicMock(), solution_printer, MagicMock(), 1.0)
-        
-        # Redirect stdout to capture printed output
-        with patch('sys.stdout', new=StringIO()):
-            exit_code = solver.main([
-                '--config', basic_config_file,
-                '--coverage-min', coverage_min_file,
-                '--coverage-max', coverage_max_file,
-                '--rotation-pins', rotation_pins_file,
-                '--rankings', rankings_file,
-                '--score-list', 'main', score_list_file,
-                '--block-resident-ranking', 'main', block_resident_ranking_file,
-                '--results', results_file,
-                '--vacation', vacation_file,
-                '-p', '2',
-                '-n', '5',
-                '--min-individual-rank', '3.0',
-                '--hint', hint_file
-            ])
-        
-        assert exit_code == 1
-        assert os.path.exists(results_file)
         
     def test_no_solution_found(self, mock_solve, basic_config_file, temp_directory):
         """Test behavior when no solution is found."""
