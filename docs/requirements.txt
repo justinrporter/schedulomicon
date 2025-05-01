@@ -1,0 +1,7 @@
+sphinx>=4.0.0
+sphinx_rtd_theme
+sphinx-autodoc-typehints
+numpy
+pandas
+pyyaml
+pyparsing
