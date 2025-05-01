@@ -12,6 +12,7 @@ rotation coverage, resident preferences, and vacation requests.
    :caption: Contents:
 
    configuration_files
+   constraints
 
 
 
