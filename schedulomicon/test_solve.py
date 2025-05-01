@@ -6,7 +6,7 @@ import pandas as pd
 from . import solve, io, csts, callback, cogrid_csts
 
 
-class TestSolnPrinter(callback.BaseSolutionPrinter):
+class SolnPrinterTest(callback.BaseSolutionPrinter):
     def __init__(self, *args, **kwargs):
         self.solutions = []
         self.solution_count = 0
@@ -69,7 +69,7 @@ def test_small_puzzle():
         ] + [
             cogrid_csts.RotationBackupCountConstraint('Ro1', count=0)
         ],
-        soln_printer=TestSolnPrinter,
+        soln_printer=SolnPrinterTest,
         score_functions=[
             ('main', partial(alldiff_3x3x3_obj, residents=residents,
                              blocks=blocks, rotations=rotations))],
@@ -118,7 +118,7 @@ def test_cooldown_constraint():
             cogrid_csts.RotationBackupCountConstraint('Ro2', count=0),
             csts.CoolDownConstraint('Ro1', window_size=COOLDOWN_LENGTH, count=[1,1])
         ],
-        soln_printer=TestSolnPrinter,
+        soln_printer=SolnPrinterTest,
         score_functions=[],
         n_processes=1,
         cogrids={'backup': {'coverage': 2}},
@@ -165,7 +165,7 @@ def test_consecutive_rotation_constraint():
         ] + [
             csts.ConsecutiveRotationCountConstraint('Ro2', count=2)
         ],
-        soln_printer=TestSolnPrinter,
+        soln_printer=SolnPrinterTest,
         score_functions=[],
         n_processes=1,
         cogrids={'backup': {'coverage': 0}},
@@ -217,7 +217,7 @@ def test_consecutive_rotation_constraint():
                 'Ro1', rmin=0, rmax=1
             )
         ],
-        soln_printer=TestSolnPrinter,
+        soln_printer=SolnPrinterTest,
         score_functions=[
             ('main', partial(alldiff_3x3x3_obj, residents=residents,
                              blocks=blocks, rotations=rotations))],
@@ -258,7 +258,7 @@ def test_consecutive_rotation_constraint():
                 window_size=len(blocks),
             )
         ],
-        soln_printer=TestSolnPrinter,
+        soln_printer=SolnPrinterTest,
         score_functions=[
             ('main', partial(alldiff_3x3x3_obj, residents=residents,
                              blocks=blocks, rotations=rotations))],
@@ -302,7 +302,7 @@ def test_consecutive_rotation_constraint():
                 'Ro1', rmin=0, rmax=0, blocks=['Bl3']
             )
         ],
-        soln_printer=TestSolnPrinter,
+        soln_printer=SolnPrinterTest,
         score_functions=[('main', max_ro1_count)],
         n_processes=1,
         cogrids={'backup': {'coverage': 0}},

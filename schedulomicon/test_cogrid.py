@@ -4,10 +4,10 @@ import pytest
 import numpy as np
 
 from . import io, solve, callback, cogrid_csts, csts, parser
-from .test_solve import TestSolnPrinter
+from .test_solve import SolnPrinterTest
 
 
-class VacationWeekSolnPrinter(TestSolnPrinter):
+class VacationWeekSolnPrinter(SolnPrinterTest):
     def __init__(self, *args, **kwargs):
         self.solutions = []
         self.solution_count = 0
