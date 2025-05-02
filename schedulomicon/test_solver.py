@@ -187,7 +187,7 @@ class TestParseArgs:
             '-n', '10',
             '--objective', 'custom_objective',
             '--min-individual-rank', '5.5',
-            '--hint', 'hint.csv'
+            '--hint', 'hint.pkl'
         ])
         
         assert args.config == 'config.yml'
@@ -204,7 +204,7 @@ class TestParseArgs:
         assert args.n_solutions == 10
         assert args.objective == 'custom_objective'
         assert args.min_individual_rank == 5.5
-        assert args.hint == 'hint.csv'
+        assert args.hint == 'hint.pkl'
 
 
 class TestConfigLoading:
@@ -312,17 +312,33 @@ class TestSolverIntegration:
         # Mock solve function
         solution_printer = MagicMock()
         solution_printer.solution_count.return_value = 1
-        solution_printer._solutions = [pd.DataFrame({
-            'R1': ['Rotation1', 'Rotation2'],
-            'R2': ['Rotation2', 'Rotation1']
-        }, index=['Block1', 'Block2'])]
+
+        solution_printer._solutions = [{
+            'main': {
+                ('R1', 'Block1', 'Rotation1'): 1,
+                ('R1', 'Block1', 'Rotation2'): 0,
+                ('R1', 'Block2', 'Rotation1'): 0,
+                ('R1', 'Block2', 'Rotation2'): 1,
+                ('R2', 'Block1', 'Rotation1'): 0,
+                ('R2', 'Block1', 'Rotation2'): 1,
+                ('R2', 'Block2', 'Rotation1'): 1,
+                ('R2', 'Block2', 'Rotation2'): 0,
+            }
+        }]
         
+        solution_printer.df_from_solution.return_value = pd.DataFrame(
+            {
+                'R1': ['Rotation1', 'Rotation2'],
+                'R2': ['Rotation2', 'Rotation1']
+            }, index=['Block1', 'Block2']
+        )
+
         mock_solve.return_value = ('OPTIMAL', MagicMock(), solution_printer, MagicMock(), 1.0)
-        
+
         # Redirect stdout to capture printed output
         with patch('sys.stdout', new=StringIO()) as fake_stdout:
             exit_code = solver.main(['--config', basic_config_file, '--results', results_file])
-        
+
         assert exit_code == 1
         assert os.path.exists(results_file)
         assert "Best solution at " in fake_stdout.getvalue()

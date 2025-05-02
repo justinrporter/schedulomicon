@@ -55,9 +55,13 @@ def read_solution(fname):
         hint = pd.read_csv(args.hint, header=0, index_col=0, comment='#')\
             .replace(r'\+', '', regex=True)
 
-    elif fname.endswith('.pkl'):
+    elif fname.endswith('.pkl') or fname.endswith('.pickle'):
         with open(fname, 'rb') as f:
             solution = pickle.load(f)
+
+    else:
+        raise exceptions.UnacceptableFileType(
+            f"File '{fname}' is not of type .pkl or .csv")
 
     return solution
 
