@@ -19,6 +19,10 @@ def deduplicate_ordered(seq):
     return [x for x in seq if not (x in seen or seen.add(x))]
 
 
+def backup_is_active(config):
+    return config.get('backup', False)
+
+
 def write_solution(fname, solution):
 
     if fname.endswith('.csv'):
@@ -45,6 +49,32 @@ def write_solution(fname, solution):
     elif fname.endswith('.pkl'):
         with open(fname, 'wb') as f:
             pickle.dump(solution, f)
+
+
+def parse_field_sum_constraint(params, scope_selection, config, groups_array):
+
+    cst_list = []
+
+    for param in params:
+        if param.startswith('sum'):
+            satisfies_sum_fn = parser.parse_sum_function(param)
+
+            for selector_string in params[param]:
+                field = parser.resolve_eligible_field(
+                    f"{scope_selection} and ({selector_string})",
+                    groups_array,
+                    config['residents'].keys(),
+                    config['blocks'].keys(),
+                    config['rotations'].keys()
+                )
+                cst_list.append(
+                    csts.FieldSumConstraint(
+                        satisfies_sum_fn=satisfies_sum_fn,
+                        field=field
+                    )
+                )
+
+    return cst_list
 
 
 def read_solution(fname):
@@ -155,6 +185,7 @@ def generate_resident_constraints(config, groups_array):
             continue
 
         if 'true_somewhere' in params:
+            warnings.warn("Declaration 'true_somewhere' is depricated, use 'sum > 0' instead.")
             for selector_string in params['true_somewhere']:
                 eligible_field = parser.resolve_eligible_field(
                     f"{res} and ({selector_string})",
@@ -174,8 +205,32 @@ def generate_resident_constraints(config, groups_array):
                     cogrid_csts.ChosenVacationConstraint(res, week)
                 )
 
+        cst_list.extend(parse_field_sum_constraint(
+            params=params,
+            scope_selection=res,
+            config=config,
+            groups_array=groups_array
+        ))
+
     return cst_list
 
+
+def generate_block_constraints(config, groups_array):
+
+    cst_list = []
+
+    for blk, params in config['blocks'].items():
+        if not params:
+            continue
+
+        cst_list.extend(parse_field_sum_constraint(
+            params=params,
+            scope_selection=blk,
+            config=config,
+            groups_array=groups_array
+        ))
+
+    return cst_list
 
 def generate_backup_constraints(
     config, backup_group_name='backup_eligible'):
@@ -221,7 +276,7 @@ def generate_backup_constraints(
         if rot_params:
             backup_eligible[rotation] = backup_group_name in rot_params.get('groups', {})
 
-    if backup_eligible:
+    if backup_eligible and backup_is_active(config):
         constraints.append(
             cogrid_csts.BackupEligibleBlocksBackupConstraint(backup_eligible)
         )
@@ -266,6 +321,8 @@ def generate_constraints_from_configs(config, groups_array):
     constraints.extend(generate_resident_constraints(config, groups_array))
 
     constraints.extend(generate_vacation_constraints(config, groups_array))
+
+    constraints.extend(generate_block_constraints(config, groups_array))
 
     for cst in config.get('group_constraints', []):
 

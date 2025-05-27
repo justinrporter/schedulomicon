@@ -452,18 +452,21 @@ class ConsecutiveRotationCountConstraint(Constraint):
             forbidden_roots = []
             allowed_roots = []
 
-            for r in params['consecutive_count']['forbidden_roots']:
+            for r in params['consecutive_count'].get('forbidden_roots', []):
                 if r in config['blocks']:
                     forbidden_roots.append(r)
                 else:
                     forbidden_roots.extend(resolve_group(r, config['blocks']))
 
-            if 'allowed_roots' in params['consecutive_count']:
-                for r in params['consecutive_count']['allowed_roots']:
-                    if r in config['blocks']:
-                        allowed_roots.append(r)
-                    else:
-                        allowed_roots.extend(resolve_group(r, config['blocks']))
+            for r in params['consecutive_count'].get('allowed_roots', []):
+                if r in config['blocks']:
+                    assert r not in forbidden_roots
+                    allowed_roots.append(r)
+                else:
+                    blks = resolve_group(r, config['blocks'])
+                    for b in blks:
+                        assert b not in forbidden_roots
+                    allowed_roots.extend(blks)
 
             try:
                 ct = params['consecutive_count']['count']
@@ -851,7 +854,7 @@ class TrueSomewhereConstraint(Constraint):
 
     def __init__(self, eligible_field):
         self.eligible_field = eligible_field
-    
+
     def apply(self, model, block_assigned, residents, blocks, rotations, grids):
 
         s = 0
@@ -863,6 +866,26 @@ class TrueSomewhereConstraint(Constraint):
                 rot = rotations[z]
                 s += block_assigned[res, block, rot]
         model.Add(s >= 1)
+
+
+class FieldSumConstraint(Constraint):
+
+    def __init__(self, satisfies_sum_fn, field):
+        self.satisfies_sum_fn = satisfies_sum_fn
+        self.field = field
+
+    def apply(self, model, block_assigned, residents, blocks, rotations, grids):
+
+        s = 0
+        for loc, value in np.ndenumerate(self.field[0]):
+            x,y,z = loc
+            if value:
+                res = residents[x]
+                block = blocks[y]
+                rot = rotations[z]
+                s += block_assigned[res, block, rot]
+
+        model.Add(self.satisfies_sum_fn(s))
 
 
 class ProhibitedCombinationConstraint(Constraint):

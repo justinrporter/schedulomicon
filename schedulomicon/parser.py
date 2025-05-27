@@ -5,10 +5,48 @@ import pyparsing as pp
 from . import exceptions
 
 
+def parse_sum_function(statement):
+    lhs, op, rhs = statement.split()
+
+    rhs = int(rhs)
+
+    def _op_eq(a, b):
+        return a == b
+
+    def _op_geq(a, b):
+        return a >= b
+
+    def _op_gt(a, b):
+        return a > b
+
+    def _op_leq(a, b):
+        return a <= b
+
+    def _op_lt(a, b):
+        return a < b
+
+    def _op_neq(a, b):
+        return a != b
+
+    op_d = {
+        '==': _op_eq,
+        '>=': _op_geq,
+        '>': _op_gt,
+        '<=': _op_leq,
+        '<': _op_lt,
+        '!=': _op_neq
+    }
+
+    if op in op_d:
+        return partial(op_d[op], b=rhs)
+    else:
+        raise exceptions.YAMLParseError(
+            f"Operation '{op}' in '{statement}'not recognized")
+
+
 def resolve_eligible_field(statement, groups_array, residents, blocks, rotations):
 
     block = pp.Combine(
-
         pp.Keyword("Block") + pp.White(' ', max=1) + pp.Word(pp.alphanums),
         adjacent=False
     )
