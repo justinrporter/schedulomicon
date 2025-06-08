@@ -12,7 +12,7 @@ setup(
         "pandas",
         "pyyaml",
         "pyparsing",
-        "ortools==9.3.10497",
+        "ortools==9.8.3296",
     ],
     description="Constraint-based scheduling optimization",
     author="Justin R. Porter",
