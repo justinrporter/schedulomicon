@@ -170,26 +170,6 @@ Prevents certain assignment combinations.
 
 The ``prohibit`` property takes a list of assignments that should not be assigned to the resident. This can be specific rotations or combinations of blocks and rotations.
 
-MarkIneligibleConstraint
-~~~~~~~~~~~~~~~~~~~~~~
-
-Makes specific rotation-block combinations ineligible.
-
-.. code-block:: yaml
-
-    marked_ineligible:
-      - resident: "All"
-        rotation: "ICU"
-        blocks: [Block 1, Block 2]
-      - resident: "Thompson, Robert"
-        rotation: "Surgery"
-        blocks: [Block 10, Block 11, Block 12]
-
-The ``marked_ineligible`` section defines specific combinations that are not allowed, with:
-- ``resident``: The affected resident(s) or "All"
-- ``rotation``: The rotation to make ineligible
-- ``blocks``: List of blocks where the constraint applies
-
 Group-Based Constraints
 ---------------------
 
@@ -204,27 +184,6 @@ Applies coverage constraints to rotation groups.
       - kind: group_coverage
         group: surgery
         coverage: [2, 4]  # Between 2-4 residents in surgery rotations
-
-ResidentGroupConstraint
-~~~~~~~~~~~~~~~~~~~~~
-
-Restricts rotations to eligible residents.
-
-.. code-block:: yaml
-
-    residents:
-      Garcia, Carlos:
-        groups: [senior, surgery]
-      Kim, Olivia:
-        groups: [junior, medicine]
-        
-    rotations:
-      Chief Surgery:
-        eligible_groups: [senior, surgery]
-      Internal Medicine:
-        eligible_groups: [medicine]
-
-The ``eligible_groups`` property specifies which resident groups can be assigned to the rotation. Residents must belong to at least one of the listed groups to be eligible.
 
 GroupCountPerResidentPerWindow
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~

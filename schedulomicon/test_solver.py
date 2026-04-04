@@ -360,6 +360,25 @@ class TestSolverIntegration:
         assert not os.path.exists(results_file)
 
 
+class TestExampleConfig:
+    """Integration test running the full solver against the example config."""
+
+    def test_example_config_produces_solution(self, tmp_path):
+        """Run solver with examples/example_config.yml and verify results are written."""
+        import os
+        example_config = os.path.join(
+            os.path.dirname(__file__), '..', 'examples', 'example_config.yml'
+        )
+        results_file = str(tmp_path / 'results.csv')
+
+        exit_code = solver.main(['--config', example_config, '--results', results_file])
+
+        assert exit_code == 1, "Solver should find a feasible solution"
+        assert os.path.exists(results_file), "Results CSV should be written"
+        df = pd.read_csv(results_file, index_col=0)
+        assert not df.empty, "Results CSV should contain assignments"
+
+
 class TestErrorHandling:
     """Test error handling in the solver application."""
     
