@@ -25,10 +25,14 @@ class VacationMappingConstraint(csts.Constraint):
 
         n_vacations_per_resident = int(config['vacation']['n_vacations_per_resident'])
 
-        week_to_blocks = {
-            week: spec['blocks'] for week, spec
-            in config['vacation']['blocks'].items()
-        }
+        week_to_blocks = {}
+        for week, spec in config['vacation']['blocks'].items():
+            if 'blocks' not in spec:
+                raise KeyError(
+                    f"Vacation block '{week}' is missing required key 'blocks'. "
+                    f"Expected format: {{ blocks: [BlockName1, ...] }}, got: {spec}"
+                )
+            week_to_blocks[week] = spec['blocks']
 
         pool_to_rotations = {
             p: c['rotations'] for p, c

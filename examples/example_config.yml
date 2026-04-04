@@ -37,10 +37,10 @@ blocks:
 vacation:
   n_vacations_per_resident: 1  # Each resident gets 1 vacation
   blocks:
-    Week 1: {rotation: Spring}
-    Week 2: {rotation: Summer}
-    Week 3: {rotation: Fall}
-    Week 4: {rotation: Winter}
+    Week 1: {blocks: [Spring]}
+    Week 2: {blocks: [Summer]}
+    Week 3: {blocks: [Fall]}
+    Week 4: {blocks: [Winter]}
   pools:
     hospital:
       rotations: [Emergency, Surgery]
