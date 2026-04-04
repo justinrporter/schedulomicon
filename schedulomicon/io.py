@@ -180,6 +180,11 @@ def generate_resident_constraints(config, groups_array):
 
     cst_list = []
 
+    resident_constraint_types = [
+        csts.ProhibitedCombinationConstraint,
+    ]
+    available_res_csts = {c.KEY_NAME: c for c in resident_constraint_types}
+
     for res, params in config['residents'].items():
         if not params:
             continue
@@ -204,6 +209,10 @@ def generate_resident_constraints(config, groups_array):
                 cst_list.append(
                     cogrid_csts.ChosenVacationConstraint(res, week)
                 )
+
+        for k in params.keys():
+            if k in available_res_csts:
+                cst_list.append(available_res_csts[k].from_yml_dict(res, params, config, groups_array))
 
         cst_list.extend(parse_field_sum_constraint(
             params=params,

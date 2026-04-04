@@ -104,10 +104,10 @@ Next, let's add vacation rules to allow time off:
     vacation:
       n_vacations_per_resident: 1  # Each resident gets 1 vacation
       blocks:
-        Week 1: {rotation: Spring}
-        Week 2: {rotation: Summer}
-        Week 3: {rotation: Fall}
-        Week 4: {rotation: Winter}
+        Week 1: {blocks: [Spring]}
+        Week 2: {blocks: [Summer]}
+        Week 3: {blocks: [Fall]}
+        Week 4: {blocks: [Winter]}
 
 This defines:
 - How many vacations each resident is allowed
@@ -123,10 +123,10 @@ We can add more complex vacation rules based on rotation groups:
     vacation:
       n_vacations_per_resident: 1
       blocks:
-        Week 1: {rotation: Spring}
-        Week 2: {rotation: Summer}
-        Week 3: {rotation: Fall}
-        Week 4: {rotation: Winter}
+        Week 1: {blocks: [Spring]}
+        Week 2: {blocks: [Summer]}
+        Week 3: {blocks: [Fall]}
+        Week 4: {blocks: [Winter]}
       pools:
         hospital:
           rotations: [Emergency, Surgery]
@@ -140,11 +140,20 @@ We can add more complex vacation rules based on rotation groups:
           max_vacation_per_week: 1
 
 The ``pools`` section:
-- Groups rotations (using the groups we defined earlier)
+- Groups rotations by explicit rotation name (not via the ``groups:`` field on rotations)
 - Sets ``max_vacation_per_week``: Maximum concurrent vacations allowed
 - Sets ``max_total_vacation``: Maximum total vacations allowed in this pool
 
 Note how critical rotations (ICU) are set to allow zero vacations, while hospital rotations allow one vacation per week.
+
+.. warning::
+
+   When a ``vacation:`` section is present, **every rotation** defined in the
+   ``rotations:`` block must appear in at least one pool. If any rotation is
+   omitted, the solver will raise an ``AssertionError`` at startup:
+   ``Rotation "<name>" not found in vacation``. Add a pool entry for every
+   rotation, even if only to allow unlimited vacations
+   (``max_vacation_per_week`` may be omitted).
 
 Step 6: Adding Backup Coverage (Optional)
 ---------------------------------------
@@ -201,10 +210,10 @@ Putting it all together, here's a complete configuration:
     vacation:
       n_vacations_per_resident: 1
       blocks:
-        Week 1: {rotation: Spring}
-        Week 2: {rotation: Summer}
-        Week 3: {rotation: Fall}
-        Week 4: {rotation: Winter}
+        Week 1: {blocks: [Spring]}
+        Week 2: {blocks: [Summer]}
+        Week 3: {blocks: [Fall]}
+        Week 4: {blocks: [Winter]}
       pools:
         hospital:
           rotations: [Emergency, Surgery]

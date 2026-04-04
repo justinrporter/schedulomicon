@@ -3,7 +3,7 @@ import numbers
 import logging
 import numpy as np
 
-from . import exceptions
+from . import exceptions, parser
 from .exceptions import YAMLParseError
 from .util import resolve_group, accumulate_prior_counts
 
@@ -899,6 +899,22 @@ class ProhibitedCombinationConstraint(Constraint):
         prohibited_combinations:
           - [resident1 on rotation1, resident2 on rotation2]
     """
+
+    KEY_NAME = 'prohibit'
+
+    @classmethod
+    def from_yml_dict(cls, res, params, config, groups_array):
+        prohibited_fields = []
+        for selector_string in params[cls.KEY_NAME]:
+            field = parser.resolve_eligible_field(
+                f"{res} and ({selector_string})",
+                groups_array,
+                config['residents'].keys(),
+                config['blocks'].keys(),
+                config['rotations'].keys()
+            )
+            prohibited_fields.append(field[0])
+        return cls(prohibited_fields)
 
     def __init__(self, prohibited_fields):
         self.prohibited_fields = prohibited_fields

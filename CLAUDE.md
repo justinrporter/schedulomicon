@@ -48,3 +48,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **GroupCountPerResidentPerWindow**: Limits group rotations in sliding window
 
 This package provides constraint-based scheduling optimization primarily for medical resident rotation assignments.
+
+## Adding New Constraints
+
+New constraints must implement parsing logic themselves via a `from_yml_dict` classmethod — **do not add constraint-specific parsing logic to io.py**.
+
+- **Rotation-scoped constraints**: set a `KEY_NAME` class variable (matching the YAML key) and implement:
+  ```python
+  @classmethod
+  def from_yml_dict(cls, rotation, params, config): ...
+  ```
+  Then add the class to the `active_constraint_types` list in `generate_rotation_constraints()` in io.py — that's the only io.py change needed.
+
+- **Group/global constraints**: implement:
+  ```python
+  @classmethod
+  def from_yml_dict(cls, params, config): ...
+  ```
+  and register via `KEY_NAME` in the appropriate dispatch dict in io.py, not via a new `if/elif` branch.
+
+The `from_yml_dict` method is responsible for all YAML-to-Python translation. io.py should remain a generic dispatcher.

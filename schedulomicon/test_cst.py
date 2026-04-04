@@ -229,3 +229,19 @@ def test_ineligible_before_cst():
 
 #test _pools - write out the yaml at the top. it should be like test solve. test_cst shows how tests work. write a function that says test_whatever. write code and then write asserts. pytest will tell you if the asserts fail.
 #  longer tests in test_solve.  residents, blocks, rotations, cogrids_avail, groups_array = io.process_config(config)
+
+
+def test_prohibit_wired_up():
+    config = {
+        'residents': {
+            'R1': {'prohibit': ['Bl1 and Ro1', 'Bl2 and Ro1']},
+            'R2': {},
+        },
+        'rotations': {'Ro1': {}, 'Ro2': {}},
+        'blocks': {'Bl1': {}, 'Bl2': {}, 'Bl3': {}},
+    }
+    _, _, _, _, groups_array = io.process_config(config)
+    constraints = io.generate_resident_constraints(config, groups_array)
+    prohibited = [c for c in constraints if isinstance(c, csts.ProhibitedCombinationConstraint)]
+    assert len(prohibited) == 1
+    assert len(prohibited[0].prohibited_fields) == 2
