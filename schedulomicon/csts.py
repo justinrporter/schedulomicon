@@ -57,11 +57,19 @@ class RotationCoverageConstraint(Constraint):
     during each block. It can either specify minimum/maximum values or provide a list
     of allowed values for the number of residents.
 
+    This is a rotation-scoped constraint, nested directly under a rotation name.
+
     YAML Example:
-        coverage: [2, 4]  # Between 2 and 4 residents required
-        # OR
-        coverage:
-          allowed_values: [0, 2, 4]  # Only 0, 2 or 4 residents allowed
+        residents:
+          [...]
+        rotations:
+          Emergency:
+            coverage: [1, 2]  # min 1, max 2 residents per block
+            # OR, to restrict to specific values only:
+            # coverage:
+            #   allowed_values: [0, 2, 4]
+        blocks:
+          [...]
     """
 
     ALLOWED_YAML_OPTIONS = ['allowed_values', 'rmin', 'rmax']
@@ -168,12 +176,27 @@ class GroupCoverageConstraint(RotationCoverageConstraint):
     in the configuration. This allows setting minimum/maximum values for multiple
     rotations collectively.
 
-    YAML Example (in group_constraints section):
-        - kind: group_coverage_constraint
-          group: medicine  # Group name defined in rotations
-          min: 2  # Minimum residents
-          max: 4  # Maximum residents
-          blocks: [Block 1, Block 2]  # Optional: specific blocks
+    This is a group-scoped constraint defined in the top-level group_constraints
+    section, not nested under any individual rotation.
+
+    YAML Example:
+        residents:
+          [...]
+        rotations:
+          Emergency:
+            groups: hospital
+          Surgery:
+            groups: hospital
+          [...]
+        blocks:
+          [...]
+        group_constraints:
+          - kind: group_coverage_constraint
+            group: hospital         # Group name defined via `groups:` on rotations
+            min: 2                  # At least 2 residents across all hospital rotations per block
+            max: 4                  # At most 4 residents
+            # OR use allowed_coverage: [0, 2, 4] for discrete values
+            # blocks: [Block 1, Block 2]  # Optional: restrict to specific blocks
     """
 
     KEY_NAME = 'group_coverage_constraint'
@@ -230,11 +253,19 @@ class PrerequisiteRotationConstraint(Constraint):
     instances of prerequisite rotations before they can be assigned to the target rotation.
     Supports both single rotations and rotation groups as prerequisites.
 
+    This is a rotation-scoped constraint, nested directly under a rotation name.
+
     YAML Example:
-        prerequisite: [Tutorial 1, Tutorial 2]  # Must complete both before this rotation
-        # OR
-        prerequisite:
-          heavy-rc: 1  # Must complete 1 rotation from heavy-rc group
+        residents:
+          [...]
+        rotations:
+          ICU:
+            prerequisite: [Tutorial 1, Tutorial 2]  # Must complete both before ICU
+            # OR, to require a count from a rotation group:
+            # prerequisite:
+            #   heavy-rc: 1  # Must complete 1 rotation from the heavy-rc group first
+        blocks:
+          [...]
     """
 
     KEY_NAME = 'prerequisite'
@@ -338,9 +369,17 @@ class IneligibleAfterConstraint(PrerequisiteRotationConstraint):
     once a resident has completed specified rotations or reached count thresholds.
     All constraints in the ineligibility list must be met for the resident to become ineligible.
 
+    This is a rotation-scoped constraint, nested directly under a rotation name.
+
     YAML Example:
-        ineligible_after:
-          SICU-E4 CBY: 2  # Ineligible after completing 2 SICU rotations
+        residents:
+          [...]
+        rotations:
+          SICU:
+            ineligible_after:
+              SICU-E4 CBY: 2  # Ineligible for SICU after completing 2 SICU-E4 CBY rotations
+        blocks:
+          [...]
     """
 
     KEY_NAME = 'ineligible_after'
@@ -371,8 +410,18 @@ class AllowedRootsConstraint(Constraint):
     This constraint works in conjunction with ConsecutiveRotationCountConstraint to
     control where multi-block sequences may begin.
 
+    This is a rotation-scoped constraint, nested directly under a rotation name.
+    It is typically used alongside consecutive_count.
+
     YAML Example:
-        allowed_roots: [Block 1, Block 5]  # Only start sequences at blocks 1 or 5
+        residents:
+          [...]
+        rotations:
+          ICU:
+            consecutive_count: 2
+            allowed_roots: [Block 1, Block 5]  # Consecutive ICU sequences can only start at Block 1 or Block 5
+        blocks:
+          [...]
     """
     
     KEY_NAME = 'allowed_roots'
@@ -428,13 +477,21 @@ class ConsecutiveRotationCountConstraint(Constraint):
     be assigned to it for a specific number of consecutive blocks. It can also specify
     allowed or forbidden starting points (roots) for these consecutive sequences.
 
+    This is a rotation-scoped constraint, nested directly under a rotation name.
+
     YAML Example:
-        consecutive_count: 2  # Must be assigned for exactly 2 consecutive blocks
-        # OR
-        consecutive_count:
-          count: 2
-          forbidden_roots: [Block 1, Block 3]  # Can't start sequences here
-          allowed_roots: [Block 5A, Block 10A]  # Can only start sequences here
+        residents:
+          [...]
+        rotations:
+          ICU:
+            consecutive_count: 2  # Must be assigned for exactly 2 consecutive blocks
+            # OR, with explicit root restrictions:
+            # consecutive_count:
+            #   count: 2
+            #   forbidden_roots: [Block 1, Block 3]  # Can't start a sequence at these blocks
+            #   allowed_roots: [Block 5A, Block 10A]  # Can only start sequences here
+        blocks:
+          [...]
     """
 
     KEY_NAME = 'consecutive_count'
@@ -585,8 +642,17 @@ class MustBeFollowedByRotationConstraint(Constraint):
     they must be assigned to one of the specified following rotations in the next block.
     Often used to ensure appropriate transitions between heavy rotations and lighter ones.
 
+    This is a rotation-scoped constraint, nested directly under a rotation name.
+
     YAML Example:
-        must_be_followed_by: [elective, Nephrology (DOM) CBY, Neurology (DOM) CBY]
+        residents:
+          [...]
+        rotations:
+          ICU:
+            must_be_followed_by: [elective, Nephrology (DOM) CBY, Neurology (DOM) CBY]
+            # After an ICU block, the next block must be one of the listed rotations
+        blocks:
+          [...]
     """
 
     def __repr__(self):
@@ -615,13 +681,16 @@ class CoolDownConstraint(Constraint):
     This is a rotation-scoped constraint and must be nested under a specific rotation
     in the YAML config, not at the root level.
 
-    YAML Example:
-        rotations:
-          - name: ICU
-            cool_down:
-              window: 4  # Look at every 4-block window
-              count: 1   # Maximum 1 instance of this rotation in any 4-block window
-              suppress_for: ["Smith, John"]  # Optional: residents exempt from this constraint
+    residents:
+      [...]
+    rotations:
+      - name: ICU
+        cool_down:
+          window: 4  # Look at every 4-block window
+          count: 1   # Maximum 1 instance of this rotation in any 4-block window
+          suppress_for: ["Smith, John"]  # Optional: residents exempt from this constraint
+    blocks:
+      [...]
     """
 
     KEY_NAME = 'cool_down'
@@ -688,14 +757,22 @@ class RotationCountConstraint(Constraint):
     across all blocks. It can specify different limits for different residents or resident groups,
     and can be configured with minimum and maximum values.
 
+    This is a rotation-scoped constraint, nested directly under a rotation name.
+
     YAML Example:
-        rot_count: 2  # Exactly 2 instances for all residents
-        # OR
-        rot_count: [0, 2]  # Between 0 and 2 instances for all residents
-        # OR
-        rot_count:
-          CA1: [0, 1]  # CA1 residents: 0-1 instances
-          CA2: [1, 2]  # CA2 residents: 1-2 instances
+        residents:
+          [...]
+        rotations:
+          ICU:
+            rot_count: [0, 2]  # Each resident does 0–2 ICU blocks total
+            # OR, a single exact count for all residents:
+            # rot_count: 2
+            # OR, different limits per resident group:
+            # rot_count:
+            #   CA1: [0, 1]  # CA1 residents: 0–1 ICU blocks
+            #   CA2: [1, 2]  # CA2 residents: 1–2 ICU blocks
+        blocks:
+          [...]
     """
 
     KEY_NAME = 'rot_count'
@@ -812,8 +889,19 @@ class RotationCountConstraintWithHistory(RotationCountConstraint):
     from resident history when calculating rotation counts. This is useful for
     residents who have already completed parts of their training.
 
+    This is a rotation-scoped constraint, nested directly under a rotation name.
+
     YAML Example:
-        rot_count_including_history: [0, 2]  # 0-2 total including historical assignments
+        residents:
+          Smith, John:
+            history:
+              ICU: 1  # Already completed 1 ICU block before this schedule
+          [...]
+        rotations:
+          ICU:
+            rot_count_including_history: [0, 2]  # 0–2 total ICU blocks including prior history
+        blocks:
+          [...]
     """
 
     KEY_NAME = 'rot_count_including_history'
@@ -830,8 +918,18 @@ class RotationCountNotConstraint(Constraint):
     exactly a specified number of times. For example, it can be used to
     prevent exactly 1 assignment (forcing either 0 or 2+ assignments).
 
+    This is a rotation-scoped constraint, nested directly under a rotation name.
+    Note: unlike most rotation constraints, this one is handled directly in io.py
+    rather than via a KEY_NAME / from_yml_dict pattern.
+
     YAML Example:
-        not_rot_count: 1  # Cannot have exactly 1 instance, must have 0 or 2+
+        residents:
+          [...]
+        rotations:
+          ICU:
+            not_rot_count: 1  # Resident cannot do exactly 1 ICU block; must do 0 or 2+
+        blocks:
+          [...]
     """
 
     def __init__(self, rotation, ct):
@@ -852,9 +950,9 @@ class TrueSomewhereConstraint(Constraint):
     set of eligible assignments. It's often used to implement resident preferences or
     requirements (e.g., "must do at least one of these rotations").
 
-    YAML Example (in residents section):
-        true_somewhere:
-          - (Block 1 or Block 2) and medicine  # Must do medicine in block 1 or 2
+    .. deprecated::
+        Use the ``sum > 0`` selector syntax instead (io.py:193).
+        The ``true_somewhere`` YAML key is no longer supported.
     """
 
     def __init__(self, eligible_field):
@@ -900,9 +998,19 @@ class ProhibitedCombinationConstraint(Constraint):
     assignments can be made simultaneously. Useful for preventing conflicting assignments
     or enforcing "either/or" style constraints.
 
+    This is a per-resident constraint, nested under the resident name in the
+    residents section using the key `prohibit`.
+
     YAML Example:
-        prohibited_combinations:
-          - [resident1 on rotation1, resident2 on rotation2]
+        residents:
+          Smith, John:
+            prohibit:
+              - ICU and Block 1  # Smith cannot be assigned ICU in Block 1
+          [...]
+        rotations:
+          [...]
+        blocks:
+          [...]
     """
 
     KEY_NAME = 'prohibit'
@@ -946,9 +1054,21 @@ class MarkIneligibleConstraint(Constraint):
     ensuring that these assignments cannot be made. The inverse of the eligibility field
     is used to identify and prohibit ineligible assignments.
 
-    YAML Example:
-        ineligible:
-          - not surgery and Block 1  # Resident can't do surgery in Block 1
+    Note: this constraint class is not currently wired up in io.py.
+
+    This is a per-resident constraint. When active it would be nested under
+    the resident in the residents section using the key `ineligible`.
+
+    YAML Example (structure, not currently active):
+        residents:
+          Smith, John:
+            ineligible:
+              - Surgery and Block 1  # Smith cannot be assigned Surgery in Block 1
+          [...]
+        rotations:
+          [...]
+        blocks:
+          [...]
     """
 
     def __init__(self, eligible_field):
@@ -974,10 +1094,20 @@ class RotationWindowConstraint(Constraint):
     enforcing requirements that residents complete certain rotations during specific
     time periods.
 
-    YAML Example:
+    Note: this constraint class is not currently wired up in io.py.
+
+    This is a top-level config constraint, defined under the rotation_windows key.
+
+    YAML Example (structure, not currently active):
+        residents:
+          [...]
+        rotations:
+          [...]
+        blocks:
+          [...]
         rotation_windows:
           Smith, John:
-            Cardiology: [Block 1, Block 2, Block 3]  # Must do Cardiology in one of these blocks
+            Cardiology: [Block 1, Block 2, Block 3]  # Smith must do Cardiology in one of these blocks
     """
 
     def __repr__(self):
@@ -1097,11 +1227,25 @@ class GroupCountPerResidentPerWindow(Constraint):
     can be assigned to within a sliding window of blocks. Can be configured with
     different limits for different residents or resident groups.
 
-    YAML Example (in group_constraints section):
-        - kind: window_group_count_per_resident
-          group: tough  # Group name defined in rotations
-          count: [0, 2]  # Between 0 and 2 tough rotations
-          window_size: 3  # In any 3-block window
+    This is a group-scoped constraint defined in the top-level group_constraints
+    section.
+
+    YAML Example:
+        residents:
+          [...]
+        rotations:
+          ICU:
+            groups: tough
+          Surgery:
+            groups: tough
+          [...]
+        blocks:
+          [...]
+        group_constraints:
+          - kind: window_group_count_per_resident
+            group: tough        # Group name defined via `groups:` on rotations
+            count: [0, 2]       # Each resident can do at most 2 tough rotations
+            window_size: 3      # ...in any 3-block window
     """
 
     @classmethod
@@ -1176,9 +1320,19 @@ class ResidentGroupConstraint(Constraint):
     This constraint limits a rotation to only be assigned to a specified group
     of eligible residents. All other residents will be ineligible for this rotation.
 
-    YAML Example:
+    Note: this constraint class is not currently wired up in io.py.
+
+    This is a top-level config constraint, defined under the resident_groups key.
+
+    YAML Example (structure, not currently active):
+        residents:
+          [...]
+        rotations:
+          [...]
+        blocks:
+          [...]
         resident_groups:
-          Cardiology: ["Smith, John", "Jones, Mary"]  # Only these residents eligible
+          Cardiology: ["Smith, John", "Jones, Mary"]  # Only these residents are eligible for Cardiology
     """
 
     def __init__(self, rotation, eligible_residents):
@@ -1200,11 +1354,21 @@ class EligibleAfterBlockConstraint(Constraint):
     until after a specific block in the schedule. They become eligible for the rotation
     in all blocks that follow the specified block.
 
-    YAML Example:
+    Note: this constraint class is not currently wired up in io.py.
+
+    This is a top-level config constraint, defined under the eligible_after key.
+
+    YAML Example (structure, not currently active):
+        residents:
+          [...]
+        rotations:
+          [...]
+        blocks:
+          [...]
         eligible_after:
           Cardiology:
             residents: ["Smith, John", "Jones, Mary"]
-            block: Block 10  # Only eligible after Block 10
+            block: Block 10  # These residents become eligible for Cardiology only after Block 10
     """
 
     def __init__(self, rotation, resident_group, eligible_after_block):
@@ -1230,10 +1394,24 @@ class TimeToFirstConstraint(Constraint):
     from a specified group within an initial window of blocks at the beginning of
     the schedule. Used to ensure early exposure to important rotation types.
 
-    YAML Example (in group_constraints section):
-        - kind: time_to_first
-          group: medicine  # Group name defined in rotations
-          window_size: 8   # Must do at least one medicine rotation in first 8 blocks
+    This is a group-scoped constraint defined in the top-level group_constraints
+    section.
+
+    YAML Example:
+        residents:
+          [...]
+        rotations:
+          ICU:
+            groups: critical
+          Emergency:
+            groups: critical
+          [...]
+        blocks:
+          [...]
+        group_constraints:
+          - kind: time_to_first
+            group: critical     # Group name defined via `groups:` on rotations
+            window_size: 8      # Every resident must do at least one critical rotation in the first 8 blocks
     """
 
     def __init__(self, rotations_in_group, window_size):
