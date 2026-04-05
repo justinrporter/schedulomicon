@@ -17,6 +17,10 @@ Call Sequence
     with open('config.yml') as f:
         config = yaml.safe_load(f)
 
+The YAML config is the specification file for the schedule model: residents, rotations, blocks,
+vacation rules, and all constraint settings. Loading it first makes a raw dict available to
+every subsequent step.
+
 **Step 2 — Process config**
 
 .. code-block:: python
@@ -24,6 +28,10 @@ Call Sequence
     from schedulomicon import io
 
     residents, blocks, rotations, cogrids, groups_array = io.process_config(config)
+
+``io.process_config`` translates the raw config dict into the typed Python objects that the
+solver and constraint builder expect — named lists for dimensions and boolean NumPy arrays
+encoding group memberships.
 
 ``process_config`` extracts the core scheduling dimensions from the config dict:
 
@@ -38,8 +46,12 @@ Call Sequence
 
     cst_list = io.generate_constraints_from_configs(config, groups_array)
 
-Returns a ``list`` of constraint objects ready to pass to the solver. To append coverage
-constraints from a CSV file:
+This step converts every constraint entry in the config into a constraint object which will add
+low-level constraints to the OR-Tools solver. Coverage constraints that live outside the YAML
+(e.g. in a CSV) can be appended to the same list.
+
+Returns a ``list`` of constraint objects ready to pass to `solve`. To append coverage constraints
+from a CSV file:
 
 .. code-block:: python
 
@@ -52,6 +64,12 @@ constraints from a CSV file:
 
     from functools import partial
     from schedulomicon import solve, callback
+
+``solve.solve`` runs the CP-SAT solver against the constraints and (optionally) optimizes a
+score objective. The ``soln_printer`` is built with ``partial`` so the solver can instantiate
+it internally while you control which residents, blocks, and rotations it tracks.
+
+.. code-block:: python
 
     soln_printer = partial(
         callback.JugScheduleSolutionPrinter,
@@ -82,6 +100,10 @@ constraints from a CSV file:
 
     solutions = solution_printer._solutions          # list of solution dicts
     scores    = solution_printer._solution_scores   # parallel list of per-resident score DataFrames
+
+``_solutions`` is a list of assignment dicts (one per feasible solution found);
+``_solution_scores`` holds the parallel list of per-resident score DataFrames. If no
+``score_functions`` were provided, scores will be empty.
 
 Optional: Scoring / Objective
 ------------------------------
@@ -144,7 +166,7 @@ Full Example
 
     # 5. Solve
     soln_printer = partial(
-        callback.JugScheduleSolutionPrinter,
+        callback.ScheduleSolutionPrinter,
         residents=residents,
         blocks=blocks,
         rotations=rotations,
