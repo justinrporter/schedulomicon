@@ -25,8 +25,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **backup**: Optional coverage configuration (Yes/No)
 
 ## Constraints
+
+Constraints are scoped to where they appear in the YAML config. Each scope is noted below.
+
+### Rotation-scoped (nested under a rotation in the `rotations` section)
 - **RotationCoverageConstraint**: Controls resident count per rotation (min/max or allowed values)
-- **GroupCoverageConstraint**: Applies coverage constraints to rotation groups
 - **RotationCountConstraint**: Limits total instances of rotation per resident
 - **RotationCountConstraintWithHistory**: Includes historical assignments in rotation counts
 - **RotationCountNotConstraint**: Prevents exactly N instances of a rotation
@@ -36,16 +39,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **IneligibleAfterConstraint**: Makes rotations ineligible after criteria met
 - **MustBeFollowedByRotationConstraint**: Controls which rotations follow others
 - **CoolDownConstraint**: Enforces minimum gaps between rotation assignments
+
+### Per-resident (nested under a resident in the `residents` section)
 - **TrueSomewhereConstraint**: Ensures at least one assignment from eligible set
 - **ProhibitedCombinationConstraint**: Prevents certain assignment combinations
 - **MarkIneligibleConstraint**: Makes specific assignments ineligible
-- **RotationWindowConstraint**: Ensures rotation within specific block window
-- **ResidentGroupConstraint**: Restricts rotations to eligible residents
-- **EligibleAfterBlockConstraint**: Makes residents eligible only after specified block
+
+### Group/global (in the `group_constraints` section)
+- **GroupCoverageConstraint**: Applies coverage constraints to rotation groups
 - **TimeToFirstConstraint**: Ensures early assignment from rotation group
+- **GroupCountPerResidentPerWindow**: Limits group rotations in sliding window
+
+### Top-level config sections
+- **RotationWindowConstraint**: Ensures rotation within specific block window (`rotation_windows` key)
+- **ResidentGroupConstraint**: Restricts rotations to eligible residents (`resident_groups` key)
+- **EligibleAfterBlockConstraint**: Makes residents eligible only after specified block (`eligible_after` key)
+
+### Solver/CLI flags (not set in YAML)
 - **MinIndividualScoreConstraint**: Sets minimum utility score per resident
 - **MinTotalScoreConstraint**: Sets minimum utility score across all residents
-- **GroupCountPerResidentPerWindow**: Limits group rotations in sliding window
 
 This package provides constraint-based scheduling optimization primarily for medical resident rotation assignments.
 

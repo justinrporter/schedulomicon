@@ -612,11 +612,16 @@ class CoolDownConstraint(Constraint):
     Ensures that a resident cannot be assigned to a rotation more than a specified
     number of times within a sliding window of blocks.
 
+    This is a rotation-scoped constraint and must be nested under a specific rotation
+    in the YAML config, not at the root level.
+
     YAML Example:
-        cool_down:
-          window: 4  # Look at every 4-block window
-          count: 1   # Maximum 1 instance of this rotation in any 4-block window
-          suppress_for: ["Smith, John"]  # Optional: residents exempt from this constraint
+        rotations:
+          - name: ICU
+            cool_down:
+              window: 4  # Look at every 4-block window
+              count: 1   # Maximum 1 instance of this rotation in any 4-block window
+              suppress_for: ["Smith, John"]  # Optional: residents exempt from this constraint
     """
 
     KEY_NAME = 'cool_down'
