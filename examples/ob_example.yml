@@ -1,0 +1,144 @@
+# Shift-schedule Example Configuration for Schedulomicon
+#
+# This example demonstrates several advanced Schedulomicon features that the
+# simpler `example_config.yml` (which focuses on vacation pools) does not,
+# and features them in the context of constructing a shift schedule rather than
+# a rotation schedule:
+#
+#   * Per-resident `sum > 0` / `sum == 0` field-sum constraints whose selector
+#     strings use the parser DSL (boolean expressions over resident/block/
+#     rotation groups).
+#   * YAML anchors (`&`/`*`) to share a constraint expression between residents
+#     without duplicating it.
+#   * `rot_count` with distinct min/max ranges per resident group.
+#   * `must_be_followed_by` for rotation-adjacency (recovery after a night/PM
+#     shift).
+#   * Block groups (e.g. `Early Block`) referenced by parser selectors.
+#   * Senior/junior tiering via resident groups.
+#   * `group_coverage_constraint` under `group_constraints` to bound the total
+#     coverage of a rotation-group (AM team / PM team) per block.
+#
+# Scenario: a small 10-day OB anesthesia rotation with 8 residents split into
+# seniors, juniors, a CRNA junior, and two "floats" (drawn from other services).
+# The first 4 days are an "Early Block" with extra restrictions (junior residents
+# during the daytime only--something of a safety precaution), and Day 10 is an
+# "Education Day" that only the CA1 juniors attend.
+
+residents:
+  # Seniors — do the bulk of night shifts, no education-day obligation.
+  Senior A:
+    groups: [sr, no-education-day]
+  Senior B:
+    groups: [sr, no-education-day]
+  Senior C:
+    groups: [sr, no-education-day]
+
+  # Juniors (CA1) — owe exactly one Education Day, which must land on Day 10,
+  # and cannot work night shifts during the Early Block. The shared anchors
+  # below are reused by both juniors via `*NAME` aliases.
+  Junior A:
+    groups: [jr, education-day]
+    sum > 0:
+      - &CA1EducationDay Day 10 and Education Day   # must take Edu Day on Day 10
+      - &AMOnFirstDay Day 01 and AM Shift           # must start on AM Shift
+    sum == 0:
+      - &NoEducationDayButCA1EducationDay (Education Day and not Day 10)
+      - &NoEarlyNights Night Shift and Early Block  # no nights during Early Block
+  Junior B:
+    groups: [jr, education-day]
+    sum > 0:
+      - *CA1EducationDay
+      - *AMOnFirstDay
+    sum == 0:
+      - *NoEducationDayButCA1EducationDay
+      - *NoEarlyNights
+
+  # CRNA junior — starts on AM like the juniors but does not attend Education
+  # Day and does not work night shifts.
+  CRNA Junior:
+    groups: [crna-jr, no-education-day]
+    sum > 0:
+      - *AMOnFirstDay
+
+  # Floats — mostly off; never take Education Day, rarely work a shift.
+  # (`sum > 6` on Day Off means > 60% of the 10-day horizon is Day Off.)
+  Float Senior:
+    groups: [float, sr, no-education-day]
+    sum == 0:
+      - Education Day
+    sum > 6:
+      - Day Off
+  Float Junior:
+    groups: [float, jr, no-education-day]
+    sum == 0:
+      - Education Day
+    sum > 6:
+      - Day Off
+
+# Ten daily blocks. The first four are tagged as "Early Block" so selectors
+# like `Night Shift and Early Block` can reference them collectively.
+blocks:
+  Day 01:
+    groups: [Early Block]
+  Day 02:
+    groups: [Early Block]
+  Day 03:
+    groups: [Early Block]
+  Day 04:
+    groups: [Early Block]
+  Day 05: {}
+  Day 06: {}
+  Day 07: {}
+  Day 08: {}
+  Day 09: {}
+  Day 10: {}
+
+rotations:
+  AM Shift:
+    groups: [am-team]
+
+  # After a PM Shift the resident needs recovery: the next block must be a
+  # night shift, education day, or day off.
+  PM Shift:
+    groups: [pm-team]
+    must_be_followed_by: [Night Shift, Education Day, Day Off]
+
+  # Twelve-hour shift counts toward both AM and PM teams.
+  Twelve:
+    groups: [am-team, pm-team]
+    must_be_followed_by: [Night Shift, Education Day, Day Off]
+
+  # Exactly one resident on nights per day. rot_count gives a different range
+  # per resident group; when a resident belongs to multiple groups (e.g.
+  # Float Senior is both `sr` and `float`), the *later* entry wins — so
+  # floats and CRNA juniors are correctly pinned to zero nights.
+  Night Shift:
+    coverage: [1, 1]
+    must_be_followed_by: [Night Shift, Day Off]
+    rot_count:
+      sr: [2, 3]
+      jr: [1, 2]
+      crna-jr: [0, 0]
+      float: [0, 0]
+
+  # Education Day is reserved for the `education-day` group (the two CA1
+  # juniors). Combined with the juniors' `CA1EducationDay` / `NoEducationDay
+  # ButCA1EducationDay` constraints above, this pins it to Day 10.
+  Education Day:
+    rot_count:
+      education-day: [1, 1]
+      no-education-day: [0, 0]
+
+  Day Off: {}
+
+# Global coverage bounds on rotation groups: each day needs 2–4 people on the
+# AM team and 1–2 on the PM team (where `Twelve` counts toward both).
+group_constraints:
+  - kind: group_coverage_constraint
+    group: am-team
+    min: 2
+    max: 4
+  - kind: group_coverage_constraint
+    group: pm-team
+    min: 1
+    max: 2
