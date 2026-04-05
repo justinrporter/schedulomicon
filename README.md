@@ -39,10 +39,8 @@ schedulomicon \
   --objective rank_sum_objective \
   --coverage-min minimum-coverage-per-block-and-rotation.csv \
   --coverage-max maximum-coverage-per-block-and-rotation.csv \
-  --rotation-pins rotation-pin.csv \
   --rankings rankings.csv \
   --block-resident-ranking 'Vacation' vacation-prefs.csv \
-  --hint previous-results.pkl
 ```
 
 ## Configuration

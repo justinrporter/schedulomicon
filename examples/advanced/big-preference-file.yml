@@ -1,0 +1,96 @@
+residents:
+  Alice Johnson:
+    groups: [senior]
+    true_somewhere: 
+      - ICU and Block 1
+  Bob Smith:
+    groups: [senior]
+  Carol White:
+    groups: [junior]
+  David Brown:
+    groups: [junior]
+    true_somewhere:
+      - Cardiac and Block 6
+  Eve Davis:
+    groups: [junior]
+  Frank Miller:
+    groups: [junior]
+
+rotations:
+  ICU:
+    groups: [critical, tough]
+    coverage: [1, 2]
+    rot_count: [1, 3]
+    cool_down:
+      window: 3
+      count: 1
+  Thoracic:
+    groups: [OR, tough]
+    coverage: [1, 2]
+    rot_count: [1, 3]
+  Cardiac:
+    groups: [OR]
+    coverage: [0, 2]
+    rot_count: [0, 2]
+  Neuro:
+    groups: [OR, tough]
+    coverage: [1, 2]
+    rot_count: [1, 3]
+  Pain:
+    groups: [outpatient]
+    coverage: [1, 3]
+    rot_count: [1, 2]
+  Research:
+    groups: [elective]
+    coverage: [0, 2]
+    rot_count: [0, 2]
+  Vacation:
+    groups: [vacation]
+    coverage: [0, 3]
+
+blocks:
+  Block 1: {}
+  Block 2: {}
+  Block 3: {}
+  Block 4: {}
+  Block 5: {}
+  Block 6: {}
+  Block 7: {}
+  Block 8: {}
+
+vacation:
+  n_vacations_per_resident: 2
+  blocks:
+    Vacation Slot 1: {blocks: [Block 1]}
+    Vacation Slot 2: {blocks: [Block 2]}
+    Vacation Slot 3: {blocks: [Block 3]}
+    Vacation Slot 4: {blocks: [Block 4]}
+    Vacation Slot 5: {blocks: [Block 5]}
+    Vacation Slot 6: {blocks: [Block 6]}
+    Vacation Slot 7: {blocks: [Block 7]}
+    Vacation Slot 8: {blocks: [Block 8]}
+  pools:
+    critical:
+      rotations: [ICU]
+      max_vacation_per_week: 0
+    OR:
+      rotations: [Thoracic, Cardiac, Neuro]
+      max_vacation_per_week: 1
+    outpatient:
+      rotations: [Pain, Research]
+      max_vacation_per_week: 2
+      max_total_vacation: 10
+    vacation_pool:
+      rotations: [Vacation]
+      max_vacation_per_week: 6
+      max_total_vacation: 48
+
+group_constraints:
+  - kind: all_group_count_per_resident
+    group: tough
+    count: [2, 5]
+  - kind: all_group_count_per_resident
+    group: OR
+    count: [3, 7]
+
+backup: No
