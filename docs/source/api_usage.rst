@@ -105,8 +105,15 @@ it internally while you control which residents, blocks, and rotations it tracks
 ``_solution_scores`` holds the parallel list of per-resident score DataFrames. If no
 ``score_functions`` were provided, scores will be empty.
 
+.. _api-scoring:
+
 Optional: Scoring / Objective
 ------------------------------
+
+.. seealso::
+
+   :doc:`scoring` for a full explanation of how the scoring system works,
+   CLI flags for providing scores, and CSV format examples.
 
 To optimize for resident preferences, build a score dict and pass it as a ``score_functions``
 entry.

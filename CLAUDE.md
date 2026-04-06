@@ -16,6 +16,23 @@ Schedulomicon is a constraint-based scheduling optimizer for medical resident ro
 
 Note: `setup.py` pins `ortools==9.8.3296` and requires Python `>=3.6, <3.11` to match available OR-Tools wheels.
 
+## Documentation
+
+Docs are built with Sphinx (RST format, Read The Docs theme) and live in `docs/`.
+
+- Install docs dependencies: `pip install -r docs/requirements.txt`
+- Build HTML docs: `cd docs && make html` (output in `docs/build/html/`)
+- Clean: `cd docs && make clean`
+
+Source files are in `docs/source/`:
+- `index.rst` — master index / toctree
+- `api_usage.rst` — API usage guide
+- `configuration_files.rst` — YAML config documentation
+- `constraints.rst` — constraint reference
+- `schedulomicon.rst` / `modules.rst` — auto-generated API docs (autodoc from docstrings)
+
+Sphinx extensions: `autodoc`, `viewcode`, `napoleon`, `sphinx_autodoc_typehints`. Config is in `docs/source/conf.py`.
+
 ## Architecture
 
 The solving pipeline flows config → constraints → CP-SAT model → solution, split across these modules:
