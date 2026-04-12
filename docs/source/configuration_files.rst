@@ -6,7 +6,7 @@ This guide walks through creating a Schedulomicon configuration file step-by-ste
 Basic Structure
 --------------
 
-Schedulomicon configuration files use YAML format with several main sections that define your scheduling problem.
+Schedulomicon configuration files use YAML format with several main sections that define your scheduling problem. If you are unfamiliar with YAML, see `the official YAML specification <https://yaml.org/spec/1.2/spec.html>`_ or a `quick-start guide <https://learnxinyminutes.com/docs/yaml/>`_.
 
 Step 1: Defining Basic Elements
 ------------------------------
@@ -16,6 +16,8 @@ Let's start with the three fundamental components of any schedule:
 1. **Residents** - The people being scheduled
 2. **Rotations** - The assignments they can receive
 3. **Blocks** - The time periods for scheduling
+
+Each name is an arbitrary string — the YAML dictionary key for that entity. You can use any names meaningful to your program (e.g., ``"Dr. Smith"``, ``"Block 3"``, ``"Trauma Surgery"``).
 
 Here's a minimal configuration with just these elements:
 
@@ -62,10 +64,21 @@ The next step is to add requirements for how many residents each rotation needs:
         coverage: [1, 2]
 
 The ``coverage`` property takes a list of ``[min, max]`` values:
+
 - The first number is the minimum required residents
 - The second number is the maximum allowed residents
 
 For example, ``[1, 1]`` means exactly one resident must be assigned, while ``[1, 2]`` allows one or two residents.
+
+If coverage requirements vary by block, each value can instead be a list of integers with one entry per block (in block order):
+
+.. code-block:: yaml
+
+    rotations:
+      Emergency:
+        coverage: [[1, 1, 0, 1], [2, 2, 1, 2]]  # per-block [min...] and [max...]
+
+Here the first list sets the minimum per block and the second sets the maximum per block.
 
 Step 3: Organizing Rotations with Groups
 ---------------------------------------
@@ -110,6 +123,7 @@ Next, let's add vacation rules to allow time off:
         Week 4: {blocks: [Winter]}
 
 This defines:
+
 - How many vacations each resident is allowed
 - When vacations can be taken (tied to specific blocks)
 
