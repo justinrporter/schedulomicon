@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 
 from . import csts, parser, cogrid_csts, util, exceptions
+from .util import _normalize_groups
 
 
 def deduplicate_ordered(seq):
@@ -111,18 +112,18 @@ def get_group_array(group, config, group_type):
     if group_type == 'residents':
         for res, params in config['residents'].items():
             if not params: continue
-            if group in params.get('groups', []):
+            if group in _normalize_groups(params.get('groups')):
                 group_array[residents.index(res)] = True
     elif group_type == 'blocks':
         for block, params in config['blocks'].items():
             if not params: continue
-            if group in params.get('groups', []):
+            if group in _normalize_groups(params.get('groups')):
                 for i, res in enumerate(group_array):
                     group_array[i][blocks.index(block)] = True
     elif group_type == 'rotations':
         for rotation, params in config['rotations'].items():
             if not params: continue
-            if group in params.get('groups', []):
+            if group in _normalize_groups(params.get('groups')):
                 for i, res in enumerate(group_array):
                     for j, block in enumerate(group_array[i]):
                         group_array[i][j][rotations.index(rotation)] = True
@@ -158,7 +159,7 @@ def process_config(config):
     for config_type in ['residents', 'blocks', 'rotations']:
         for item, params in config[config_type].items():
             if not params: continue
-            groups[config_type].extend(params.get('groups', []))
+            groups[config_type].extend(_normalize_groups(params.get('groups')))
         groups[config_type] = list(set(groups[config_type]))
 
     groups_array = {}
@@ -283,7 +284,7 @@ def generate_backup_constraints(
     backup_eligible = {}
     for rotation, rot_params in config['rotations'].items():
         if rot_params:
-            backup_eligible[rotation] = backup_group_name in rot_params.get('groups', {})
+            backup_eligible[rotation] = backup_group_name in _normalize_groups(rot_params.get('groups'))
 
     if backup_eligible and backup_is_active(config):
         constraints.append(

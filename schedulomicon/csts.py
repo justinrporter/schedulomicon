@@ -184,9 +184,9 @@ class GroupCoverageConstraint(RotationCoverageConstraint):
           [...]
         rotations:
           Emergency:
-            groups: hospital
+            groups: [hospital]
           Surgery:
-            groups: hospital
+            groups: [hospital]
           [...]
         blocks:
           [...]
@@ -1235,9 +1235,9 @@ class GroupCountPerResidentPerWindow(Constraint):
           [...]
         rotations:
           ICU:
-            groups: tough
+            groups: [tough]
           Surgery:
-            groups: tough
+            groups: [tough]
           [...]
         blocks:
           [...]
@@ -1402,9 +1402,9 @@ class TimeToFirstConstraint(Constraint):
           [...]
         rotations:
           ICU:
-            groups: critical
+            groups: [critical]
           Emergency:
-            groups: critical
+            groups: [critical]
           [...]
         blocks:
           [...]

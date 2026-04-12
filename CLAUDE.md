@@ -8,11 +8,12 @@ Schedulomicon is a constraint-based scheduling optimizer for medical resident ro
 
 ## Commands
 
+- Python environment: `pyenv local schedulomicon` (virtualenv named `schedulomicon`)
 - Install (editable): `pip install -e .`
 - Run solver (CLI entry point from `setup.py`): `schedulomicon --config config.yml --results results.csv`
   - Equivalent to `python -m schedulomicon.solver ...`
-- Run all tests: `pytest schedulomicon/test_*.py`
-- Run a single test: `pytest schedulomicon/test_solve.py::test_small_puzzle`
+- Run all tests: `pyenv exec pytest schedulomicon/test_*.py`
+- Run a single test: `pyenv exec pytest schedulomicon/test_solve.py::test_small_puzzle`
 
 Note: `setup.py` pins `ortools==9.8.3296` and requires Python `>=3.6, <3.11` to match available OR-Tools wheels.
 

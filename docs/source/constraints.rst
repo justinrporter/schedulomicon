@@ -374,7 +374,7 @@ Complex scheduling rules often require combining multiple constraints. For examp
     rotations:
       Surgery:
         rot_count: [4, 4]  # exactly 4 blocks required
-        groups: surgery
+        groups: [surgery]
 
     group_constraints:
       - kind: time_to_first

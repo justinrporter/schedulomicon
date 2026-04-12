@@ -89,22 +89,22 @@ Rotations can be organized into groups, which will be useful for constraints lat
 
     rotations:
       Emergency:
-        groups: hospital
+        groups: [hospital]
         coverage: [1, 2]
       Surgery:
-        groups: hospital
+        groups: [hospital]
         coverage: [1, 1]
       ICU:
-        groups: critical
+        groups: [critical]
         coverage: [1, 1]
       Clinic:
-        groups: outpatient
+        groups: [outpatient]
         coverage: [1, 2]
       Research:
-        groups: elective
+        groups: [elective]
         coverage: [0, 1]  # optional rotation
 
-The ``groups`` property assigns each rotation to a category. Rotations can share groups (like Emergency and Surgery both being "hospital" rotations).
+The ``groups`` property assigns each rotation to a category. Rotations can share groups (like Emergency and Surgery both being "hospital" rotations). ``groups`` accepts a list of strings. A bare scalar string is also accepted (treated as a single-element list), but the list form is preferred for clarity.
 
 Step 4: Adding Vacation Rules
 ---------------------------
@@ -198,19 +198,19 @@ Putting it all together, here's a complete configuration:
     # Define rotations with their properties
     rotations:
       Emergency:
-        groups: hospital
+        groups: [hospital]
         coverage: [1, 2]
       Surgery:
-        groups: hospital
+        groups: [hospital]
         coverage: [1, 1]
       ICU:
-        groups: critical
+        groups: [critical]
         coverage: [1, 1]
       Clinic:
-        groups: outpatient
+        groups: [outpatient]
         coverage: [1, 2]
       Research:
-        groups: elective
+        groups: [elective]
         coverage: [0, 1]
 
     # Define time blocks

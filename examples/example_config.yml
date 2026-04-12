@@ -11,19 +11,19 @@ residents:
 # Define rotations with their properties
 rotations:
   Emergency:
-    groups: hospital
+    groups: [hospital]
     coverage: [1, 2]  # min 1, max 2 residents per block
   Surgery:
-    groups: hospital
+    groups: [hospital]
     coverage: [1, 1]  # exactly 1 resident per block
   ICU:
-    groups: critical
+    groups: [critical]
     coverage: [1, 1]
   Clinic:
-    groups: outpatient
+    groups: [outpatient]
     coverage: [1, 2]
   Research:
-    groups: elective
+    groups: [elective]
     coverage: [0, 1]  # optional rotation
 
 # Define time blocks (seasons in this example)
