@@ -179,7 +179,11 @@ class GroupCoverageConstraint(RotationCoverageConstraint):
     This is a group-scoped constraint defined in the top-level group_constraints
     section, not nested under any individual rotation.
 
-    YAML Example:
+    Example
+    -------
+
+    .. code-block:: yaml
+
         residents:
           [...]
         rotations:
@@ -681,16 +685,21 @@ class CoolDownConstraint(Constraint):
     This is a rotation-scoped constraint and must be nested under a specific rotation
     in the YAML config, not at the root level.
 
-    residents:
-      [...]
-    rotations:
-      - name: ICU
-        cool_down:
-          window: 4  # Look at every 4-block window
-          count: 1   # Maximum 1 instance of this rotation in any 4-block window
-          suppress_for: ["Smith, John"]  # Optional: residents exempt from this constraint
-    blocks:
-      [...]
+    Example
+    -------
+
+    .. code-block:: yaml
+
+        residents:
+          [...]
+        rotations:
+          - name: ICU
+            cool_down:
+              window: 4  # Look at every 4-block window
+              count: 1   # Maximum 1 instance of this rotation in any 4-block window
+              suppress_for: ["Smith, John"]  # Optional: residents exempt from this constraint
+        blocks:
+          [...]
     """
 
     KEY_NAME = 'cool_down'
@@ -891,7 +900,11 @@ class RotationCountConstraintWithHistory(RotationCountConstraint):
 
     This is a rotation-scoped constraint, nested directly under a rotation name.
 
-    YAML Example:
+    Example
+    -------
+
+    .. code-block:: yaml
+
         residents:
           Smith, John:
             history:
@@ -1001,7 +1014,11 @@ class ProhibitedCombinationConstraint(Constraint):
     This is a per-resident constraint, nested under the resident name in the
     residents section using the key `prohibit`.
 
-    YAML Example:
+    Example
+    -------
+
+    .. code-block:: yaml
+
         residents:
           Smith, John:
             prohibit:
@@ -1059,7 +1076,11 @@ class MarkIneligibleConstraint(Constraint):
     This is a per-resident constraint. When active it would be nested under
     the resident in the residents section using the key `ineligible`.
 
-    YAML Example (structure, not currently active):
+    Example (structure only; not currently active)
+    ----------------------------------------------
+
+    .. code-block:: yaml
+
         residents:
           Smith, John:
             ineligible:
@@ -1230,7 +1251,11 @@ class GroupCountPerResidentPerWindow(Constraint):
     This is a group-scoped constraint defined in the top-level group_constraints
     section.
 
-    YAML Example:
+    Example
+    -------
+
+    .. code-block:: yaml
+
         residents:
           [...]
         rotations:
@@ -1397,7 +1422,11 @@ class TimeToFirstConstraint(Constraint):
     This is a group-scoped constraint defined in the top-level group_constraints
     section.
 
-    YAML Example:
+    Example
+    -------
+
+    .. code-block:: yaml
+
         residents:
           [...]
         rotations:

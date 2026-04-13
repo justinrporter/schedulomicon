@@ -19,6 +19,7 @@ a more advanced shift-schedule scenario (``ob_example.yml``).
    constraints
    scoring
    api_usage
+   API Reference <schedulomicon>
 
 
 

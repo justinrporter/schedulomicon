@@ -4,11 +4,10 @@ def aggregate_score_functions(variables, grid_and_functions):
 
     Args:
         variables (dict): A dictionary mapping grid names to variable dictionaries.
-                         Each variable dictionary maps assignment tuples to CP-SAT variables.
-        grid_and_functions (list): A list of tuples (grid_name, function), where:
-                                  - grid_name (str): The name of the variable grid to score
-                                  - function (callable): A scoring function that takes a variable
-                                    dictionary and returns a numeric score
+            Each variable dictionary maps assignment tuples to CP-SAT variables.
+        grid_and_functions (list): A sequence of ``(grid_name, function)`` tuples.
+            ``grid_name`` is the name of the variable grid to score.
+            ``function`` takes that variable dictionary and returns a numeric score.
 
     Returns:
         int: The sum of all scoring functions applied to their respective grids
