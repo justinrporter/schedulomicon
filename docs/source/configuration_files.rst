@@ -1,15 +1,15 @@
 Configuration Files
-==================
+===================
 
 This guide walks through creating a Schedulomicon configuration file step-by-step, building from basic elements to a complete scheduling solution.
 
 Basic Structure
---------------
+---------------
 
 Schedulomicon configuration files use YAML format with several main sections that define your scheduling problem. If you are unfamiliar with YAML, see `the official YAML specification <https://yaml.org/spec/1.2/spec.html>`_ or a `quick-start guide <https://learnxinyminutes.com/docs/yaml/>`_.
 
 Step 1: Defining Basic Elements
-------------------------------
+--------------------------------
 
 Let's start with the three fundamental components of any schedule:
 
@@ -47,7 +47,7 @@ Here's a minimal configuration with just these elements:
 This defines four residents, four rotations, and four time blocks, but without any constraints or requirements.
 
 Step 2: Adding Rotation Coverage Requirements
---------------------------------------------
+----------------------------------------------
 
 The next step is to add requirements for how many residents each rotation needs:
 
@@ -80,12 +80,28 @@ If coverage requirements vary by block, each value can instead be a list of inte
 
 Here the first list sets the minimum per block and the second sets the maximum per block.
 
-Step 3: Organizing Rotations with Groups
----------------------------------------
+Step 3: Organizing with Groups
+------------------------------
 
-Rotations can be organized into groups, which will be useful for constraints later:
+``groups:`` creates reusable selectors.
+
+Use them anywhere you need the same label more than once.
+
+Groups can be attached to residents, blocks, or rotations:
 
 .. code-block:: yaml
+
+    residents:
+      Resident A:
+        groups: [junior]
+      Resident B:
+        groups: [senior]
+
+    blocks:
+      Spring:
+        groups: [early]
+      Summer:
+        groups: [late]
 
     rotations:
       Emergency:
@@ -104,10 +120,18 @@ Rotations can be organized into groups, which will be useful for constraints lat
         groups: [elective]
         coverage: [0, 1]  # optional rotation
 
-The ``groups`` property assigns each rotation to a category. Rotations can share groups (like Emergency and Surgery both being "hospital" rotations). ``groups`` accepts a list of strings. A bare scalar string is also accepted (treated as a single-element list), but the list form is preferred for clarity.
+Groups are labels. They do nothing by themselves.
+
+They matter when you build selections such as ``junior and early and hospital``.
+
+Plain English: junior residents on hospital rotations during early blocks.
+
+``groups`` accepts a list of strings. A bare scalar string is also accepted, but the list form is clearer.
+
+See :doc:`selections` for the selector language, field-sum syntax, and composition rules.
 
 Step 4: Adding Vacation Rules
----------------------------
+-----------------------------
 
 Next, let's add vacation rules to allow time off:
 
@@ -128,7 +152,7 @@ This defines:
 - When vacations can be taken (tied to specific blocks)
 
 Step 5: Vacation Restrictions by Rotation Group
----------------------------------------------
+-----------------------------------------------
 
 We can add more complex vacation rules based on rotation groups:
 
@@ -170,7 +194,7 @@ Note how critical rotations (ICU) are set to allow zero vacations, while hospita
    (``max_vacation_per_week`` may be omitted).
 
 Step 6: Adding Backup Coverage (Optional)
----------------------------------------
+-----------------------------------------
 
 Finally, we can specify whether backup coverage is required:
 
@@ -182,7 +206,7 @@ Finally, we can specify whether backup coverage is required:
 Setting ``backup: Yes`` would enable backup coverage constraints if your scheduling needs require it.
 
 Complete Example
---------------
+----------------
 
 Putting it all together, here's a complete configuration:
 
@@ -247,13 +271,14 @@ Putting it all together, here's a complete configuration:
     backup: No
 
 Advanced Features
----------------
+-----------------
 
 For more complex scheduling needs, the system supports additional constraints like:
 
 - Resident-specific rotation requirements
+- Field-sum constraints built from composed group selections
 - Consecutive rotation limits
 - Cooldown periods between rotations
 - Weighted rotation preferences
 
-These advanced features will be covered in separate documentation.
+See :doc:`constraints` for the constraint reference and :doc:`selections` for how selector-based constraints work.

@@ -40,6 +40,8 @@ encoding group memberships.
 - ``groups_array``: dict mapping group/resident/block/rotation names to 3-D boolean NumPy
   arrays of shape ``(n_residents, n_blocks, n_rotations)``
 
+``groups_array`` is the implementation form of the selections described in :doc:`selections`.
+
 **Step 3 — Build constraint list**
 
 .. code-block:: python

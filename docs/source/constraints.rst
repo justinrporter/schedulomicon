@@ -147,13 +147,20 @@ These constraints are written as keys nested under a resident name in the ``resi
 Field-Sum Constraints
 ~~~~~~~~~~~~~~~~~~~~~
 
-Field-sum constraints let you enforce lower or upper bounds on how many times a selector expression is true for a given resident. The selector is a boolean expression over resident, block, and rotation groups (parsed by the same DSL used elsewhere in the config).
+Field-sum constraints count assigned cells in a selection, then compare that count to a rule.
+
+Under a resident, the resident is already fixed.
+
+See :doc:`selections` for the selector language, scope rules, and worked examples.
 
 Supported operators:
 
-- ``sum > N`` — at least N+1 matching assignments (strictly greater than N)
-- ``sum == N`` — exactly N matching assignments
-- ``sum <= N`` — at most N matching assignments
+- ``sum == N`` — exactly ``N`` matching assignments
+- ``sum != N`` — any count except ``N``
+- ``sum > N`` — more than ``N``
+- ``sum >= N`` — at least ``N``
+- ``sum < N`` — fewer than ``N``
+- ``sum <= N`` — at most ``N``
 
 Each key maps to a list of selector strings; every string in the list generates its own constraint.
 
@@ -162,17 +169,24 @@ Each key maps to a list of selector strings; every string in the list generates 
     residents:
       Junior A:
         sum > 0:
-          - Day 10 and Education Day   # must have at least 1 Education Day on Day 10
-          - Day 01 and AM Shift        # must start on AM Shift
+          - Day 10 and Education Day
+          - Day 01 and AM Shift
         sum == 0:
-          - Education Day and not Day 10   # no Education Day except on Day 10
-          - Night Shift and Early Block    # no night shifts during the Early Block
+          - Education Day and not Day 10
+          - Night Shift and Early Block
 
       Float Senior:
         sum == 0:
-          - Education Day              # floats never take Education Day
+          - Education Day
         sum > 6:
-          - Day Off                    # floats are off for more than 6 out of 10 days
+          - Day Off
+
+Plain English:
+
+- ``Day 10 and Education Day`` means at least one Education Day on Day 10.
+- ``Education Day and not Day 10`` means no Education Day anywhere else.
+- ``Night Shift and Early Block`` means no early-block night shifts.
+- ``sum > 6`` on ``Day Off`` means more than six Day Off assignments.
 
 YAML anchors (``&name`` / ``*name``) are useful for sharing an expression across multiple residents without duplication:
 
@@ -191,6 +205,8 @@ ProhibitedCombinationConstraint
 
 Prevents certain assignment combinations.
 
+``prohibit`` uses the same selector language described in :doc:`selections`.
+
 .. code-block:: yaml
 
     residents:
@@ -202,7 +218,7 @@ Prevents certain assignment combinations.
           - Block 3 and ICU
           - Block 4 and ICU
 
-The ``prohibit`` property takes a list of assignments that should not be assigned to the resident. This can be specific rotations or combinations of blocks and rotations.
+The ``prohibit`` property takes a list of selector strings. Each one forbids the selected cells for that resident.
 
 TrueSomewhereConstraint
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -237,7 +253,18 @@ These constraints are written as keys nested under a block name in the ``blocks:
 Field-Sum Constraints
 ~~~~~~~~~~~~~~~~~~~~~
 
-Supported operators are the same as for resident constraints (``sum > N``, ``sum == N``, ``sum <= N``). This is useful for capping the total number of residents in a particular rotation group during a specific block, or for enforcing minimum staffing on certain days.
+Under a block, the block is already fixed.
+
+Supported operators are the same as for resident constraints:
+
+- ``sum == N``
+- ``sum != N``
+- ``sum > N``
+- ``sum >= N``
+- ``sum < N``
+- ``sum <= N``
+
+This is useful for capping the total number of residents in a rotation group during a specific block, or for enforcing minimum staffing on a named day.
 
 .. code-block:: yaml
 
@@ -255,7 +282,9 @@ Supported operators are the same as for resident constraints (``sum > N``, ``sum
         sum <= 3:
           - icu            # at most 3 residents in the icu group during ICU Week
 
-The selector strings follow the same boolean-expression DSL as resident field-sum constraints. Because the constraint is already scoped to the block, you typically only need rotation or resident group names in the selector.
+Because the constraint is already scoped to the block, you usually only need resident or rotation selectors inside the expression.
+
+See :doc:`selections` for the selector rules.
 
 Global / Group Constraints
 --------------------------

@@ -5,3 +5,5 @@ __pycache__
 .vscode/*
 .DS_Store
 *.jugdata
+.python-version
+*.egg-info/

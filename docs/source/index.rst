@@ -16,6 +16,7 @@ a more advanced shift-schedule scenario (``ob_example.yml``).
    :caption: Contents:
 
    configuration_files
+   selections
    constraints
    scoring
    api_usage
