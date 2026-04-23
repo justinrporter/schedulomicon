@@ -124,6 +124,19 @@ Controls which rotations must follow others.
 
 The ``must_be_followed_by`` property takes a list of rotations or rotation groups. The constraint ensures that after the specified rotation, the resident is assigned to one of the listed options.
 
+MustBePrecededByRotationConstraint
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Controls which rotations must immediately precede others.
+
+.. code-block:: yaml
+
+    rotations:
+      ICU:
+        must_be_preceded_by: [Orientation, ICU Prep]
+
+The ``must_be_preceded_by`` property takes a list of rotations or rotation groups. The constraint ensures that before the specified rotation is assigned, the resident must have been assigned to one of the listed options in the immediately preceding block.
+
 ConsecutiveRotationCountConstraint
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

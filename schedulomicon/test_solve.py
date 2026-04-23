@@ -320,3 +320,63 @@ def test_consecutive_rotation_constraint():
                               ('Ro2', 'Ro1', 'Ro2')]
     assert tuple(soln.R2) in [('Ro1', 'Ro2', 'Ro2'),
                               ('Ro2', 'Ro1', 'Ro2')]
+
+
+def test_must_be_preceded_by_feasible():
+    """Target in block 2 requires Prep in block 1 immediately before it."""
+    residents = ['R1']
+    rotations = ['Prep', 'Target', 'Other']
+    blocks = ['Bl1', 'Bl2', 'Bl3']
+
+    status, solver, solution_printer, model, wall_runtime = solve.solve(
+        residents=residents,
+        blocks=blocks,
+        rotations=rotations,
+        groups_array=[],
+        cst_list=[
+            csts.MustBePrecededByRotationConstraint('Target', ['Prep']),
+            csts.RotationCoverageConstraint('Target', rmin=1, rmax=1, blocks=['Bl2']),
+            csts.RotationCoverageConstraint('Prep', rmin=0, rmax=1),
+            csts.RotationCoverageConstraint('Other', rmin=0, rmax=3),
+        ],
+        soln_printer=SolnPrinterTest,
+        score_functions=[],
+        n_processes=1,
+        cogrids={'backup': {'coverage': 0}},
+        max_time_in_mins=1,
+        hint=None
+    )
+
+    assert len(solution_printer.solutions)
+    soln = solution_printer.solutions[-1]
+    schedule = tuple(soln.R1)
+    assert schedule[1] == 'Target'
+    assert schedule[0] == 'Prep'
+
+
+def test_must_be_preceded_by_infeasible():
+    """Target in block 1 (first block, no predecessor) must be INFEASIBLE."""
+    residents = ['R1']
+    rotations = ['Prep', 'Target', 'Other']
+    blocks = ['Bl1', 'Bl2', 'Bl3']
+
+    status, solver, solution_printer, model, wall_runtime = solve.solve(
+        residents=residents,
+        blocks=blocks,
+        rotations=rotations,
+        groups_array=[],
+        cst_list=[
+            csts.MustBePrecededByRotationConstraint('Target', ['Prep']),
+            csts.RotationCoverageConstraint('Target', rmin=1, rmax=1, blocks=['Bl1']),
+            csts.RotationCoverageConstraint('Prep', rmin=0, rmax=1),
+            csts.RotationCoverageConstraint('Other', rmin=0, rmax=3),
+        ],
+        soln_printer=SolnPrinterTest,
+        score_functions=[],
+        n_processes=1,
+        cogrids={'backup': {'coverage': 0}},
+        max_time_in_mins=1,
+        hint=None
+    )
+
+    assert status == 'INFEASIBLE'

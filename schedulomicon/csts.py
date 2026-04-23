@@ -676,6 +676,33 @@ class MustBeFollowedByRotationConstraint(Constraint):
         )
 
 
+class MustBePrecededByRotationConstraint(Constraint):
+    """Requires that a rotation must be immediately preceded by specified rotations.
+
+    This is a rotation-scoped constraint, nested directly under a rotation name.
+
+    YAML Example:
+        rotations:
+          ICU:
+            must_be_preceded_by: [Orientation, ICU Prep]
+    """
+
+    def __repr__(self):
+        return "RotationMustBePrecededByConstraint(%s,%s)" % (
+            self.rotation, self.preceding_rotations)
+
+    def __init__(self, rotation, preceding_rotations):
+        self.rotation = rotation
+        self.preceding_rotations = preceding_rotations
+
+    def apply(self, model, block_assigned, residents, blocks, rotations, grids):
+        add_must_be_preceded_by_constraint(
+            model, block_assigned, residents, blocks,
+            rotation=self.rotation,
+            preceding_rotations=self.preceding_rotations
+        )
+
+
 class CoolDownConstraint(Constraint):
     """Prevents residents from being assigned to a rotation too soon again.
 
@@ -1491,6 +1518,23 @@ def add_must_be_followed_by_constraint(model, block_assigned, residents, blocks,
             model.Add(
                 n_electives > 0
             ).OnlyEnforceIf(a)
+
+
+def add_must_be_preceded_by_constraint(model, block_assigned, residents, blocks,
+                                        rotation, preceding_rotations):
+    # No valid predecessor exists for the first block, so the rotation is forbidden there.
+    for resident in residents:
+        model.Add(block_assigned[(resident, blocks[0], rotation)] == 0)
+
+    for a_block, b_block in zip(blocks[0:-1], blocks[1:]):
+        for resident in residents:
+            b = block_assigned[(resident, b_block, rotation)]
+
+            n_preceding = 0
+            for p in preceding_rotations:
+                n_preceding += block_assigned[(resident, a_block, p)]
+
+            model.Add(n_preceding > 0).OnlyEnforceIf(b)
 
 
 def add_window_count_constraint(model, block_assigned, residents, blocks,

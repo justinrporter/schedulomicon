@@ -434,6 +434,19 @@ def generate_rotation_constraints(config, groups_array):
                 rotation=rotation, following_rotations=following_rotations
             ))
 
+        if 'must_be_preceded_by' in params:
+            preceding_rotations = []
+            for key in params['must_be_preceded_by']:
+                if key in config['rotations']:
+                    preceding_rotations.append(key)
+                else:
+                    preceding_rotations.extend(
+                        util.resolve_group(key, config['rotations']))
+
+            constraints.append(csts.MustBePrecededByRotationConstraint(
+                rotation=rotation, preceding_rotations=preceding_rotations
+            ))
+
         if params.get('always_paired', False):
             constraints.append(csts.ConsecutiveRotationCountConstraint(rotation, count=2))
 
