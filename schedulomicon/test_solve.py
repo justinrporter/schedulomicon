@@ -380,3 +380,37 @@ def test_must_be_preceded_by_infeasible():
     )
 
     assert status == 'INFEASIBLE'
+
+
+def test_consecutive_rotation_constraint_with_allowed_roots():
+    residents = ['R1']
+    blocks = [f'Bl{i+1}' for i in range(6)]
+    rotations = ['Ro1', 'Ro2']
+
+    status, solver, solution_printer, model, wall_runtime = solve.solve(
+        residents=residents,
+        blocks=blocks,
+        rotations=rotations,
+        groups_array=[],
+        cst_list=[
+            csts.RotationCountConstraint('Ro1', {'R1': (2, 2)}),
+            csts.RotationCoverageConstraint('Ro1', rmin=0, rmax=1),
+            csts.ConsecutiveRotationCountConstraint(
+                'Ro1', count=2, allowed_roots=['Bl1', 'Bl3', 'Bl5']
+            ),
+        ],
+        soln_printer=SolnPrinterTest,
+        score_functions=[],
+        n_processes=1,
+        cogrids={},
+        max_time_in_mins=5,
+        hint=None,
+    )
+
+    assert len(solution_printer.solutions)
+    soln = solution_printer.solutions[-1]
+    ro1 = tuple(soln.R1)
+    for i, rot in enumerate(ro1):
+        if rot == 'Ro1' and (i == 0 or ro1[i-1] != 'Ro1'):
+            assert blocks[i] in ('Bl1', 'Bl3', 'Bl5'), \
+                f"Ro1 sequence started at {blocks[i]}, not an allowed root"

@@ -434,17 +434,14 @@ class AllowedRootsConstraint(Constraint):
     def from_yml_dict(cls, rotation, params, config):
 
         assert cls.KEY_NAME in params, f"{cls.KEY_NAME} not in {params}"
-        # cls._check_yaml_params(rotation, params[cls.KEY_NAME])
 
-        if hasattr(params['allowed_roots']):
+        allowed_roots = []
 
-            allowed_roots = []
-
-            for root in params['allowed_roots']:
-                if root in config['blocks']:
-                    allowed_roots.append(root)
-                else:
-                    allowed_roots.extend(resolve_group(root, config['blocks']))
+        for root in params['allowed_roots']:
+            if root in config['blocks']:
+                allowed_roots.append(root)
+            else:
+                allowed_roots.extend(resolve_group(root, config['blocks']))
 
         return cls(
             rotation=rotation,
@@ -465,14 +462,16 @@ class AllowedRootsConstraint(Constraint):
                 )
 
         for res in residents:
-            # scan through all blocks
             for i in range(len(blocks)):
-                is_root = model.NewBoolVar(
-                    f'{blocks[i]}_root_of_consec_{self.rotation}_{res}')
+                if blocks[i] not in self.allowed_roots:
+                    if i == 0:
+                        model.Add(block_assigned[(res, blocks[0], self.rotation)] == 0)
+                    else:
+                        model.AddBoolOr([
+                            block_assigned[(res, blocks[i-1], self.rotation)],
+                            block_assigned[(res, blocks[i], self.rotation)].Not(),
+                        ])
 
-                if blocks[i] in self.allowed_roots:
-                    model.Add(is_root == 1)
-                else: model.Add(is_root == 0)
 
 class ConsecutiveRotationCountConstraint(Constraint):
     """Enforces that a rotation must occur in consecutive blocks of a specified length.
@@ -588,10 +587,8 @@ class ConsecutiveRotationCountConstraint(Constraint):
 
                 if blocks[i] in self.forbidden_roots:
                     model.Add(is_root == False)
-
-                if self.allowed_roots is not False:
-                    if blocks[i] not in self.forbidden_roots and blocks[i] in self.allowed_roots:
-                        model.Add(is_root == True)
+                elif self.allowed_roots and blocks[i] not in self.allowed_roots:
+                    model.Add(is_root == False)
 
                 if i == 0:
                     model.Add(

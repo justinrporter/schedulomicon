@@ -231,6 +231,18 @@ def test_ineligible_before_cst():
 #  longer tests in test_solve.  residents, blocks, rotations, cogrids_avail, groups_array = io.process_config(config)
 
 
+def test_allowed_roots_yaml_parsing():
+    config = {
+        'blocks': {'Bl1': {}, 'Bl2': {}, 'Bl3': {}},
+        'rotations': {
+            'ICU': {'allowed_roots': ['Bl1', 'Bl3']},
+        },
+    }
+    constraints = io.generate_rotation_constraints(config, [])
+    assert constraints[0].rotation == 'ICU'
+    assert tuple(constraints[0].allowed_roots) == ('Bl1', 'Bl3')
+
+
 def test_prohibit_wired_up():
     config = {
         'residents': {
