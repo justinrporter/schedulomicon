@@ -24,9 +24,28 @@ Controls how many residents can be assigned to a rotation in each block.
         coverage:
           allowed_values: [0, 2]  # only 0 or 2 residents allowed (not 1)
 
+If coverage requirements vary by block, pass two parallel lists — one for minimums,
+one for maximums — with one entry per block in the order blocks are declared in the config:
+
+.. code-block:: yaml
+
+    rotations:
+      ICU:
+        coverage:
+          - [2, 1, 1, 2, 1, 1, 1, 0, 1, 1, 1, 1, 0]  # min per block (blocks 1–13)
+          - [2, 1, 1, 2, 1, 1, 1, 0, 1, 1, 1, 1, 0]  # max per block
+
+The two inner lists must have the same length as the total number of blocks.
+
+.. seealso::
+
+   :ref:`cli-coverage-csv` apply per-block coverage from a CSV file maintained
+   outside the YAML (e.g., a department-supplied staffing grid).
+
 The ``coverage`` property can be specified as:
 
-- A list ``[min, max]`` defining minimum and maximum residents
+- A list ``[min, max]`` defining minimum and maximum residents per block (uniform across all blocks)
+- A nested list ``[[min_b1, min_b2, ...], [max_b1, max_b2, ...]]`` for per-block limits
 - An ``allowed_values`` list specifying exactly which values are permitted
 
 RotationCountConstraint
