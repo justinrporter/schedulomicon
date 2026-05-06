@@ -414,3 +414,40 @@ def test_consecutive_rotation_constraint_with_allowed_roots():
         if rot == 'Ro1' and (i == 0 or ro1[i-1] != 'Ro1'):
             assert blocks[i] in ('Bl1', 'Bl3', 'Bl5'), \
                 f"Ro1 sequence started at {blocks[i]}, not an allowed root"
+
+
+def test_max_active_blocks_constraint():
+    # 3 residents over 4 blocks; Ro1 is attractive enough that without a cap
+    # it would appear in all 4 blocks. With max_active_blocks=2 it must be
+    # active in at most 2 blocks.
+    residents = ['R1', 'R2', 'R3']
+    blocks = [f'Bl{i+1}' for i in range(4)]
+    rotations = ['Ro1', 'Ro2']
+
+    status, solver, solution_printer, model, wall_runtime = solve.solve(
+        residents=residents,
+        blocks=blocks,
+        rotations=rotations,
+        groups_array=[],
+        cst_list=[
+            csts.RotationCoverageConstraint('Ro1', rmin=0, rmax=3),
+            csts.RotationCoverageConstraint('Ro2', rmin=0, rmax=3),
+            csts.MaxActiveBlocksConstraint('Ro1', max_blocks=2),
+        ],
+        soln_printer=SolnPrinterTest,
+        score_functions=[],
+        n_processes=1,
+        cogrids={},
+        max_time_in_mins=5,
+        hint=None,
+    )
+
+    assert len(solution_printer.solutions)
+    soln = solution_printer.solutions[-1]
+
+    active_blocks = sum(
+        1 for b in blocks
+        if any(soln.loc[b, res] == 'Ro1' for res in residents)
+    )
+    assert active_blocks <= 2, \
+        f"Ro1 was active in {active_blocks} blocks, expected at most 2"

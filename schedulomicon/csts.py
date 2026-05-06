@@ -948,6 +948,38 @@ class RotationCountConstraintWithHistory(RotationCountConstraint):
         return super().from_yml_dict(*args, **kwargs, include_history=True)
 
 
+class MaxActiveBlocksConstraint(Constraint):
+    """Limits the number of distinct blocks in which a rotation is assigned to anyone.
+
+    Useful when a faculty supervisor has limited availability across the schedule
+    (e.g. can proctor any number of residents but only for 4 blocks total).
+
+    YAML Example:
+        rotations:
+          Proctored Procedure:
+            max_active_blocks: 4
+    """
+
+    KEY_NAME = "max_active_blocks"
+
+    def __init__(self, rotation, max_blocks):
+        self.rotation = rotation
+        self.max_blocks = max_blocks
+
+    @classmethod
+    def from_yml_dict(cls, rotation, params, config):
+        return cls(rotation=rotation, max_blocks=int(params))
+
+    def apply(self, model, block_assigned, residents, blocks, rotations, grids):
+        active = []
+        for block in blocks:
+            v = model.NewBoolVar(f"active__{self.rotation}__{block}")
+            assignments = [block_assigned[(res, block, self.rotation)] for res in residents]
+            model.AddMaxEquality(v, assignments)
+            active.append(v)
+        model.Add(sum(active) <= self.max_blocks)
+
+
 class RotationCountNotConstraint(Constraint):
     """Prevents a specific exact count of a rotation from being assigned.
 
