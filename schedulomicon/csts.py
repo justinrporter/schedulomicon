@@ -50,6 +50,25 @@ class Constraint:
                 )
 
 
+class PerResidentConstraint(Constraint):
+    """Constraint that applies independently to each resident.
+
+    Subclasses may declare suppress_for to exempt specific residents.
+    """
+
+    suppress_for: list = []
+
+    @classmethod
+    def _parse_suppress_for(cls, params: dict) -> list:
+        return params.get('suppress_for', [])
+
+    def _applicable_residents(self, residents):
+        """Returns the residents this constraint applies to."""
+        if not self.suppress_for:
+            return residents
+        return [r for r in residents if r not in self.suppress_for]
+
+
 class RotationCoverageConstraint(Constraint):
     """Enforces minimum and maximum number of residents assigned to a rotation per block.
 
@@ -250,7 +269,7 @@ class GroupCoverageConstraint(RotationCoverageConstraint):
             **coverage_spec
         )
 
-class PrerequisiteRotationConstraint(Constraint):
+class PrerequisiteRotationConstraint(PerResidentConstraint):
     """Ensures a resident completes prerequisite rotations before being assigned to a rotation.
 
     This constraint requires that a resident must have completed a specified number of
@@ -268,11 +287,13 @@ class PrerequisiteRotationConstraint(Constraint):
             # OR, to require a count from a rotation group:
             # prerequisite:
             #   heavy-rc: 1  # Must complete 1 rotation from the heavy-rc group first
+            # suppress_for: ["Smith, John"]  # Optional: residents exempt from this constraint
         blocks:
           [...]
     """
 
     KEY_NAME = 'prerequisite'
+    ALLOWED_YAML_OPTIONS = ['suppress_for']
 
     @classmethod
     def from_yml_dict(cls, rotation, params, config):
@@ -280,9 +301,12 @@ class PrerequisiteRotationConstraint(Constraint):
         assert cls.KEY_NAME in params, f"{cls.KEY_NAME} not in {params}"
 
         if hasattr(params[cls.KEY_NAME], 'keys'):
-            # prereq defn is a dictionary
+            # prereq defn is a dictionary; may also contain suppress_for
+            suppress_for = cls._parse_suppress_for(params[cls.KEY_NAME])
             prereq_counts = {}
             for p, c in params[cls.KEY_NAME].items():
+                if p == 'suppress_for':
+                    continue
                 if p in config['rotations']:
                     prereq_counts[(p,)] = c
                 else:
@@ -302,7 +326,8 @@ class PrerequisiteRotationConstraint(Constraint):
             cst = cls(
                 rotation=rotation,
                 prereq_counts=prereq_counts,
-                prior_counts=prior_counts
+                prior_counts=prior_counts,
+                suppress_for=suppress_for,
             )
         else:
             prior_counts = {
@@ -314,13 +339,13 @@ class PrerequisiteRotationConstraint(Constraint):
             cst = cls(
                 rotation=rotation,
                 prereq_counts={(p,): 1 for p in params[cls.KEY_NAME]},
-                prior_counts=prior_counts
+                prior_counts=prior_counts,
             )
 
         return cst
 
 
-    def __init__(self, rotation, prereq_counts, prior_counts=None):
+    def __init__(self, rotation, prereq_counts, prior_counts=None, suppress_for=None):
         self.rotation = rotation
         self.prerequisites = prereq_counts
 
@@ -330,13 +355,14 @@ class PrerequisiteRotationConstraint(Constraint):
         #     "rotation2": {"resident1": count_res2_rot1, "resident2": count_res2_rot2}
         # }
         self.prior_counts = prior_counts
+        self.suppress_for = suppress_for if suppress_for is not None else []
 
         logger.debug('Rotation %s prerequisites %s', rotation, self.prerequisites)
 
 
     def apply(self, model, block_assigned, residents, blocks, rotations, grids):
 
-        for resident in residents:
+        for resident in self._applicable_residents(residents):
             for i in range(len(blocks)):
                 rot_is_assigned = block_assigned[(resident, blocks[i], self.rotation)]
 
@@ -382,11 +408,13 @@ class IneligibleAfterConstraint(PrerequisiteRotationConstraint):
           SICU:
             ineligible_after:
               SICU-E4 CBY: 2  # Ineligible for SICU after completing 2 SICU-E4 CBY rotations
+              # suppress_for: ["Smith, John"]  # Optional: residents exempt from this constraint
         blocks:
           [...]
     """
 
     KEY_NAME = 'ineligible_after'
+    ALLOWED_YAML_OPTIONS = ['suppress_for']
 
     def _apply_csts(self, model, prereq_grp, rot_is_assigned, cst_spec_list):
         # the only difference between this and PrerequisiteRotationConstraint
@@ -407,7 +435,7 @@ class IneligibleAfterConstraint(PrerequisiteRotationConstraint):
         model.Add(sum(prereqs_unsatisfied) >= 1).OnlyEnforceIf(rot_is_assigned)
 
 
-class AllowedRootsConstraint(Constraint):
+class AllowedRootsConstraint(PerResidentConstraint):
     """Restricts where consecutive sequences of a rotation can begin.
 
     Defines specific blocks where consecutive sequences of a rotation are allowed to start.
@@ -424,20 +452,28 @@ class AllowedRootsConstraint(Constraint):
           ICU:
             consecutive_count: 2
             allowed_roots: [Block 1, Block 5]  # Consecutive ICU sequences can only start at Block 1 or Block 5
+            # suppress_for: ["Smith, John"]  # Optional: residents exempt from this constraint
         blocks:
           [...]
     """
-    
+
     KEY_NAME = 'allowed_roots'
+    ALLOWED_YAML_OPTIONS = ['suppress_for']
 
     @classmethod
     def from_yml_dict(cls, rotation, params, config):
 
         assert cls.KEY_NAME in params, f"{cls.KEY_NAME} not in {params}"
 
-        allowed_roots = []
+        if hasattr(params['allowed_roots'], 'keys'):
+            suppress_for = cls._parse_suppress_for(params['allowed_roots'])
+            root_list = params['allowed_roots'].get('roots', [])
+        else:
+            suppress_for = []
+            root_list = params['allowed_roots']
 
-        for root in params['allowed_roots']:
+        allowed_roots = []
+        for root in root_list:
             if root in config['blocks']:
                 allowed_roots.append(root)
             else:
@@ -445,12 +481,14 @@ class AllowedRootsConstraint(Constraint):
 
         return cls(
             rotation=rotation,
-            allowed_roots=allowed_roots
+            allowed_roots=allowed_roots,
+            suppress_for=suppress_for,
         )
-    
-    def __init__(self, rotation, allowed_roots=None):
+
+    def __init__(self, rotation, allowed_roots=None, suppress_for=None):
         self.rotation = rotation
         self.allowed_roots = allowed_roots if allowed_roots is not None else []
+        self.suppress_for = suppress_for if suppress_for is not None else []
 
     def apply(self, model, block_assigned, residents, blocks, rotations, grids):
 
@@ -461,7 +499,7 @@ class AllowedRootsConstraint(Constraint):
                     name=root
                 )
 
-        for res in residents:
+        for res in self._applicable_residents(residents):
             for i in range(len(blocks)):
                 if blocks[i] not in self.allowed_roots:
                     if i == 0:
@@ -473,7 +511,7 @@ class AllowedRootsConstraint(Constraint):
                         ])
 
 
-class ConsecutiveRotationCountConstraint(Constraint):
+class ConsecutiveRotationCountConstraint(PerResidentConstraint):
     """Enforces that a rotation must occur in consecutive blocks of a specified length.
 
     This constraint ensures that when a resident is assigned to a rotation, they must
@@ -493,6 +531,7 @@ class ConsecutiveRotationCountConstraint(Constraint):
             #   count: 2
             #   forbidden_roots: [Block 1, Block 3]  # Can't start a sequence at these blocks
             #   allowed_roots: [Block 5A, Block 10A]  # Can only start sequences here
+            #   suppress_for: ["Smith, John"]  # Optional: residents exempt from this constraint
         blocks:
           [...]
     """
@@ -539,25 +578,27 @@ class ConsecutiveRotationCountConstraint(Constraint):
                 rotation=rotation,
                 count=ct,
                 forbidden_roots=forbidden_roots,
-                allowed_roots=allowed_roots
+                allowed_roots=allowed_roots,
+                suppress_for=cls._parse_suppress_for(params['consecutive_count']),
             )
         else:
             return cls(
                 rotation=rotation,
                 count=params['consecutive_count'],
                 forbidden_roots=[],
-                allowed_roots=[]
+                allowed_roots=[],
             )
 
     def __repr__(self):
         return "ConsecutiveRotationCountConstraint(%s, n=%s)" % (
              self.rotation, self.count)
 
-    def __init__(self, rotation, count, forbidden_roots=None, allowed_roots=None):
+    def __init__(self, rotation, count, forbidden_roots=None, allowed_roots=None, suppress_for=None):
         self.rotation = rotation
         self.count = count
         self.forbidden_roots = forbidden_roots if forbidden_roots is not None else []
         self.allowed_roots = allowed_roots if allowed_roots is not None else []
+        self.suppress_for = suppress_for if suppress_for is not None else []
 
     def apply(self, model, block_assigned, residents, blocks, rotations, grids):
 
@@ -567,7 +608,6 @@ class ConsecutiveRotationCountConstraint(Constraint):
                     f"In {self}, unable to find forbidden root named '{root}'",
                     name=root
                 )
-        #print(self.rotation, 'allowed roots: ', self.allowed_roots)
 
         if len(self.allowed_roots) > 0:
             for root in self.allowed_roots:
@@ -577,7 +617,7 @@ class ConsecutiveRotationCountConstraint(Constraint):
                         name=root
                     )
 
-        for res in residents:
+        for res in self._applicable_residents(residents):
 
             # scan through all blocks that could be the start of a self.count
             # length stretch of instances of this rotation
@@ -636,7 +676,7 @@ class ConsecutiveRotationCountConstraint(Constraint):
                 )
 
 
-class MustBeFollowedByRotationConstraint(Constraint):
+class MustBeFollowedByRotationConstraint(PerResidentConstraint):
     """Requires that a rotation must be followed immediately by specified rotations.
 
     This constraint ensures that after a resident completes this rotation,
@@ -673,7 +713,7 @@ class MustBeFollowedByRotationConstraint(Constraint):
         )
 
 
-class MustBePrecededByRotationConstraint(Constraint):
+class MustBePrecededByRotationConstraint(PerResidentConstraint):
     """Requires that a rotation must be immediately preceded by specified rotations.
 
     This is a rotation-scoped constraint, nested directly under a rotation name.
@@ -700,7 +740,7 @@ class MustBePrecededByRotationConstraint(Constraint):
         )
 
 
-class CoolDownConstraint(Constraint):
+class CoolDownConstraint(PerResidentConstraint):
     """Prevents residents from being assigned to a rotation too soon again.
 
     Ensures that a resident cannot be assigned to a rotation more than a specified
@@ -739,11 +779,11 @@ class CoolDownConstraint(Constraint):
         # cool_down:
         #   window: 2
         #   count: 1
-        #   exclude_for: ["Yi, Yangtian"]
+        #   suppress_for: ["Yi, Yangtian"]
 
         window_size = params['cool_down'].get('window')
         count = params['cool_down'].get('count', 1)
-        suppress_for = params['cool_down'].get('suppress_for', [])
+        suppress_for = cls._parse_suppress_for(params['cool_down'])
 
         if params.get('consecutive_count', False):
             raise exceptions.IncompatibleConstraintsException(
@@ -772,8 +812,8 @@ class CoolDownConstraint(Constraint):
 
     def apply(self, model, block_assigned, residents, blocks, rotations, grids):
 
-        residents = [res for res in residents if res not in self.suppress_for]
-        
+        residents = self._applicable_residents(residents)
+
         add_window_count_constraint(
             model, block_assigned, residents, blocks,
             rotations=[self.rotation],
@@ -783,7 +823,7 @@ class CoolDownConstraint(Constraint):
         )
 
 
-class RotationCountConstraint(Constraint):
+class RotationCountConstraint(PerResidentConstraint):
     """Controls the total number of times a resident is assigned to a rotation.
 
     This constraint limits how many times a resident can be assigned to a specific rotation
@@ -804,15 +844,17 @@ class RotationCountConstraint(Constraint):
             # rot_count:
             #   CA1: [0, 1]  # CA1 residents: 0–1 ICU blocks
             #   CA2: [1, 2]  # CA2 residents: 1–2 ICU blocks
+            #   suppress_for: ["Smith, John"]  # Optional: residents exempt from this constraint
         blocks:
           [...]
     """
 
     KEY_NAME = 'rot_count'
 
-    def __init__(self, rotation, count_map, prior_counts=None):
+    def __init__(self, rotation, count_map, prior_counts=None, suppress_for=None):
         self.rotation = rotation
         self.count_map = count_map
+        self.suppress_for = suppress_for if suppress_for is not None else []
 
         if prior_counts is None:
             self.prior_counts = {}
@@ -830,7 +872,7 @@ class RotationCountConstraint(Constraint):
         assert cls.KEY_NAME in params
 
         # options are:
-        # 1) rot_count: {CA1: [0, 1], CA2: [0, 1], CA3: 1}
+        # 1) rot_count: {CA1: [0, 1], CA2: [0, 1], CA3: 1, suppress_for: [...]}
         # 2) rot_count: [0, 10]
         # 3) rot_count: 2
 
@@ -843,18 +885,17 @@ class RotationCountConstraint(Constraint):
             prior_counts = None
 
         if hasattr(options, 'keys'):
+            suppress_for = cls._parse_suppress_for(options)
             count_map = {}
             for res_or_res_group, min_and_max in options.items():
+                if res_or_res_group == 'suppress_for':
+                    continue
 
                 if hasattr(min_and_max, '__len__'):
                     assert len(min_and_max) == 2
                     n_min, n_max = min_and_max
                 else:
                     n_min = n_max = int(min_and_max)
-                    # assert False, (
-                    #     "Unrecognized format for RotationCountConstraint %s, "
-                    #     "specifically count for group %s" % (params, res_or_res_group)
-                    # )
 
                 assert int(n_min) <= int(n_max)
 
@@ -866,7 +907,7 @@ class RotationCountConstraint(Constraint):
                     for resident in residents:
                         count_map[resident] = (int(n_min), int(n_max))
 
-            cst = cls(rotation, count_map, prior_counts)
+            cst = cls(rotation, count_map, prior_counts, suppress_for=suppress_for)
         elif len(options) == 2:
             n_min, n_max = int(options[0]), int(options[1])
             cst = cls(
@@ -896,7 +937,10 @@ class RotationCountConstraint(Constraint):
 
     def apply(self, model, block_assigned, residents, blocks, rotations, grids):
 
-        for resident, (nmin, nmax) in self.count_map.items():
+        for resident in self._applicable_residents(residents):
+            if resident not in self.count_map:
+                continue
+            nmin, nmax = self.count_map[resident]
             r_tot = sum(block_assigned[(resident, block, self.rotation)] for block in blocks)
             assert nmin is not None
             assert nmax is not None
@@ -980,7 +1024,7 @@ class MaxActiveBlocksConstraint(Constraint):
         model.Add(sum(active) <= self.max_blocks)
 
 
-class RotationCountNotConstraint(Constraint):
+class RotationCountNotConstraint(PerResidentConstraint):
     """Prevents a specific exact count of a rotation from being assigned.
 
     This constraint ensures that a resident is not assigned to a rotation
