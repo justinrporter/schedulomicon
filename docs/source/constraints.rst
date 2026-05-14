@@ -3,6 +3,32 @@ Constraints
 
 Schedulomicon provides a rich set of constraints that can be configured in YAML to express complex scheduling requirements. This guide covers the most commonly used constraint types and how to configure them.
 
+.. _per-resident-constraints:
+
+Per-Resident Constraints
+------------------------
+
+Several rotation-scoped constraints carry a ``suppress_for`` option that exempts specific residents from the constraint. These constraints share a common design: they apply independently to each resident rather than as a global aggregate. The affected constraints are:
+
+- :ref:`rot-count` (``rot_count``)
+- :ref:`rot-count-history` (``rot_count_including_history``)
+- :ref:`cool-down` (``cool_down``)
+- :ref:`prerequisite` (``prerequisite``)
+- :ref:`ineligible-after` (``ineligible_after``)
+- :ref:`consecutive-count` (``consecutive_count``)
+- :ref:`allowed-roots` (``allowed_roots``)
+
+Example: exempt a chief resident from the standard cool-down window:
+
+.. code-block:: yaml
+
+    rotations:
+      ICU:
+        cool_down:
+          window: 4
+          count: 1
+          suppress_for: ["Smith, Chief"]   # Smith is exempt; all others are constrained
+
 Rotation Constraints
 --------------------
 
@@ -48,6 +74,8 @@ The ``coverage`` property can be specified as:
 - A nested list ``[[min_b1, min_b2, ...], [max_b1, max_b2, ...]]`` for per-block limits
 - An ``allowed_values`` list specifying exactly which values are permitted
 
+.. _rot-count:
+
 RotationCountConstraint
 ~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -82,6 +110,10 @@ The ``rot_count`` property takes a list of ``[min, max]`` values:
 
 When a resident belongs to multiple groups, the *last* matching entry wins.
 
+Supports ``suppress_for``. See :ref:`per-resident-constraints`.
+
+.. _cool-down:
+
 CoolDownConstraint
 ~~~~~~~~~~~~~~~~~~
 
@@ -106,6 +138,8 @@ Parameters:
 - ``count``: Number of occurrences before cool-down applies
 - ``suppress_for``: List of residents exempt from this constraint
 
+.. _prerequisite:
+
 PrerequisiteRotationConstraint
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -127,6 +161,14 @@ The ``prerequisite`` property can be specified as:
 
 - A list of specific rotations that must be completed
 - A mapping of group names to counts, requiring a certain number of rotations from a group
+
+Supports ``suppress_for``. See :ref:`per-resident-constraints`. When using the dict form, add ``suppress_for`` as a sibling key alongside the rotation/group entries.
+
+.. _ineligible-after:
+
+.. note::
+
+   ``ineligible_after`` (the inverse of ``prerequisite``) also supports ``suppress_for``.
 
 MustBeFollowedByRotationConstraint
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -156,6 +198,8 @@ Controls which rotations must immediately precede others.
 
 The ``must_be_preceded_by`` property takes a list of rotations or rotation groups. The constraint ensures that before the specified rotation is assigned, the resident must have been assigned to one of the listed options in the immediately preceding block.
 
+.. _consecutive-count:
+
 ConsecutiveRotationCountConstraint
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -170,6 +214,43 @@ Enforces rotations that must occur in consecutive blocks.
         always_paired: Yes
 
 Setting ``always_paired: Yes`` indicates that this rotation must be assigned in consecutive blocks.
+
+Supports ``suppress_for`` via the dict form of ``consecutive_count``. See :ref:`per-resident-constraints`.
+
+.. _allowed-roots:
+
+AllowedRootsConstraint
+~~~~~~~~~~~~~~~~~~~~~~
+
+Restricts which blocks can begin a consecutive sequence of a rotation. Typically used alongside ``consecutive_count``.
+
+.. code-block:: yaml
+
+    rotations:
+      ICU:
+        consecutive_count: 2
+        allowed_roots: [Block 1, Block 5]  # sequences can only start at Block 1 or Block 5
+        # OR, with suppress_for:
+        # allowed_roots:
+        #   roots: [Block 1, Block 5]
+        #   suppress_for: ["Smith, John"]
+
+Supports ``suppress_for``. See :ref:`per-resident-constraints`. When using ``suppress_for``, switch to the dict form with a ``roots`` key.
+
+.. _rot-count-history:
+
+RotationCountConstraintWithHistory
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Extends ``rot_count`` to count historical assignments (from a resident's ``history:`` section) toward the limit.
+
+.. code-block:: yaml
+
+    rotations:
+      ICU:
+        rot_count_including_history: [0, 2]
+
+Supports ``suppress_for`` via the dict form. See :ref:`per-resident-constraints`.
 
 Resident Constraints
 --------------------
@@ -360,15 +441,16 @@ Limits group rotations in a sliding window or over the entire schedule.
         window_size: 8  # first medicine rotation must occur within first 8 blocks
       - kind: all_group_count_per_resident
         group: pediatrics
-        count: [0,2]
-        apply_to_residents: ["Nguyen, James"]  # constraint for specific resident
+        count:
+          "Nguyen, James": [0, 2]  # constraint for a specific resident
 
 Group constraints come in several varieties:
 
 - ``window_group_count_per_resident``: Limits group rotations in a sliding window
-- ``all_group_count_per_resident``: Controls total rotations from a group per resident
+- ``all_group_count_per_resident``: Controls total rotations from a group per resident; ``count``
+  may be a ``[min, max]`` list applied to all residents, or a dict mapping resident/group names
+  to ``[min, max]`` pairs for per-resident targeting
 - ``time_to_first``: Ensures early assignment from a rotation group
-- The optional ``apply_to_residents`` parameter can limit a constraint to specific residents
 
 Scoring Constraints
 -------------------
