@@ -22,8 +22,8 @@ def basic_config_file(temp_directory):
     """Create a basic configuration file for testing."""
     config = {
         'residents': {
-            'R1': {'group': ['CA1']},
-            'R2': {'group': ['CA1']},
+            'R1': {'groups': ['CA1']},
+            'R2': {'groups': ['CA1']},
         },
         'rotations': {
             'Rotation1': {'groups': ['group1']},

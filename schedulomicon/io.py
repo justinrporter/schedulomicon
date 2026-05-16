@@ -1,4 +1,5 @@
 import csv
+import difflib
 import warnings
 import yaml
 import pickle
@@ -185,10 +186,21 @@ def generate_resident_constraints(config, groups_array):
         csts.ProhibitedCombinationConstraint,
     ]
     available_res_csts = {c.KEY_NAME: c for c in resident_constraint_types}
+    known_resident_keys = set(available_res_csts) | {
+        'groups', 'history', 'true_somewhere', 'chosen-vacation', 'no_backup',
+    }
 
     for res, params in config['residents'].items():
         if not params:
             continue
+
+        for k in params.keys():
+            if k not in known_resident_keys and not k.startswith('sum'):
+                suggestion = difflib.get_close_matches(k, known_resident_keys, n=1, cutoff=0.7)
+                msg = f"Unknown key '{k}' in resident '{res}'."
+                if suggestion:
+                    msg += f" Did you mean '{suggestion[0]}'?"
+                raise ValueError(msg)
 
         if 'true_somewhere' in params:
             warnings.warn("Declaration 'true_somewhere' is depricated, use 'sum > 0' instead.")
@@ -228,10 +240,19 @@ def generate_resident_constraints(config, groups_array):
 def generate_block_constraints(config, groups_array):
 
     cst_list = []
+    known_block_keys = {'groups', 'backup_required'}
 
     for blk, params in config['blocks'].items():
         if not params:
             continue
+
+        for k in params.keys():
+            if k not in known_block_keys and not k.startswith('sum'):
+                suggestion = difflib.get_close_matches(k, known_block_keys, n=1, cutoff=0.7)
+                msg = f"Unknown key '{k}' in block '{blk}'."
+                if suggestion:
+                    msg += f" Did you mean '{suggestion[0]}'?"
+                raise ValueError(msg)
 
         cst_list.extend(parse_field_sum_constraint(
             params=params,
@@ -410,11 +431,23 @@ def generate_rotation_constraints(config, groups_array):
     ]
 
     available_csts = {c.KEY_NAME: c for c in active_constraint_types}
+    known_rotation_keys = set(available_csts) | {
+        'groups', 'must_be_followed_by', 'must_be_preceded_by',
+        'always_paired', 'not_rot_count', 'backup_count',
+    }
 
     constraints = []
     for rotation, params in config['rotations'].items():
         if not params:
             continue
+
+        for k in params.keys():
+            if k not in known_rotation_keys:
+                suggestion = difflib.get_close_matches(k, known_rotation_keys, n=1, cutoff=0.7)
+                msg = f"Unknown key '{k}' in rotation '{rotation}'."
+                if suggestion:
+                    msg += f" Did you mean '{suggestion[0]}'?"
+                raise ValueError(msg)
 
         for k in params.keys():
             if k in available_csts:

@@ -257,3 +257,64 @@ def test_prohibit_wired_up():
     prohibited = [c for c in constraints if isinstance(c, csts.ProhibitedCombinationConstraint)]
     assert len(prohibited) == 1
     assert len(prohibited[0].prohibited_fields) == 2
+
+
+def test_unknown_key_in_rotation_raises():
+    config = {
+        'rotations': {'Ro1': {'group': ['g1']}},
+        'residents': {},
+        'blocks': {},
+    }
+    with pytest.raises(ValueError, match="Unknown key 'group' in rotation 'Ro1'"):
+        io.generate_rotation_constraints(config, [])
+
+
+def test_unknown_key_in_rotation_suggests_correction():
+    config = {
+        'rotations': {'Ro1': {'group': ['g1']}},
+        'residents': {},
+        'blocks': {},
+    }
+    with pytest.raises(ValueError, match="Did you mean 'groups'"):
+        io.generate_rotation_constraints(config, [])
+
+
+def test_unknown_key_in_resident_raises():
+    config = {
+        'residents': {'R1': {'group': ['CA1']}},
+        'rotations': {},
+        'blocks': {},
+    }
+    with pytest.raises(ValueError, match="Unknown key 'group' in resident 'R1'"):
+        io.generate_resident_constraints(config, [])
+
+
+def test_unknown_key_in_resident_suggests_correction():
+    config = {
+        'residents': {'R1': {'group': ['CA1']}},
+        'rotations': {},
+        'blocks': {},
+    }
+    with pytest.raises(ValueError, match="Did you mean 'groups'"):
+        io.generate_resident_constraints(config, [])
+
+
+def test_unknown_key_in_block_raises():
+    config = {
+        'blocks': {'Bl1': {'group': ['g1']}},
+        'residents': {},
+        'rotations': {},
+    }
+    with pytest.raises(ValueError, match="Unknown key 'group' in block 'Bl1'"):
+        io.generate_block_constraints(config, [])
+
+
+def test_sum_key_in_resident_is_valid():
+    config = {
+        'residents': {'R1': {'sum > 2': ['Ro1 or Ro2']}},
+        'rotations': {'Ro1': {}, 'Ro2': {}},
+        'blocks': {'Bl1': {}},
+    }
+    _, _, _, _, groups_array = io.process_config(config)
+    constraints = io.generate_resident_constraints(config, groups_array)
+    assert len(constraints) == 1
