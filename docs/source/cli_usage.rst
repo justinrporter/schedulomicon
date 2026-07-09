@@ -89,7 +89,48 @@ Output Flags
 ``--results <file>``
 ^^^^^^^^^^^^^^^^^^^^
 
-**Required.** Path where the solution schedule is written as a CSV.
+**Required.** Path where the solution is written. The output format is chosen
+by file extension:
+
+- ``.csv`` — human-readable table (blocks × residents; backup assignments are
+  marked with a ``+`` suffix). Vacation assignments are not included.
+- ``.pkl`` / ``.pickle`` — pickled solution dict, complete but not
+  human-readable.
+- ``.json`` — sparse machine-readable format containing every grid
+  (including the ``vacation`` and ``backup`` cogrids). Accepted by
+  ``--hint``.
+
+Any other extension raises an error.
+
+JSON solution format
+""""""""""""""""""""
+
+The JSON format is versioned (``format_version: 1``) and sparse: only nonzero
+variables are written, and a variable omitted from the file is ``0``. Each
+grid records its key field names, the ordered values of each dimension, and
+one row per nonzero variable (the key components followed by the value):
+
+.. code-block:: json
+
+    {
+      "format_version": 1,
+      "grids": {
+        "main": {
+          "key_fields": ["resident", "block", "rotation"],
+          "dimensions": {
+            "resident": ["R1", "R2"],
+            "block": ["Block 1", "Block 2"],
+            "rotation": ["ICU", "Ortho"]
+          },
+          "variables": [
+            ["R1", "Block 1", "ICU", 1],
+            ["R1", "Block 2", "Ortho", 1]
+          ]
+        },
+        "backup":   {"key_fields": ["resident", "block"]},
+        "vacation": {"key_fields": ["resident", "week", "rotation"]}
+      }
+    }
 
 ``--vacation <file>``
 ^^^^^^^^^^^^^^^^^^^^^
@@ -132,5 +173,10 @@ Requires ``--rankings`` to be provided so that individual scores are defined.
 ``--hint <file>``
 ^^^^^^^^^^^^^^^^^
 
-Warm-start the solver from a prior solution CSV. The hint is fed to OR-Tools as a
-starting point; it does not restrict the search space.
+Warm-start the solver from a prior solution written by ``--results`` as
+``.pkl``/``.pickle`` or ``.json`` (CSV is not supported). The hint is fed to
+OR-Tools as a starting point; it does not restrict the search space.
+
+Hints may be partial: grids absent from the hint file are simply left
+unhinted. Within a hinted grid, variables absent from a sparse ``.json``
+solution are hinted as ``0``.

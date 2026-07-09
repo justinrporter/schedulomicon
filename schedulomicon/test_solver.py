@@ -344,6 +344,69 @@ class TestSolverIntegration:
         assert "Best solution at " in fake_stdout.getvalue()
         
         
+    def test_solve_with_json_results(self, mock_solve, basic_config_file, temp_directory):
+        """--results with a .json extension writes the sparse JSON format."""
+        import json
+
+        results_file = os.path.join(temp_directory, 'results.json')
+
+        solution_printer = MagicMock()
+        solution_printer.solution_count.return_value = 1
+        solution_printer._solutions = [{
+            'main': {
+                ('R1', 'Block1', 'Rotation1'): 1,
+                ('R1', 'Block1', 'Rotation2'): 0,
+                ('R1', 'Block2', 'Rotation1'): 0,
+                ('R1', 'Block2', 'Rotation2'): 1,
+                ('R2', 'Block1', 'Rotation1'): 0,
+                ('R2', 'Block1', 'Rotation2'): 1,
+                ('R2', 'Block2', 'Rotation1'): 1,
+                ('R2', 'Block2', 'Rotation2'): 0,
+            }
+        }]
+
+        mock_solve.return_value = ('OPTIMAL', MagicMock(), solution_printer, MagicMock(), 1.0)
+
+        with patch('sys.stdout', new=StringIO()):
+            exit_code = solver.main(['--config', basic_config_file, '--results', results_file])
+
+        assert exit_code == 1
+        with open(results_file) as f:
+            raw = json.load(f)
+
+        assert raw['format_version'] == 1
+        assert set(raw['grids']) == {'main'}
+        assert raw['grids']['main']['key_fields'] == ['resident', 'block', 'rotation']
+        assert sorted(map(tuple, raw['grids']['main']['variables'])) == [
+            ('R1', 'Block1', 'Rotation1', 1),
+            ('R1', 'Block2', 'Rotation2', 1),
+            ('R2', 'Block1', 'Rotation2', 1),
+            ('R2', 'Block2', 'Rotation1', 1),
+        ]
+
+    def test_json_hint_plumb_through(self, mock_solve, basic_config_file, temp_directory):
+        """--hint with a .json file passes the sparse tuple-keyed dict to solve."""
+        results_file = os.path.join(temp_directory, 'results.csv')
+        hint_file = os.path.join(temp_directory, 'hint.json')
+
+        solution = {
+            'main': {
+                ('R1', 'Block1', 'Rotation1'): 1,
+                ('R1', 'Block2', 'Rotation2'): 0,
+            }
+        }
+        io.write_solution(hint_file, solution)
+
+        mock_solve.return_value = ('INFEASIBLE', MagicMock(), MagicMock(), MagicMock(), 1.0)
+
+        with patch('sys.stdout', new=StringIO()):
+            solver.main(['--config', basic_config_file,
+                         '--results', results_file,
+                         '--hint', hint_file])
+
+        _, kwargs = mock_solve.call_args
+        assert kwargs['hint'] == {'main': {('R1', 'Block1', 'Rotation1'): 1}}
+
     def test_no_solution_found(self, mock_solve, basic_config_file, temp_directory):
         """Test behavior when no solution is found."""
         results_file = os.path.join(temp_directory, 'results.csv')
@@ -377,6 +440,29 @@ class TestExampleConfig:
         assert os.path.exists(results_file), "Results CSV should be written"
         df = pd.read_csv(results_file, index_col=0)
         assert not df.empty, "Results CSV should contain assignments"
+
+    def test_example_config_json_write_then_hint(self, tmp_path):
+        """Write a .json solution, then re-solve with it as --hint."""
+        example_config = os.path.join(
+            os.path.dirname(__file__), '..', 'examples', 'example_config.yml'
+        )
+        json_results = str(tmp_path / 'results.json')
+
+        exit_code = solver.main(
+            ['--config', example_config, '--results', json_results])
+        assert exit_code == 1, "First solve should find a feasible solution"
+
+        solution = io.read_solution(json_results)
+        assert 'main' in solution
+        assert all(v != 0 for v in solution['main'].values()), \
+            "JSON solutions should be sparse (nonzero entries only)"
+
+        second_results = str(tmp_path / 'results2.csv')
+        exit_code = solver.main(
+            ['--config', example_config, '--results', second_results,
+             '--hint', json_results])
+        assert exit_code == 1, "Hinted solve should find a feasible solution"
+        assert os.path.exists(second_results)
 
 
 class TestErrorHandling:

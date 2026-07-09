@@ -14,9 +14,14 @@ logger = logging.getLogger(__name__)
 
 def add_result_as_hint(model, grids, hint):
 
+    # hint dicts may be sparse (missing key = 0) and partial (grids absent
+    # from the hint are left unhinted)
     for grid_name, grid in grids.items():
+        if grid_name not in hint:
+            continue
+        hint_grid = hint[grid_name]
         for key, var in grid['variables'].items():
-            model.AddHint(var, hint[grid_name][key])
+            model.AddHint(var, hint_grid.get(key, 0))
 
 
 def run_optimizer(model, objective_fn, n_processes=None, solution_printer=None,

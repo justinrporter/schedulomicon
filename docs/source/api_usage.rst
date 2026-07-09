@@ -96,6 +96,11 @@ it internally while you control which residents, blocks, and rotations it tracks
 
 ``status`` is one of ``'OPTIMAL'``, ``'FEASIBLE'``, ``'INFEASIBLE'``, or ``'UNKNOWN'``.
 
+The ``hint`` argument accepts a solution dict as returned by
+``io.read_solution`` on a ``.pkl`` or ``.json`` file written by a prior run.
+Hint dicts may be sparse (variables absent from a grid are hinted as ``0``)
+and partial (grids absent from the dict are left unhinted).
+
 **Step 5 — Extract results**
 
 .. code-block:: python

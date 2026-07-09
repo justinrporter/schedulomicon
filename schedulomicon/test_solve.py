@@ -3,6 +3,8 @@ from functools import partial
 import numpy as np
 import pandas as pd
 
+from ortools.sat.python import cp_model
+
 from . import solve, io, csts, callback, cogrid_csts
 
 
@@ -414,6 +416,86 @@ def test_consecutive_rotation_constraint_with_allowed_roots():
         if rot == 'Ro1' and (i == 0 or ro1[i-1] != 'Ro1'):
             assert blocks[i] in ('Bl1', 'Bl3', 'Bl5'), \
                 f"Ro1 sequence started at {blocks[i]}, not an allowed root"
+
+
+def _hint_grids(model):
+    """A main grid (2 vars) and a backup grid (1 var) on a bare model."""
+    grids = {
+        'main': {
+            'variables': {
+                ('R1', 'Bl1', 'Ro1'): model.NewBoolVar('m0'),
+                ('R1', 'Bl1', 'Ro2'): model.NewBoolVar('m1'),
+            }
+        },
+        'backup': {
+            'variables': {
+                ('R1', 'Bl1'): model.NewBoolVar('b0'),
+            }
+        },
+    }
+    return grids
+
+
+def _hints_by_var_index(model):
+    proto = model.Proto().solution_hint
+    return dict(zip(proto.vars, proto.values))
+
+
+def test_add_result_as_hint_dense():
+    model = cp_model.CpModel()
+    grids = _hint_grids(model)
+
+    hint = {
+        'main': {
+            ('R1', 'Bl1', 'Ro1'): 1,
+            ('R1', 'Bl1', 'Ro2'): 0,
+        },
+        'backup': {
+            ('R1', 'Bl1'): 1,
+        },
+    }
+    solve.add_result_as_hint(model, grids, hint)
+
+    hints = _hints_by_var_index(model)
+    assert hints[grids['main']['variables'][('R1', 'Bl1', 'Ro1')].Index()] == 1
+    assert hints[grids['main']['variables'][('R1', 'Bl1', 'Ro2')].Index()] == 0
+    assert hints[grids['backup']['variables'][('R1', 'Bl1')].Index()] == 1
+    assert len(hints) == 3
+
+
+def test_add_result_as_hint_sparse_zero_fill():
+    # A sparse hint (only nonzero entries) must still hint every model
+    # variable of a present grid, with absent keys hinted as 0.
+    model = cp_model.CpModel()
+    grids = _hint_grids(model)
+
+    hint = {
+        'main': {('R1', 'Bl1', 'Ro1'): 1},
+        'backup': {},
+    }
+    solve.add_result_as_hint(model, grids, hint)
+
+    hints = _hints_by_var_index(model)
+    assert hints[grids['main']['variables'][('R1', 'Bl1', 'Ro1')].Index()] == 1
+    assert hints[grids['main']['variables'][('R1', 'Bl1', 'Ro2')].Index()] == 0
+    assert hints[grids['backup']['variables'][('R1', 'Bl1')].Index()] == 0
+    assert len(hints) == 3
+
+
+def test_add_result_as_hint_skips_absent_grids():
+    # A main-only hint applied to a model with cogrids must not raise;
+    # only the main grid's variables get hinted.
+    model = cp_model.CpModel()
+    grids = _hint_grids(model)
+
+    hint = {'main': {('R1', 'Bl1', 'Ro1'): 1}}
+    solve.add_result_as_hint(model, grids, hint)
+
+    hints = _hints_by_var_index(model)
+    main_vars = grids['main']['variables']
+    assert set(hints) == {v.Index() for v in main_vars.values()}
+    assert hints[main_vars[('R1', 'Bl1', 'Ro1')].Index()] == 1
+    assert hints[main_vars[('R1', 'Bl1', 'Ro2')].Index()] == 0
 
 
 def test_max_active_blocks_constraint():

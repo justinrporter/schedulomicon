@@ -21,6 +21,83 @@ def deduplicate_ordered(seq):
     return [x for x in seq if not (x in seen or seen.add(x))]
 
 
+SOLUTION_FORMAT_VERSION = 1
+
+GRID_KEY_FIELDS = {
+    'main': ['resident', 'block', 'rotation'],
+    'backup': ['resident', 'block'],
+    'vacation': ['resident', 'week', 'rotation'],
+}
+
+
+def _key_fields_for_grid(grid_name, arity):
+    fields = GRID_KEY_FIELDS.get(grid_name)
+    if fields is None or len(fields) != arity:
+        return ['key_%d' % i for i in range(arity)]
+    return fields
+
+
+def solution_to_json_dict(solution):
+    """Convert a solution dict ({grid: {key_tuple: value}}) to a
+    JSON-serializable dict. Only nonzero variables are written; omitted
+    variables are implicitly 0."""
+
+    grids = {}
+    for grid_name, variables in solution.items():
+        keys = list(variables.keys())
+
+        if keys:
+            key_fields = _key_fields_for_grid(grid_name, len(keys[0]))
+        else:
+            key_fields = GRID_KEY_FIELDS.get(grid_name, [])
+
+        grids[grid_name] = {
+            'key_fields': key_fields,
+            'dimensions': {
+                field: deduplicate_ordered([k[i] for k in keys])
+                for i, field in enumerate(key_fields)
+            },
+            'variables': [
+                list(k) + [int(v)] for k, v in variables.items() if v != 0
+            ],
+        }
+
+    return {'format_version': SOLUTION_FORMAT_VERSION, 'grids': grids}
+
+
+def solution_from_json_dict(json_dict):
+    """Rebuild a sparse solution dict ({grid: {key_tuple: value}}) from a
+    JSON solution dict. Variables absent from the file are 0."""
+
+    version = json_dict.get('format_version')
+    if version != SOLUTION_FORMAT_VERSION:
+        raise exceptions.UnacceptableFileType(
+            f"Unsupported solution format_version {version!r} "
+            f"(expected {SOLUTION_FORMAT_VERSION})")
+
+    solution = {}
+    for grid_name, grid in json_dict.get('grids', {}).items():
+        n_key_fields = len(grid['key_fields'])
+        variables = {}
+
+        for row in grid['variables']:
+            if len(row) != n_key_fields + 1:
+                raise ValueError(
+                    f"Malformed variable row in grid '{grid_name}': {row!r} "
+                    f"(expected {n_key_fields} key components plus a value)")
+
+            key = tuple(row[:-1])
+            if key in variables:
+                warnings.warn(
+                    f"Duplicate key {key!r} in grid '{grid_name}'; "
+                    "the last value wins")
+            variables[key] = row[-1]
+
+        solution[grid_name] = variables
+
+    return solution
+
+
 def backup_is_active(config):
     return config.get('backup', False)
 
@@ -48,9 +125,17 @@ def write_solution(fname, solution):
 
         pd.DataFrame.from_dict(data, orient='index').T.to_csv(fname)
 
-    elif fname.endswith('.pkl'):
+    elif fname.endswith('.pkl') or fname.endswith('.pickle'):
         with open(fname, 'wb') as f:
             pickle.dump(solution, f)
+
+    elif fname.endswith('.json'):
+        with open(fname, 'w') as f:
+            json.dump(solution_to_json_dict(solution), f, indent=2)
+
+    else:
+        raise exceptions.UnacceptableFileType(
+            f"File '{fname}' is not of type .csv, .pkl/.pickle, or .json")
 
 
 def parse_field_sum_constraint(params, scope_selection, config, groups_array):
@@ -82,18 +167,20 @@ def parse_field_sum_constraint(params, scope_selection, config, groups_array):
 def read_solution(fname):
 
     if fname.endswith('.csv'):
-        raise NotImplementedError("Hints are only supported with pickled solutions")
-
-        hint = pd.read_csv(args.hint, header=0, index_col=0, comment='#')\
-            .replace(r'\+', '', regex=True)
+        raise NotImplementedError(
+            "Hints are only supported with .pkl/.pickle or .json solutions")
 
     elif fname.endswith('.pkl') or fname.endswith('.pickle'):
         with open(fname, 'rb') as f:
             solution = pickle.load(f)
 
+    elif fname.endswith('.json'):
+        with open(fname, 'r') as f:
+            solution = solution_from_json_dict(json.load(f))
+
     else:
         raise exceptions.UnacceptableFileType(
-            f"File '{fname}' is not of type .pkl or .csv")
+            f"File '{fname}' is not of type .pkl, .pickle, or .json")
 
     return solution
 

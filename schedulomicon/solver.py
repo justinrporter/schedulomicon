@@ -52,7 +52,10 @@ def parse_args(argv):
     )
     parser.add_argument(
         '--results', required=True,
-        help='The place to write the schedule(s) as a csv.'
+        help='The place to write the solution. Format is chosen by '
+             'extension: .csv (human-readable table), .pkl/.pickle (pickled '
+             'solution dict), or .json (sparse machine-readable format, '
+             'accepted by --hint).'
     )
     parser.add_argument(
         '--vacation',
@@ -86,7 +89,8 @@ def parse_args(argv):
 
     parser.add_argument(
         '--hint', default=None,
-        help='A csv file with a prior solution to use as a hint to the solver'
+        help='A .pkl or .json file with a prior solution to use as a hint '
+             'to the solver'
     )
 
     args = parser.parse_args(argv)

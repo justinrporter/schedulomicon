@@ -27,10 +27,12 @@ Docs are built with Sphinx (RST format, Read The Docs theme) and live in `docs/`
 
 Source files are in `docs/source/`:
 - `index.rst` — master index / toctree
+- `cli_usage.rst` — CLI flag reference (includes the JSON solution schema)
 - `api_usage.rst` — API usage guide
 - `configuration_files.rst` — YAML config documentation
 - `constraints.rst` — constraint reference
-- `schedulomicon.rst` / `modules.rst` — auto-generated API docs (autodoc from docstrings)
+- `scoring.rst` / `selections.rst` — scoring system and selector DSL guides
+- `schedulomicon.rst` — auto-generated API docs (autodoc from docstrings)
 
 Sphinx extensions: `autodoc`, `viewcode`, `napoleon`, `sphinx_autodoc_typehints`. Config is in `docs/source/conf.py`.
 
@@ -39,7 +41,7 @@ Sphinx extensions: `autodoc`, `viewcode`, `napoleon`, `sphinx_autodoc_typehints`
 The solving pipeline flows config → constraints → CP-SAT model → solution, split across these modules:
 
 - **`solver.py`** — CLI entry point (`main`). Parses args, loads YAML, wires rankings/coverage CSVs into score functions and extra constraints, then calls `solve.solve`.
-- **`io.py`** — YAML/CSV I/O plus **constraint dispatch**. `process_config` builds `groups_array` (boolean masks over residents×blocks×rotations for every named group and every individual entity). `generate_constraints_from_configs` walks the YAML and invokes each constraint class's `from_yml_dict`. See "Adding constraints" below — io.py is meant to stay a generic dispatcher.
+- **`io.py`** — YAML/CSV/solution I/O plus **constraint dispatch**. `process_config` builds `groups_array` (boolean masks over residents×blocks×rotations for every named group and every individual entity). `generate_constraints_from_configs` walks the YAML and invokes each constraint class's `from_yml_dict`. See "Adding constraints" below — io.py is meant to stay a generic dispatcher.
 - **`model.py`** — Builds the raw CP-SAT variables. `generate_model` creates the main `block_assigned[resident, block, rotation]` BoolVars and the "each resident does exactly one rotation per block" base constraint. `generate_vacation` and `generate_backup` build cogrid variables.
 - **`solve.py`** — Orchestrates a solve: builds the model, assembles `grids` (a dict of `main`/`backup`/`vacation` cogrids, each with `dimensions` and `variables`), calls `cst.apply(...)` for each constraint, optionally adds a hint and score objective, then runs `run_optimizer` or `run_enumerator`.
 - **`csts.py`** — Concrete `Constraint` subclasses (rotation, resident, group/global). Each inherits from the `Constraint` base and implements `apply(model, block_assigned, residents, blocks, rotations, grids)`. Many also implement `from_yml_dict` + a `KEY_NAME` class attribute for YAML dispatch.
@@ -51,6 +53,10 @@ The solving pipeline flows config → constraints → CP-SAT model → solution,
 ### The `grids` abstraction
 
 Constraints receive a `grids` dict that lets them operate uniformly over cogrids. The main rotation assignment lives in `grids['main']['variables']` keyed by `(resident, block, rotation)`. Optional cogrids `grids['backup']` and `grids['vacation']` exist when the YAML opts in via top-level `backup:` or `vacation:` keys. When writing a new constraint that touches vacation or backup, pull variables from `grids[<name>]['variables']`, not from `block_assigned`.
+
+### Solution I/O and hints
+
+`io.write_solution` / `io.read_solution` dispatch on file extension: `.csv` (human table; drops vacation, marks backup with a `+` suffix), `.pkl`/`.pickle` (pickled dense solution dict), `.json` (versioned sparse format, `format_version: 1` — only nonzero variables, but all grids including cogrids; schema documented in `cli_usage.rst`). Unknown extensions raise `UnacceptableFileType`. `--hint` accepts `.pkl` or `.json`; hint dicts may be sparse (missing key = 0) and partial (grids absent from the hint are left unhinted) — see `solve.add_result_as_hint`.
 
 ### The `groups_array` abstraction
 

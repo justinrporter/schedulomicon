@@ -13,6 +13,7 @@ class VacationWeekSolnPrinter(SolnPrinterTest):
         self.solution_count = 0
 
         self.vacation_assignments = []
+        self.solution_dicts = []
 
         super().__init__(*args, **kwargs)
 
@@ -21,15 +22,16 @@ class VacationWeekSolnPrinter(SolnPrinterTest):
         super().on_solution_callback()
 
         self.vacation_assignments.append(self.vacation_df())
+        self.solution_dicts.append(self.solution_dict())
 
 
-def test_vacation_cooldown():
+def _solve_vacation_cooldown(hint=None):
 
     residents = ['R1', 'R2']
     blocks = ['Spring', 'Summer']
     rotations = ['Ortho', 'GS']
 
-    status, solver, solution_printer, model, wall_runtime = solve.solve(
+    return solve.solve(
         residents=residents,
         blocks=blocks,
         rotations=rotations,
@@ -78,8 +80,14 @@ def test_vacation_cooldown():
             'backup': False
         },
         max_time_in_mins=5,
-        hint=None
+        hint=hint
     )
+
+
+def test_vacation_cooldown():
+
+    status, solver, solution_printer, model, wall_runtime = \
+        _solve_vacation_cooldown()
 
     vacation_df = solution_printer.vacation_assignments[0]
     assert vacation_df.groupby(['resident']
@@ -98,3 +106,35 @@ def test_vacation_cooldown():
 
     assert np.all(r1 == [0, 1, 0, 1]) or np.all(r2 == [0, 1, 0, 1])
     assert np.all(r1 == [1, 0, 1, 0]) or np.all(r2 == [1, 0, 1, 0])
+
+
+def test_json_solution_hint_round_trip(tmp_path):
+    """Solve with cogrids, write .json, read back, hint a second solve."""
+
+    status, _, solution_printer, _, _ = _solve_vacation_cooldown()
+    assert status in ('OPTIMAL', 'FEASIBLE')
+
+    fname = str(tmp_path / 'soln.json')
+    io.write_solution(fname, solution_printer.solution_dicts[-1])
+    hint = io.read_solution(fname)
+
+    assert set(hint) == {'main', 'vacation'}
+
+    status, _, _, _, _ = _solve_vacation_cooldown(hint=hint)
+    assert status in ('OPTIMAL', 'FEASIBLE')
+
+
+def test_json_solution_partial_hint(tmp_path):
+    """A hint stripped of cogrid keys must still solve (partial-hint path)."""
+
+    status, _, solution_printer, _, _ = _solve_vacation_cooldown()
+    assert status in ('OPTIMAL', 'FEASIBLE')
+
+    fname = str(tmp_path / 'soln.json')
+    io.write_solution(fname, solution_printer.solution_dicts[-1])
+    hint = io.read_solution(fname)
+
+    hint = {'main': hint['main']}
+
+    status, _, _, _, _ = _solve_vacation_cooldown(hint=hint)
+    assert status in ('OPTIMAL', 'FEASIBLE')
