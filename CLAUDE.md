@@ -10,12 +10,19 @@ Schedulomicon is a constraint-based scheduling optimizer for medical resident ro
 
 - Python environment: `pyenv local schedulomicon` (virtualenv named `schedulomicon`)
 - Install (editable): `pip install -e .`
-- Run solver (CLI entry point from `setup.py`): `schedulomicon --config config.yml --results results.csv`
+- Run solver (CLI entry point from `setup.py`): `schedulomicon solve --config config.yml --results results.csv`
   - Equivalent to `python -m schedulomicon.solver ...`
+  - Flagless invocation (`schedulomicon --config ...`) is a deprecated alias for `solve`
+- Swap mode (minimal-change rescheduling against a prior solution): `schedulomicon swap --config config.yml --minimize-changes-from old.json --freeze 'Block 1 or Block 2' --require 'sum == 0: Resident A and Block 7 and Cardiology' --results new.json`
+  - `--freeze` (repeatable) pins the selected region to be *identical* to the old solution — for mid-year rescheduling where past blocks must not move
 - Run all tests: `pyenv exec pytest schedulomicon/test_*.py`
 - Run a single test: `pyenv exec pytest schedulomicon/test_solve.py::test_small_puzzle`
 
 Note: `setup.py` pins `ortools==9.8.3296` and requires Python `>=3.6, <3.11` to match available OR-Tools wheels.
+
+## Development workflow
+
+Red/green TDD is project-wide policy. Every behavior change starts with failing tests: write the tests, run them, and confirm they fail for the expected reason *before* implementing. Then write the minimal implementation to turn them green, and run the full suite (`pyenv exec pytest schedulomicon/test_*.py`) — it must pass before moving on to the next iteration. Factor pure helpers (mask/dict computations, formatting) out of solver plumbing so they are unit-testable without building a CP-SAT model. Docs-only changes are exempt.
 
 ## Documentation
 
@@ -44,6 +51,7 @@ The solving pipeline flows config → constraints → CP-SAT model → solution,
 - **`io.py`** — YAML/CSV/solution I/O plus **constraint dispatch**. `process_config` builds `groups_array` (boolean masks over residents×blocks×rotations for every named group and every individual entity). `generate_constraints_from_configs` walks the YAML and invokes each constraint class's `from_yml_dict`. See "Adding constraints" below — io.py is meant to stay a generic dispatcher.
 - **`model.py`** — Builds the raw CP-SAT variables. `generate_model` creates the main `block_assigned[resident, block, rotation]` BoolVars and the "each resident does exactly one rotation per block" base constraint. `generate_vacation` and `generate_backup` build cogrid variables.
 - **`solve.py`** — Orchestrates a solve: builds the model, assembles `grids` (a dict of `main`/`backup`/`vacation` cogrids, each with `dimensions` and `variables`), calls `cst.apply(...)` for each constraint, optionally adds a hint and score objective, then runs `run_optimizer` or `run_enumerator`.
+- **`swap.py`** — Swap mode (`schedulomicon swap`): `swap_solve` runs a lexicographic two-pass minimal-change solve against a prior solution (`build_diff_score_functions` turns the old solution into per-grid change objectives; pass 2 re-optimizes the user's score objective under a `MinTotalScoreConstraint` change bound; `format_diff_report` renders the human-readable diff). Also the `--freeze` machinery: `build_freeze_constraint` resolves a selector into a `FreezeConstraint` via `compute_freeze_pins`, which pins masked main-grid cells to the old solution and projects onto cogrids (backup `(res, block)` pinned when all rotations for the pair are masked; vacation `(res, week, rot)` pinned when every block the week maps to is masked). Undetermined cells (pair absent from the old solution, or a projected cogrid wholly missing from it) raise `exceptions.FreezeError` before any solving.
 - **`csts.py`** — Concrete `Constraint` subclasses (rotation, resident, group/global). Each inherits from the `Constraint` base and implements `apply(model, block_assigned, residents, blocks, rotations, grids)`. Many also implement `from_yml_dict` + a `KEY_NAME` class attribute for YAML dispatch.
 - **`cogrid_csts.py`** — Constraints that act on the auxiliary `vacation` and `backup` grids rather than the main grid.
 - **`parser.py`** — `pyparsing`-based DSL used inside YAML selector strings. `resolve_eligible_field` parses boolean expressions like `"Senior and (Emergency or ICU)"` against `groups_array` to produce a boolean mask. `parse_sum_function` parses comparators like `"sum > 0"` used by `FieldSumConstraint`.
@@ -75,7 +83,7 @@ Constraints live in YAML under the scope they apply to. The code that dispatches
 - **Per-block** (nested under a block): field-sum constraints.
 - **Group/global** (under `group_constraints:`): `GroupCoverageConstraint`, `TimeToFirstConstraint`, `GroupCountPerResidentPerWindow` (keys `all_group_count_per_resident` / `window_group_count_per_resident`).
 - **Cogrid**: vacation and backup constraints live in `cogrid_csts.py` and are generated by `generate_vacation_constraints` / `generate_backup_constraints`.
-- **CLI-only**: `MinIndividualScoreConstraint` / `MinTotalScoreConstraint` are added from solver flags, not YAML.
+- **CLI-only**: `MinIndividualScoreConstraint` is added from the `--min-individual-rank` flag, and `--require 'SUM_EXPR: SELECTOR'` (both subcommands, repeatable) adds `FieldSumConstraint`s via `io.parse_cli_constraint` — not YAML. `--freeze 'SELECTOR'` (swap-only, repeatable) adds `swap.FreezeConstraint`s pinning main + cogrid variables to the old solution. `MinTotalScoreConstraint` is code-only (legacy dense-`scores` form for API users; `grid_and_functions` form is swap mode's pass-2 change bound).
 
 ## Adding new constraints
 

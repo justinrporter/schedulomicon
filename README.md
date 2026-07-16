@@ -27,13 +27,27 @@ pip install -e .
 ### Basic Example
 
 ```bash
-schedulomicon --config config.yml --results results.csv
+schedulomicon solve --config config.yml --results results.csv
+```
+
+### Swap Example
+
+Given a published schedule, find the minimal set of changes that satisfies a
+new requirement, keeping blocks that already happened untouched:
+
+```bash
+schedulomicon swap \
+  --config config.yml \
+  --minimize-changes-from old_results.json \
+  --freeze 'Block 1 or Block 2' \
+  --require 'sum == 0: Resident A and Block 7 and Cardiology' \
+  --results new_results.json
 ```
 
 ### Advanced Example
 
 ```bash
-schedulomicon \
+schedulomicon solve \
   --config big-preference-file.yml \
   --results results.pkl \
   --objective rank_sum_objective \

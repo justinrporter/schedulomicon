@@ -21,3 +21,10 @@ class NameNotFound(Exception):
 class UnacceptableFileType(Exception):
     def __init__(self, message):
         super().__init__(message)
+
+
+class FreezeError(Exception):
+    """A --freeze region touches variables whose value cannot be determined
+    from the old solution."""
+    def __init__(self, message):
+        super().__init__(message)

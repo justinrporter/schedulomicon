@@ -165,7 +165,7 @@ class TestParseArgs:
     
     def test_basic_args(self):
         """Test parsing of basic arguments."""
-        args = solver.parse_args(['--config', 'config.yml', '--results', 'results.csv'])
+        args = solver.parse_args(['solve', '--config', 'config.yml', '--results', 'results.csv'])
         assert args.config == 'config.yml'
         assert args.results == 'results.csv'
         assert args.n_processes == 1  # default
@@ -173,6 +173,7 @@ class TestParseArgs:
     def test_all_args(self):
         """Test parsing of all possible arguments."""
         args = solver.parse_args([
+            'solve',
             '--config', 'config.yml',
             '--coverage-min', 'min.csv',
             '--coverage-max', 'max.csv',
@@ -205,6 +206,182 @@ class TestParseArgs:
         assert args.objective == 'custom_objective'
         assert args.min_individual_rank == 5.5
         assert args.hint == 'hint.pkl'
+
+
+class TestSubcommands:
+    """Test the solve/swap subcommand interface."""
+
+    def test_swap_requires_minimize_changes_from(self):
+        with pytest.raises(SystemExit):
+            solver.parse_args(
+                ['swap', '--config', 'c.yml', '--results', 'r.csv'])
+
+    def test_require_repeatable_on_solve(self):
+        args = solver.parse_args([
+            'solve', '--config', 'c.yml', '--results', 'r.csv',
+            '--require', 'sum == 1: R1 and Bl1',
+            '--require', 'sum == 0: R2 and Bl2',
+        ])
+        assert args.require == [
+            'sum == 1: R1 and Bl1', 'sum == 0: R2 and Bl2']
+
+    def test_require_and_minimize_changes_from_on_swap(self):
+        args = solver.parse_args([
+            'swap', '--config', 'c.yml', '--results', 'r.csv',
+            '--minimize-changes-from', 'old.json',
+            '--require', 'sum == 1: R1 and Bl1',
+        ])
+        assert args.require == ['sum == 1: R1 and Bl1']
+        assert args.minimize_changes_from == 'old.json'
+
+    def test_freeze_repeatable_on_swap(self):
+        args = solver.parse_args([
+            'swap', '--config', 'c.yml', '--results', 'r.csv',
+            '--minimize-changes-from', 'old.json',
+            '--freeze', 'Block 1', '--freeze', 'R1',
+        ])
+        assert args.freeze == ['Block 1', 'R1']
+
+    def test_freeze_rejected_on_solve(self):
+        with pytest.raises(SystemExit):
+            solver.parse_args([
+                'solve', '--config', 'c.yml', '--results', 'r.csv',
+                '--freeze', 'Block 1',
+            ])
+
+    def test_bare_help_lists_subcommands(self, capsys):
+        with pytest.raises(SystemExit) as exc_info:
+            solver.main(['--help'])
+
+        assert exc_info.value.code == 0
+        out = capsys.readouterr().out
+        assert 'solve' in out
+        assert 'swap' in out
+
+    @patch('schedulomicon.solve.solve')
+    def test_flagless_invocation_warns_and_solves(
+            self, mock_solve, basic_config_file, temp_directory, capsys):
+        results_file = os.path.join(temp_directory, 'results.csv')
+        mock_solve.return_value = (
+            'INFEASIBLE', MagicMock(), MagicMock(), MagicMock(), 1.0)
+
+        exit_code = solver.main(
+            ['--config', basic_config_file, '--results', results_file])
+
+        assert exit_code == 0
+        assert 'deprecat' in capsys.readouterr().err.lower()
+        mock_solve.assert_called_once()
+
+    @patch('schedulomicon.solve.solve')
+    def test_swap_plumbs_old_solution_and_require(
+            self, mock_solve, basic_config_file, temp_directory):
+        from schedulomicon import csts as csts_module
+
+        old_solution = {
+            'main': {
+                ('R1', 'Block1', 'Rotation1'): 1,
+                ('R1', 'Block2', 'Rotation2'): 1,
+                ('R2', 'Block1', 'Rotation2'): 1,
+                ('R2', 'Block2', 'Rotation1'): 1,
+            }
+        }
+        old_file = os.path.join(temp_directory, 'old.json')
+        io.write_solution(old_file, old_solution)
+
+        results_file = os.path.join(temp_directory, 'results.json')
+
+        # pass-1 result; no rankings given, so pass 2 is skipped
+        new_solution = {
+            'main': {
+                ('R1', 'Block1', 'Rotation2'): 1,
+                ('R1', 'Block2', 'Rotation2'): 1,
+                ('R2', 'Block1', 'Rotation1'): 1,
+                ('R2', 'Block2', 'Rotation1'): 1,
+            }
+        }
+        cp_solver = MagicMock()
+        cp_solver.ObjectiveValue.return_value = -2.0
+        printer = MagicMock()
+        printer._solutions = [new_solution]
+        printer.solution_count.return_value = 1
+        mock_solve.return_value = (
+            'OPTIMAL', cp_solver, printer, MagicMock(), 1.0)
+
+        with patch('sys.stdout', new=StringIO()) as fake_stdout:
+            exit_code = solver.main([
+                'swap',
+                '--config', basic_config_file,
+                '--minimize-changes-from', old_file,
+                '--require', 'sum == 0: R1 and Block1 and Rotation1',
+                '--results', results_file,
+            ])
+
+        assert exit_code == 1
+        mock_solve.assert_called_once()
+
+        args, kwargs = mock_solve.call_args
+        # the old solution is passed as the pass-1 hint
+        assert kwargs['hint'] == old_solution
+        # the --require constraint made it into the constraint list
+        cst_list = args[4]
+        assert any(isinstance(c, csts_module.FieldSumConstraint)
+                   for c in cst_list)
+        # pass 1 minimizes the diff objective
+        assert [g for g, _ in kwargs['score_functions']] == ['main']
+
+        assert os.path.exists(results_file)
+        # d_star = o_star + n_valid_old_on = -2 + 4
+        assert 'Minimal changes' in fake_stdout.getvalue()
+        assert 'R1, Block1: Rotation1 -> Rotation2' in fake_stdout.getvalue()
+
+    @patch('schedulomicon.solve.solve')
+    def test_swap_plumbs_freeze_constraint(
+            self, mock_solve, basic_config_file, temp_directory):
+        from schedulomicon import swap as swap_module
+
+        old_solution = {
+            'main': {
+                ('R1', 'Block1', 'Rotation1'): 1,
+                ('R1', 'Block2', 'Rotation2'): 1,
+                ('R2', 'Block1', 'Rotation2'): 1,
+                ('R2', 'Block2', 'Rotation1'): 1,
+            }
+        }
+        old_file = os.path.join(temp_directory, 'old.json')
+        io.write_solution(old_file, old_solution)
+
+        results_file = os.path.join(temp_directory, 'results.json')
+
+        cp_solver = MagicMock()
+        cp_solver.ObjectiveValue.return_value = -4.0
+        printer = MagicMock()
+        printer._solutions = [old_solution]
+        printer.solution_count.return_value = 1
+        mock_solve.return_value = (
+            'OPTIMAL', cp_solver, printer, MagicMock(), 1.0)
+
+        exit_code = solver.main([
+            'swap',
+            '--config', basic_config_file,
+            '--minimize-changes-from', old_file,
+            '--freeze', 'Block1',
+            '--results', results_file,
+        ])
+
+        assert exit_code == 1
+        mock_solve.assert_called_once()
+
+        args, kwargs = mock_solve.call_args
+        cst_list = args[4]
+        freeze_csts = [c for c in cst_list
+                       if isinstance(c, swap_module.FreezeConstraint)]
+        assert len(freeze_csts) == 1
+        assert freeze_csts[0].pins == {'main': {
+            ('R1', 'Block1', 'Rotation1'): 1,
+            ('R1', 'Block1', 'Rotation2'): 0,
+            ('R2', 'Block1', 'Rotation1'): 0,
+            ('R2', 'Block1', 'Rotation2'): 1,
+        }}
 
 
 class TestConfigLoading:
@@ -337,7 +514,7 @@ class TestSolverIntegration:
 
         # Redirect stdout to capture printed output
         with patch('sys.stdout', new=StringIO()) as fake_stdout:
-            exit_code = solver.main(['--config', basic_config_file, '--results', results_file])
+            exit_code = solver.main(['solve', '--config', basic_config_file, '--results', results_file])
 
         assert exit_code == 1
         assert os.path.exists(results_file)
@@ -368,7 +545,7 @@ class TestSolverIntegration:
         mock_solve.return_value = ('OPTIMAL', MagicMock(), solution_printer, MagicMock(), 1.0)
 
         with patch('sys.stdout', new=StringIO()):
-            exit_code = solver.main(['--config', basic_config_file, '--results', results_file])
+            exit_code = solver.main(['solve', '--config', basic_config_file, '--results', results_file])
 
         assert exit_code == 1
         with open(results_file) as f:
@@ -400,7 +577,7 @@ class TestSolverIntegration:
         mock_solve.return_value = ('INFEASIBLE', MagicMock(), MagicMock(), MagicMock(), 1.0)
 
         with patch('sys.stdout', new=StringIO()):
-            solver.main(['--config', basic_config_file,
+            solver.main(['solve', '--config', basic_config_file,
                          '--results', results_file,
                          '--hint', hint_file])
 
@@ -416,7 +593,7 @@ class TestSolverIntegration:
         
         # Redirect stdout to capture printed output
         with patch('sys.stdout', new=StringIO()) as fake_stdout:
-            exit_code = solver.main(['--config', basic_config_file, '--results', results_file])
+            exit_code = solver.main(['solve', '--config', basic_config_file, '--results', results_file])
         
         assert exit_code == 0
         assert "No best solution." in fake_stdout.getvalue()
@@ -434,7 +611,7 @@ class TestExampleConfig:
         )
         results_file = str(tmp_path / 'results.csv')
 
-        exit_code = solver.main(['--config', example_config, '--results', results_file])
+        exit_code = solver.main(['solve', '--config', example_config, '--results', results_file])
 
         assert exit_code == 1, "Solver should find a feasible solution"
         assert os.path.exists(results_file), "Results CSV should be written"
@@ -449,7 +626,7 @@ class TestExampleConfig:
         json_results = str(tmp_path / 'results.json')
 
         exit_code = solver.main(
-            ['--config', example_config, '--results', json_results])
+            ['solve', '--config', example_config, '--results', json_results])
         assert exit_code == 1, "First solve should find a feasible solution"
 
         solution = io.read_solution(json_results)
@@ -459,7 +636,7 @@ class TestExampleConfig:
 
         second_results = str(tmp_path / 'results2.csv')
         exit_code = solver.main(
-            ['--config', example_config, '--results', second_results,
+            ['solve', '--config', example_config, '--results', second_results,
              '--hint', json_results])
         assert exit_code == 1, "Hinted solve should find a feasible solution"
         assert os.path.exists(second_results)
@@ -479,7 +656,7 @@ class TestErrorHandling:
         
         # Expect the YAML parser to raise an exception
         with pytest.raises(yaml.YAMLError):
-            solver.main(['--config', invalid_config_path, '--results', results_file])
+            solver.main(['solve', '--config', invalid_config_path, '--results', results_file])
     
     def test_nonexistent_file(self, temp_directory):
         """Test behavior with a nonexistent file."""
@@ -488,4 +665,4 @@ class TestErrorHandling:
         
         # Expect a FileNotFoundError
         with pytest.raises(FileNotFoundError):
-            solver.main(['--config', nonexistent_file, '--results', results_file])
+            solver.main(['solve', '--config', nonexistent_file, '--results', results_file])

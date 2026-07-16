@@ -84,6 +84,14 @@ schedulomicon.solver module
    :undoc-members:
    :show-inheritance:
 
+schedulomicon.swap module
+-------------------------
+
+.. automodule:: schedulomicon.swap
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 schedulomicon.test\_cogrid module
 ---------------------------------
 

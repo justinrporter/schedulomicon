@@ -2,17 +2,29 @@ CLI Reference
 =============
 
 The ``schedulomicon`` command-line tool reads a YAML config, applies constraints and
-scoring, runs the CP-SAT solver, and writes the resulting schedule to a CSV file.
+scoring, runs the CP-SAT solver, and writes the resulting schedule. It has two
+subcommands:
+
+- ``schedulomicon solve`` — build a schedule from scratch.
+- ``schedulomicon swap`` — re-solve an existing schedule under new
+  requirements, changing as little as possible (see :ref:`cli-swap-mode`).
 
 Basic Invocation
 ----------------
 
 .. code-block:: bash
 
-   schedulomicon --config config.yml --results results.csv
+   schedulomicon solve --config config.yml --results results.csv
 
-``--config`` and ``--results`` are the only required flags. All other flags are
-optional.
+``--config`` and ``--results`` are the only required flags on ``solve``. All
+other flags are optional. Both subcommands accept the same common flags;
+``swap`` additionally requires ``--minimize-changes-from``.
+
+.. note::
+
+   Invoking ``schedulomicon`` with flags but no subcommand
+   (``schedulomicon --config ...``) is deprecated. It still runs ``solve``,
+   printing a deprecation warning to stderr.
 
 .. _cli-coverage-csv:
 
@@ -157,7 +169,9 @@ solving on multi-core machines.
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Number of solutions to find before stopping. By default the solver runs until it
-finds an optimal solution (or proves infeasibility).
+finds an optimal solution (or proves infeasibility). In swap mode the limit
+applies to each pass separately; stopping pass 1 early means the change count
+is only an upper bound (a warning is printed when this happens).
 
 ``--objective <name>``
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -180,3 +194,151 @@ OR-Tools as a starting point; it does not restrict the search space.
 Hints may be partial: grids absent from the hint file are simply left
 unhinted. Within a hinted grid, variables absent from a sparse ``.json``
 solution are hinted as ``0``.
+
+Extra Constraints
+-----------------
+
+``--require 'SUM_EXPR: SELECTOR'``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Add a hard constraint from the command line, without editing the YAML config.
+Available on both subcommands and repeatable.
+
+The part before the colon is a sum comparison (``sum == N``, ``sum != N``,
+``sum > N``, ``sum >= N``, ``sum < N``, ``sum <= N``); the part after is a
+selector expression in the same DSL used by YAML ``sum`` keys (see
+:doc:`selections`). The selected cells of the **main grid only** are summed
+and constrained — cogrid (vacation/backup) variables cannot be selected.
+
+.. code-block:: bash
+
+   # Resident A must do Cardiology in Block 7
+   schedulomicon solve ... --require 'sum == 1: Resident A and Block 7 and Cardiology'
+
+   # Resident B must never be assigned ICU; seniors must cover at least
+   # two Emergency or Trauma slots
+   schedulomicon swap ... \
+       --require 'sum == 0: Resident B and ICU' \
+       --require 'sum >= 2: Senior and (Emergency or Trauma)'
+
+.. _cli-swap-mode:
+
+Swap Mode
+---------
+
+``schedulomicon swap`` takes a published schedule and new requirements and
+finds the smallest set of changes that satisfies them — for example when a
+resident leaves or a slot must be covered differently after the schedule was
+released. It uses the same config pipeline and flags as ``solve``; the new
+requirements are typically given with ``--require``.
+
+.. code-block:: bash
+
+   schedulomicon swap \
+       --config config.yml \
+       --minimize-changes-from old_results.json \
+       --require 'sum == 0: Resident A and Block 7 and Cardiology' \
+       --results new_results.json
+
+``--minimize-changes-from <file>``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Required.** The prior solution to stay close to, as written by
+``--results`` in ``.pkl``/``.pickle`` or ``.json`` format.
+
+``--freeze 'SELECTOR'``
+^^^^^^^^^^^^^^^^^^^^^^^
+
+Pin a region of the schedule to the old solution. Change minimization only
+*discourages* touching cells outside the new requirements; ``--freeze`` makes
+the selected region **identical** to the old solution — the natural choice
+for blocks that have already happened in mid-year rescheduling. Repeatable;
+each selector becomes a hard constraint applied in both passes. The selector
+uses the same DSL as ``--require`` (see :doc:`selections`), so freezing
+residents or rotations works the same way as freezing blocks:
+
+.. code-block:: bash
+
+   schedulomicon swap \
+       --config config.yml \
+       --minimize-changes-from old_results.json \
+       --freeze 'Block 1 or Block 2 or Block 3' \
+       --require 'sum == 0: Resident A and Block 7 and Cardiology' \
+       --results new_results.json
+
+Every selected main-grid cell is pinned to its old value. Cogrid variables
+freeze where the selection determines them completely:
+
+- a **backup** ``(resident, block)`` assignment is pinned when the selection
+  covers *all* rotations for that pair (e.g. a whole-block freeze);
+- a **vacation** ``(resident, week, rotation)`` assignment is pinned when
+  *every* block the week maps to is selected for that resident and rotation.
+  A week whose config lists no blocks is never frozen.
+
+If the frozen region touches a ``(resident, block)`` pair with no valid
+assignment in the old solution — a resident added mid-year, or a pair whose
+old rotation was removed or renamed from the config — the command fails
+immediately with a ``FreezeError`` rather than silently guessing. The remedy
+is to narrow the selector, e.g.
+``--freeze '(Block 1 or Block 2) and not New Resident'``. The same hard
+error applies when the selection projects onto a backup or vacation grid
+that the model has but the old solution file lacks. (Sparse ``.json``
+solutions are fine: a missing key in a present grid is a determined ``0``.)
+
+A ``--require`` that contradicts a frozen cell makes the model infeasible;
+the solver reports ``INFEASIBLE`` just as with any over-constrained config.
+
+Two-pass semantics
+^^^^^^^^^^^^^^^^^^
+
+Swap mode solves lexicographically, in up to two passes:
+
+1. **Pass 1** minimizes the number of changes from the old schedule, subject
+   to all constraints (YAML, coverage CSVs, and ``--require``). The old
+   solution seeds the search as a solver hint (an explicit ``--hint``
+   overrides this).
+2. **Pass 2** runs only when a score objective is given (``--rankings`` /
+   ``--score-list`` / ``--block-resident-ranking``). It re-solves with the
+   pass-1 change count imposed as a hard bound and optimizes the normal
+   score objective, so among all minimal-change schedules you get the
+   best-scoring one.
+
+Change metric
+^^^^^^^^^^^^^
+
+Changes are counted as variable flips across **all grids** present in both
+the old solution and the current model (``main``, ``backup``, ``vacation``).
+Reassigning one resident's block is two flips (their old rotation turns off,
+the new one turns on); adding or dropping a backup or vacation assignment is
+one flip each.
+
+Old assignments that reference residents, blocks, weeks, or rotations no
+longer present in the config are reported in a warning (with counts and
+sample keys) and ignored. Grids in the old file that the current model lacks
+are skipped with a warning; model grids missing from the old file simply
+contribute no change cost.
+
+Diff report
+^^^^^^^^^^^
+
+After a successful swap, the minimal flip count and a per-grid diff report
+are printed:
+
+.. code-block:: text
+
+   Minimal changes (variable flips) from old schedule: 6
+   ...
+   Changes from old schedule: 4 (main: 2, vacation: 2)
+
+   main:
+     Resident A, Spring: Clinic -> ICU
+     Resident C, Spring: ICU -> Clinic
+
+   vacation:
+     + Resident A, Week 4, Emergency
+     - Resident A, Week 1, Clinic
+
+Main-grid changes are shown one line per reassigned (resident, block);
+backup and vacation changes are listed as added (``+``) and dropped (``-``)
+assignments. Old assignments that could no longer be compared are tallied in
+a footer.

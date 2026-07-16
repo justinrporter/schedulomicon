@@ -3,7 +3,7 @@ import numbers
 import logging
 import numpy as np
 
-from . import exceptions, parser
+from . import exceptions, parser, score
 from .exceptions import YAMLParseError
 from .util import resolve_group, accumulate_prior_counts
 
@@ -1309,15 +1309,30 @@ class MinTotalScoreConstraint(Constraint):
     Note: This constraint enforces a score LESS THAN OR EQUAL TO the minimum (not ≥).
     Commonly used with negative scores to set a maximum threshold for negative utility.
 
-    YAML Example:
-        min_total_score: -1000  # Total schedule score must be ≥ -1000
+    Takes exactly one of two mutually-exclusive score specifications:
+
+    - ``scores``: a dense ``{(resident, block, rotation): score}`` dict over
+      the main grid (e.g. from ``score.score_dict_from_df``), bounding
+      ``sum(scores[k] * block_assigned[k]) <= min_score``.
+    - ``grid_and_functions``: ``(grid_name, score_function)`` pairs aggregated
+      over the model's grids, exactly as ``score.aggregate_score_functions``
+      does for the objective (the same shape as ``solve.solve``'s
+      ``score_functions``). Used as the change bound in swap mode's second
+      pass.
+
+    Not available from YAML; constructed in code.
     """
 
-    def __init__(self, scores, min_score):
+    def __init__(self, scores=None, min_score=None, grid_and_functions=None):
         assert isinstance(min_score, numbers.Number)
         assert min_score == int(min_score)
 
+        if (scores is None) == (grid_and_functions is None):
+            raise ValueError(
+                "Exactly one of 'scores' and 'grid_and_functions' must be given")
+
         self.scores = scores
+        self.grid_and_functions = grid_and_functions
         self.min_score = int(min_score)
 
         logger.info(f"Created MinTotalScoreConstraint with "
@@ -1325,16 +1340,22 @@ class MinTotalScoreConstraint(Constraint):
 
     def apply(self, model, block_assigned, residents, blocks, rotations, grids):
 
-        obj = 0
-        for res in residents:
-            for rot in rotations:
-                for blk in blocks:
-                    k = (res, blk, rot)
-                    x = self.scores[k]
+        if self.scores is not None:
+            obj = 0
+            for res in residents:
+                for rot in rotations:
+                    for blk in blocks:
+                        k = (res, blk, rot)
+                        x = self.scores[k]
 
-                    assert int(x) == x, f"Score for {x} {k} is not an integer"
+                        assert int(x) == x, f"Score for {x} {k} is not an integer"
 
-                    obj += int(x) * block_assigned[k]
+                        obj += int(x) * block_assigned[k]
+        else:
+            obj = score.aggregate_score_functions(
+                variables={g: grids[g]['variables'] for g in grids},
+                grid_and_functions=self.grid_and_functions
+            )
 
         model.Add(obj <= self.min_score)
 

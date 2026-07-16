@@ -6,7 +6,7 @@ import pickle
 
 import json
 import re
-from collections import OrderedDict
+from collections import OrderedDict, namedtuple
 
 import numpy as np
 import pandas as pd
@@ -138,30 +138,128 @@ def write_solution(fname, solution):
             f"File '{fname}' is not of type .csv, .pkl/.pickle, or .json")
 
 
+def field_sum_constraint(sum_statement, selector_string, config, groups_array):
+    """Build a FieldSumConstraint from a ``sum <op> N`` statement and a
+    selector DSL expression (e.g. ``'sum == 1'``, ``'R1 and Block 7'``)."""
+
+    satisfies_sum_fn = parser.parse_sum_function(sum_statement)
+
+    field = parser.resolve_eligible_field(
+        selector_string,
+        groups_array,
+        config['residents'].keys(),
+        config['blocks'].keys(),
+        config['rotations'].keys()
+    )
+
+    return csts.FieldSumConstraint(
+        satisfies_sum_fn=satisfies_sum_fn,
+        field=field
+    )
+
+
+def parse_cli_constraint(spec, config, groups_array):
+    """Parse a CLI constraint spec of the form ``'SUM_EXPR: SELECTOR'``,
+    e.g. ``'sum == 1: Resident A and Block 7 and Cardiology'``."""
+
+    sum_statement, sep, selector_string = spec.partition(':')
+
+    if not sep:
+        raise exceptions.YAMLParseError(
+            f"Constraint spec '{spec}' is missing a ':' between the sum "
+            "expression and the selector (expected 'SUM_EXPR: SELECTOR', "
+            "e.g. 'sum == 1: Resident A and Block 7 and Cardiology').")
+
+    selector_string = selector_string.strip()
+    if not selector_string:
+        raise exceptions.YAMLParseError(
+            f"Constraint spec '{spec}' has an empty selector after the ':'.")
+
+    return field_sum_constraint(
+        sum_statement.strip(), selector_string, config, groups_array)
+
+
 def parse_field_sum_constraint(params, scope_selection, config, groups_array):
 
     cst_list = []
 
     for param in params:
         if param.startswith('sum'):
-            satisfies_sum_fn = parser.parse_sum_function(param)
-
             for selector_string in params[param]:
-                field = parser.resolve_eligible_field(
+                cst_list.append(field_sum_constraint(
+                    param,
                     f"{scope_selection} and ({selector_string})",
-                    groups_array,
-                    config['residents'].keys(),
-                    config['blocks'].keys(),
-                    config['rotations'].keys()
-                )
-                cst_list.append(
-                    csts.FieldSumConstraint(
-                        satisfies_sum_fn=satisfies_sum_fn,
-                        field=field
-                    )
-                )
+                    config,
+                    groups_array
+                ))
 
     return cst_list
+
+
+Problem = namedtuple('Problem', [
+    'config', 'residents', 'blocks', 'rotations', 'cogrids', 'groups_array',
+    'cst_list', 'hint',
+])
+
+
+def load_problem(config_path, coverage_min=None, coverage_max=None,
+                 hint_path=None, require=()):
+    """Load a YAML config and assemble everything needed for a solve.
+
+    Args:
+        config_path: Path to the YAML schedule configuration.
+        coverage_min: Optional path to a CSV of per-block/rotation coverage
+            minima (as for the --coverage-min CLI flag).
+        coverage_max: Optional path to a CSV of coverage maxima.
+        hint_path: Optional path to a .pkl/.json prior solution to use as a
+            solver hint.
+        require: Iterable of CLI constraint specs ('SUM_EXPR: SELECTOR'),
+            each parsed by parse_cli_constraint into a FieldSumConstraint.
+
+    Returns:
+        Problem: A namedtuple of (config, residents, blocks, rotations,
+        cogrids, groups_array, cst_list, hint). ``cogrids`` maps each cogrid
+        name present in the config ('vacation'/'backup') to its config value.
+    """
+
+    with open(config_path, 'r') as f:
+        config = yaml.safe_load(f)
+
+    residents, blocks, rotations, cogrids_avail, groups_array = process_config(config)
+
+    cst_list = generate_constraints_from_configs(config, groups_array)
+
+    if coverage_min:
+        cst_list.extend(
+            coverage_constraints_from_csv(coverage_min, 'rmin')
+        )
+    if coverage_max:
+        cst_list.extend(
+            coverage_constraints_from_csv(coverage_max, 'rmax')
+        )
+
+    cst_list.extend(
+        generate_backup_constraints(config)
+    )
+
+    for spec in require:
+        cst_list.append(parse_cli_constraint(spec, config, groups_array))
+
+    if hint_path is not None:
+        hint = read_solution(hint_path)
+    else:
+        hint = None
+
+    return Problem(
+        config=config,
+        residents=residents,
+        blocks=blocks,
+        rotations=rotations,
+        cogrids={c: config[c] for c in cogrids_avail},
+        groups_array=groups_array,
+        cst_list=cst_list,
+        hint=hint,
+    )
 
 
 def read_solution(fname):

@@ -105,7 +105,7 @@ Usage:
 
 .. code-block:: bash
 
-   schedulomicon --config config.yml --results out.csv \
+   schedulomicon solve --config config.yml --results out.csv \
        --score-list vacation vacation_scores.csv
 
 

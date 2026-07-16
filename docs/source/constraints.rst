@@ -469,13 +469,35 @@ Sets minimum utility score per resident based on preferences.
 MinTotalScoreConstraint
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-Sets minimum utility score across all residents.
+Bounds the total score of the schedule. There is no YAML key for this
+constraint (the ``min_total_score:`` key previously documented here was never
+wired up); it is constructed programmatically, in exactly one of two
+mutually-exclusive forms, with a single ``min_score`` bound enforcing
+``total <= min_score``.
 
-.. code-block:: yaml
+The ``scores`` form takes a dense ``{(resident, block, rotation): score}``
+dict over the main grid (e.g. from
+:func:`~schedulomicon.score.score_dict_from_df`):
 
-    constraints:
-      - kind: min_total_score
-        score: 500  # Schedule must have at least 500 total points
+.. code-block:: python
+
+    csts.MinTotalScoreConstraint(scores, -500)  # total must be <= -500
+
+The ``grid_and_functions`` form takes ``(grid, score_function)`` pairs — the
+same shape solve.solve accepts as ``score_functions`` — and can span cogrids
+(backup, vacation) as well as the main grid:
+
+.. code-block:: python
+
+    csts.MinTotalScoreConstraint(
+        grid_and_functions=[('main', score_fn)],
+        min_score=-500,  # the aggregate score must be <= -500
+    )
+
+Because the solver minimizes, scores are usually negative and ``min_score``
+acts as a quality floor. Swap mode uses the ``grid_and_functions`` form
+internally to hold its second pass at the change bound established by its
+first pass.
 
 Scoring constraints work in conjunction with preference files that assign scores to different rotations or vacation periods.
 

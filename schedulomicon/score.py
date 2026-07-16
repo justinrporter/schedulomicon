@@ -30,8 +30,9 @@ def objective_from_score_dict(variables, scores, default_score=None):
         scores (dict):
             A dictionary mapping the same assignment tuples to numeric scores.
         default_score (int, optional):
-            The default score to use for variables not found in scores. If
-            None, asserts that variables and scores have the same keys.
+            The score to use for variables not found in scores. If None,
+            asserts that variables and scores have the same keys (and
+            missing keys then score 0, though the assert makes that moot).
 
     Returns:
         int: The weighted sum of variables multiplied by their respective scores
@@ -42,7 +43,7 @@ def objective_from_score_dict(variables, scores, default_score=None):
     obj = 0
 
     for k in variables:
-        obj += variables[k] * scores.get(k, 0)
+        obj += variables[k] * scores.get(k, default_score if default_score is not None else 0)
 
     return obj
 

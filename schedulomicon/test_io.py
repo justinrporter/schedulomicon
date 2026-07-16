@@ -3,8 +3,9 @@ import os
 import pickle
 
 import pytest
+import yaml
 
-from . import io, exceptions
+from . import io, exceptions, csts
 
 
 @pytest.fixture
@@ -179,3 +180,85 @@ def test_pickle_extension_round_trip(tmp_path, dense_solution):
     fname = str(tmp_path / 'soln.pickle')
     io.write_solution(fname, dense_solution)
     assert io.read_solution(fname) == dense_solution
+
+
+@pytest.fixture
+def problem_config_path(tmp_path):
+    config = {
+        'residents': {'R1': {}, 'R2': {}},
+        'rotations': {'Rotation1': {}, 'Rotation2': {}},
+        'blocks': {'Block1': {}, 'Block2': {}},
+    }
+    path = tmp_path / 'config.yml'
+    with open(path, 'w') as f:
+        yaml.dump(config, f)
+    return str(path)
+
+
+def test_load_problem_basic(problem_config_path):
+    problem = io.load_problem(problem_config_path)
+
+    assert problem.residents == ['R1', 'R2']
+    assert problem.blocks == ['Block1', 'Block2']
+    assert problem.rotations == ['Rotation1', 'Rotation2']
+    assert problem.cogrids == {}
+    assert set(problem.config['residents']) == {'R1', 'R2'}
+    assert 'R1' in problem.groups_array
+    assert isinstance(problem.cst_list, list)
+    assert problem.hint is None
+
+
+def test_load_problem_require_appends_field_sum_constraint(problem_config_path):
+    problem = io.load_problem(
+        problem_config_path,
+        require=('sum == 0: R1 and Block1 and Rotation1',)
+    )
+
+    assert len(problem.cst_list) == 1
+    assert isinstance(problem.cst_list[-1], csts.FieldSumConstraint)
+
+
+def test_load_problem_hint_round_trips(problem_config_path, tmp_path):
+    solution = {
+        'main': {
+            ('R1', 'Block1', 'Rotation1'): 1,
+            ('R1', 'Block2', 'Rotation2'): 0,
+        }
+    }
+    hint_path = str(tmp_path / 'hint.json')
+    io.write_solution(hint_path, solution)
+
+    problem = io.load_problem(problem_config_path, hint_path=hint_path)
+
+    assert problem.hint == {'main': {('R1', 'Block1', 'Rotation1'): 1}}
+
+
+def test_load_problem_hint_omitted_is_none(problem_config_path):
+    problem = io.load_problem(problem_config_path)
+    assert problem.hint is None
+
+
+def test_load_problem_coverage_csvs(problem_config_path, tmp_path):
+    coverage_min = tmp_path / 'coverage_min.csv'
+    coverage_min.write_text(
+        ',Block1,Block2\n'
+        'Rotation1,1,1\n'
+        'Rotation2,0,0\n'
+    )
+    coverage_max = tmp_path / 'coverage_max.csv'
+    coverage_max.write_text(
+        ',Block1,Block2\n'
+        'Rotation1,2,2\n'
+    )
+
+    problem = io.load_problem(
+        problem_config_path,
+        coverage_min=str(coverage_min),
+        coverage_max=str(coverage_max),
+    )
+
+    coverage_csts = [c for c in problem.cst_list
+                     if isinstance(c, csts.RotationCoverageConstraint)]
+    assert len(coverage_csts) == 6  # 4 rmin + 2 rmax
+    assert sum(1 for c in coverage_csts if c.rmin is not None) == 4
+    assert sum(1 for c in coverage_csts if c.rmax is not None) == 2
