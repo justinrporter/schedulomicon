@@ -1,5 +1,6 @@
 import csv
 import difflib
+import os
 import warnings
 import yaml
 import pickle
@@ -136,6 +137,12 @@ def write_solution(fname, solution):
     else:
         raise exceptions.UnacceptableFileType(
             f"File '{fname}' is not of type .csv, .pkl/.pickle, or .json")
+
+
+def numbered_path(path, index):
+    """Insert ``-index`` before the extension: ('new.json', 2) -> 'new-2.json'."""
+    root, ext = os.path.splitext(path)
+    return f"{root}-{index}{ext}"
 
 
 def field_sum_constraint(sum_statement, selector_string, config, groups_array):

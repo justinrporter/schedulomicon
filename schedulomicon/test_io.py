@@ -182,6 +182,24 @@ def test_pickle_extension_round_trip(tmp_path, dense_solution):
     assert io.read_solution(fname) == dense_solution
 
 
+def test_numbered_path_json():
+    assert io.numbered_path('new.json', 1) == 'new-1.json'
+
+
+def test_numbered_path_preserves_extension():
+    assert io.numbered_path('results.csv', 2) == 'results-2.csv'
+    assert io.numbered_path('soln.pkl', 10) == 'soln-10.pkl'
+
+
+def test_numbered_path_preserves_directories():
+    assert io.numbered_path(os.path.join('out', 'runs', 'new.json'), 3) == \
+        os.path.join('out', 'runs', 'new-3.json')
+
+
+def test_numbered_path_no_extension():
+    assert io.numbered_path('new', 1) == 'new-1'
+
+
 @pytest.fixture
 def problem_config_path(tmp_path):
     config = {

@@ -384,6 +384,128 @@ class TestSubcommands:
         }}
 
 
+class TestNSolutionsFlag:
+    """Parsing of -n / --n_solutions / --n-solutions."""
+
+    def test_dashed_spelling_on_solve(self):
+        args = solver.parse_args([
+            'solve', '--config', 'c.yml', '--results', 'r.csv',
+            '--n-solutions', '3'])
+        assert args.n_solutions == 3
+
+    def test_dashed_spelling_on_swap(self):
+        args = solver.parse_args([
+            'swap', '--config', 'c.yml', '--results', 'r.csv',
+            '--minimize-changes-from', 'old.json',
+            '--n-solutions', '3'])
+        assert args.n_solutions == 3
+
+    def test_short_and_underscore_spellings_still_work(self):
+        args = solver.parse_args([
+            'solve', '--config', 'c.yml', '--results', 'r.csv', '-n', '3'])
+        assert args.n_solutions == 3
+
+        args = solver.parse_args([
+            'solve', '--config', 'c.yml', '--results', 'r.csv',
+            '--n_solutions', '4'])
+        assert args.n_solutions == 4
+
+
+class TestSwapMultiProposals:
+    """swap --n-solutions N > 1: numbered files and validation."""
+
+    @patch('schedulomicon.solve.solve')
+    def test_swap_multi_writes_numbered_files(
+            self, mock_solve, basic_config_file, temp_directory):
+        old_solution = {
+            'main': {
+                ('R1', 'Block1', 'Rotation1'): 1,
+                ('R1', 'Block2', 'Rotation2'): 1,
+                ('R2', 'Block1', 'Rotation2'): 1,
+                ('R2', 'Block2', 'Rotation1'): 1,
+            }
+        }
+        old_file = os.path.join(temp_directory, 'old.json')
+        io.write_solution(old_file, old_solution)
+
+        results_file = os.path.join(temp_directory, 'new.json')
+
+        s1 = {
+            'main': {
+                ('R1', 'Block1', 'Rotation1'): 0,
+                ('R1', 'Block1', 'Rotation2'): 1,
+                ('R1', 'Block2', 'Rotation2'): 1,
+                ('R2', 'Block1', 'Rotation2'): 1,
+                ('R2', 'Block2', 'Rotation1'): 1,
+            }
+        }
+        s2 = {
+            'main': {
+                ('R1', 'Block1', 'Rotation1'): 1,
+                ('R1', 'Block2', 'Rotation2'): 1,
+                ('R2', 'Block1', 'Rotation2'): 1,
+                ('R2', 'Block2', 'Rotation1'): 0,
+                ('R2', 'Block2', 'Rotation2'): 1,
+            }
+        }
+
+        def pass_result(solution):
+            cp_solver = MagicMock()
+            cp_solver.ObjectiveValue.return_value = -2.0
+            printer = MagicMock()
+            printer._solutions = [solution]
+            printer.solution_count.return_value = 1
+            return ('OPTIMAL', cp_solver, printer, MagicMock(), 1.0)
+
+        # no rankings: pass 2 is skipped, one solve call per proposal
+        mock_solve.side_effect = [pass_result(s1), pass_result(s2)]
+
+        with patch('sys.stdout', new=StringIO()) as fake_stdout:
+            exit_code = solver.main([
+                'swap',
+                '--config', basic_config_file,
+                '--minimize-changes-from', old_file,
+                '--n-solutions', '2',
+                '--results', results_file,
+            ])
+
+        assert exit_code == 1
+        assert mock_solve.call_count == 2
+
+        # numbered files are written, not the bare --results path
+        assert not os.path.exists(results_file)
+        assert io.read_solution(os.path.join(temp_directory, 'new-1.json')) \
+            == {'main': {k: v for k, v in s1['main'].items() if v}}
+        assert io.read_solution(os.path.join(temp_directory, 'new-2.json')) \
+            == {'main': {k: v for k, v in s2['main'].items() if v}}
+
+        out = fake_stdout.getvalue()
+        # d = o_star + n_valid_old_on = -2 + 4
+        assert 'Proposal 1/2: 2 variable flip(s) from old schedule' in out
+        assert 'Proposal 2/2: 2 variable flip(s) from old schedule' in out
+        assert 'R1, Block1: Rotation1 -> Rotation2' in out
+        assert 'R2, Block2: Rotation1 -> Rotation2' in out
+
+    @patch('schedulomicon.solve.solve')
+    def test_swap_n_solutions_zero_errors(
+            self, mock_solve, basic_config_file, temp_directory):
+        old_file = os.path.join(temp_directory, 'old.json')
+        io.write_solution(
+            old_file, {'main': {('R1', 'Block1', 'Rotation1'): 1}})
+
+        with pytest.raises(SystemExit) as exc_info:
+            solver.main([
+                'swap',
+                '--config', basic_config_file,
+                '--minimize-changes-from', old_file,
+                '--n-solutions', '0',
+                '--results', os.path.join(temp_directory, 'new.json'),
+            ])
+
+        assert 'at least 1' in str(exc_info.value)
+        mock_solve.assert_not_called()
+
+
 class TestConfigLoading:
     """Test configuration file loading and processing."""
     

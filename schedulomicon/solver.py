@@ -73,8 +73,9 @@ def add_common_args(parser):
     )
 
     parser.add_argument(
-        '-n', '--n_solutions', default=Ellipsis, type=int,
-        help='The number of solutions to search for.'
+        '-n', '--n_solutions', '--n-solutions', default=Ellipsis, type=int,
+        help='solve: the number of solutions to search for before stopping. '
+             'swap: the number of distinct proposals to produce (default 1).'
     )
 
     parser.add_argument(
@@ -304,6 +305,13 @@ def run_solve(args):
 
 def run_swap(args):
 
+    n_solutions = (1 if args.n_solutions in (Ellipsis, None)
+                   else args.n_solutions)
+    if n_solutions < 1:
+        raise SystemExit(
+            "schedulomicon swap: --n-solutions must be at least 1 "
+            f"(got {n_solutions})")
+
     problem, score_functions, scores, extra_csts = load_problem_and_scores(args)
 
     old_solution = io.read_solution(args.minimize_changes_from)
@@ -316,34 +324,78 @@ def run_swap(args):
         for spec in args.freeze
     ]
 
-    status, solver, solution_printer, model, wall_runtime, d_star = \
-        swap.swap_solve(
-            problem.residents, problem.blocks, problem.rotations,
-            problem.groups_array, problem.cst_list + extra_csts + freeze_csts,
-            soln_printer=partial(
-                callback.JugScheduleSolutionPrinter,
-                scores=scores,
-                solution_limit=args.n_solutions,
-            ),
-            cogrids=problem.cogrids,
-            score_functions=score_functions,
-            old_solution=old_solution,
-            n_processes=args.n_processes,
-            hint=problem.hint,
-            max_time_in_mins=None,
-        )
+    cst_list = problem.cst_list + extra_csts + freeze_csts
 
-    if d_star is not None:
-        print(f"Minimal changes (variable flips) from old schedule: {d_star}")
+    # In swap mode -n counts proposals, not per-pass callback solutions; a
+    # per-pass cap could stop CP-SAT before proving minimality, so the
+    # printer prototype never gets a solution_limit here.
+    soln_printer = partial(callback.JugScheduleSolutionPrinter, scores=scores)
 
-    ret = report_and_write(status, solver, solution_printer, args.results)
+    if n_solutions == 1:
+        status, solver, solution_printer, model, wall_runtime, d_star = \
+            swap.swap_solve(
+                problem.residents, problem.blocks, problem.rotations,
+                problem.groups_array, cst_list,
+                soln_printer=soln_printer,
+                cogrids=problem.cogrids,
+                score_functions=score_functions,
+                old_solution=old_solution,
+                n_processes=args.n_processes,
+                hint=problem.hint,
+                max_time_in_mins=None,
+            )
 
-    if status in ['OPTIMAL', 'FEASIBLE']:
+        if d_star is not None:
+            print(f"Minimal changes (variable flips) from old schedule: {d_star}")
+
+        ret = report_and_write(status, solver, solution_printer, args.results)
+
+        if status in ['OPTIMAL', 'FEASIBLE']:
+            print()
+            print(swap.format_diff_report(
+                old_solution, solution_printer._solutions[-1]))
+
+        return ret
+
+    proposals, last_result = swap.swap_solve_multi(
+        problem.residents, problem.blocks, problem.rotations,
+        problem.groups_array, cst_list,
+        soln_printer=soln_printer,
+        cogrids=problem.cogrids,
+        score_functions=score_functions,
+        old_solution=old_solution,
+        n_solutions=n_solutions,
+        n_processes=args.n_processes,
+        hint=problem.hint,
+        max_time_in_mins=None,
+    )
+
+    if not proposals:
+        status, solver, solution_printer, model, wall_runtime, d_star = \
+            last_result
+        return report_and_write(status, solver, solution_printer, args.results)
+
+    for i, prop in enumerate(proposals, 1):
+        path = io.numbered_path(args.results, i)
+        io.write_solution(path, prop.solution)
+
+        header = (f"=== Proposal {i}/{n_solutions}: {prop.d} variable "
+                  "flip(s) from old schedule")
+        if prop.score is not None:
+            header += f" (score: {prop.score})"
+        header += " ==="
+
         print()
-        print(swap.format_diff_report(
-            old_solution, solution_printer._solutions[-1]))
+        print(header)
+        print("Solution written to", path)
+        print(swap.format_diff_report(old_solution, prop.solution))
 
-    return ret
+    if len(proposals) < n_solutions:
+        print()
+        print(f"Found {len(proposals)} of {n_solutions} requested proposals; "
+              "no further distinct feasible solutions exist.")
+
+    return 1
 
 
 def main(argv=None):

@@ -8,6 +8,7 @@ normal score objective without exceeding that change count (pass 2).
 import logging
 import warnings
 
+from collections import namedtuple
 from functools import partial
 
 from . import csts, exceptions, parser, score, solve
@@ -157,6 +158,43 @@ class FreezeConstraint(csts.Constraint):
             variables = grids[grid_name]['variables']
             for key, value in grid_pins.items():
                 model.Add(variables[key] == value)
+
+
+class ExcludeSolutionConstraint(csts.Constraint):
+    """Forbid one exact solution (a no-good cut).
+
+    ``solution`` is {grid_name: {key_tuple: 0 or 1}}, sparse or dense — a
+    key missing from a present grid is 0, the same convention as hints. The
+    cut is a single clause over every model grid present in the solution,
+    requiring at least one variable to differ from the excluded value. The
+    clause covers off variables too (not just the solution's on-variables)
+    because a cogrid can differ by turning a variable on without turning
+    any old one off. Solution grids and keys with no counterpart in the
+    current model are ignored. Not available from YAML; constructed in code
+    (swap mode's multi-proposal loop).
+    """
+
+    def __init__(self, solution):
+        self.solution = solution
+
+    def apply(self, model, block_assigned, residents, blocks, rotations,
+              grids):
+        literals = []
+        for grid_name, excluded in self.solution.items():
+            if grid_name not in grids:
+                continue
+            for key, var in grids[grid_name]['variables'].items():
+                if excluded.get(key, 0) != 0:
+                    literals.append(var.Not())
+                else:
+                    literals.append(var)
+
+        if not literals:
+            raise ValueError(
+                "ExcludeSolutionConstraint: the excluded solution shares no "
+                "grid with the model, so the cut cannot be expressed")
+
+        model.AddBoolOr(literals)
 
 
 def build_freeze_constraint(selector, old_solution, config, groups_array,
@@ -356,6 +394,69 @@ def swap_solve(residents, blocks, rotations, groups_array, cst_list,
 
     return (status, solver, pass2_printer, model,
             wall_runtime + pass2_runtime, d_star)
+
+
+SwapProposal = namedtuple(
+    'SwapProposal',
+    ['solution', 'd', 'score', 'status', 'solver', 'solution_printer',
+     'model', 'runtime'])
+
+
+def swap_solve_multi(residents, blocks, rotations, groups_array, cst_list,
+                     soln_printer, cogrids, score_functions, old_solution,
+                     n_solutions=1, max_time_in_mins=None, n_processes=None,
+                     hint=None):
+    """Produce up to ``n_solutions`` distinct minimal-change proposals.
+
+    Repeats swap_solve, after each proposal adding a no-good cut
+    (ExcludeSolutionConstraint) forbidding that exact solution, so proposals
+    come out in strict lexicographic order: fewest variable flips from the
+    old solution first, then best user score. Later proposals may need more
+    flips once the minimal-flip tier is exhausted. The cuts apply to both
+    passes of every subsequent iteration; the caller's ``cst_list`` is not
+    mutated.
+
+    Args and shared semantics are those of swap_solve; ``hint`` is passed
+    through to every iteration's pass 1 (defaulting to old_solution there).
+
+    Returns:
+        (proposals, last_result): proposals is a list of SwapProposal
+        records — ``solution``, ``d`` (variable flips from the old
+        solution), ``score`` (pass-2 objective value, or None when
+        score_functions is empty), plus the swap_solve results ``status``,
+        ``solver``, ``solution_printer``, ``model``, ``runtime``. It may be
+        shorter than n_solutions when no further distinct feasible
+        solutions exist; last_result is then the swap_solve result tuple of
+        the failed final solve (None when all n_solutions were found).
+    """
+
+    proposals = []
+    cuts = []
+
+    for _ in range(n_solutions):
+        result = swap_solve(
+            residents, blocks, rotations, groups_array,
+            list(cst_list) + cuts,
+            soln_printer, cogrids, score_functions, old_solution,
+            max_time_in_mins=max_time_in_mins,
+            n_processes=n_processes,
+            hint=hint,
+        )
+        status, solver, solution_printer, model, runtime, d = result
+
+        if status not in ('OPTIMAL', 'FEASIBLE'):
+            return proposals, result
+
+        solution = solution_printer._solutions[-1]
+        score_val = (int(round(solver.ObjectiveValue()))
+                     if score_functions else None)
+
+        proposals.append(SwapProposal(
+            solution, d, score_val, status, solver, solution_printer,
+            model, runtime))
+        cuts.append(ExcludeSolutionConstraint(solution))
+
+    return proposals, None
 
 
 def format_diff_report(old_solution, new_solution):

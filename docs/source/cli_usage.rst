@@ -165,13 +165,16 @@ Solver Control Flags
 Number of OR-Tools search workers (default: ``1``). Increasing this can speed up
 solving on multi-core machines.
 
-``-n`` / ``--n_solutions <N>``
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+``-n`` / ``--n_solutions <N>`` / ``--n-solutions <N>``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Number of solutions to find before stopping. By default the solver runs until it
-finds an optimal solution (or proves infeasibility). In swap mode the limit
-applies to each pass separately; stopping pass 1 early means the change count
-is only an upper bound (a warning is printed when this happens).
+In ``solve`` mode: the number of solutions to find before stopping. By
+default the solver runs until it finds an optimal solution (or proves
+infeasibility).
+
+In ``swap`` mode: the number of distinct minimal-change proposals to produce
+(default ``1``); see :ref:`cli-swap-multiple-proposals`. It does not limit
+the solutions visited within a pass.
 
 ``--objective <name>``
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -302,6 +305,59 @@ Swap mode solves lexicographically, in up to two passes:
    pass-1 change count imposed as a hard bound and optimizes the normal
    score objective, so among all minimal-change schedules you get the
    best-scoring one.
+
+.. _cli-swap-multiple-proposals:
+
+Multiple proposals
+^^^^^^^^^^^^^^^^^^
+
+``--n-solutions <N>`` asks swap mode for *N* distinct proposals instead of
+one. Proposals are produced in **strict lexicographic order**: fewest
+variable flips from the old schedule first, and among schedules with equal
+flip counts, best score first (when a score objective is given). After each
+proposal the exact solution is excluded and the two-pass solve is repeated,
+so once every schedule at the minimal flip count has been produced, later
+proposals move to the next-larger flip count.
+
+With ``N > 1``, ``--results new.json`` writes numbered files ``new-1.json``,
+``new-2.json``, … — each a normal single-solution ``format_version: 1`` file,
+so any of them can be fed back to ``--hint`` or ``--minimize-changes-from``.
+Each proposal is printed with its own header and diff report. With ``N = 1``
+(or the flag omitted) the output is exactly as before: one solution at the
+``--results`` path as given.
+
+If fewer than *N* distinct feasible schedules exist, the loop stops early
+and reports how many it found.
+
+.. code-block:: bash
+
+   schedulomicon swap \
+       --config config.yml \
+       --minimize-changes-from old_results.json \
+       --require 'sum == 0: Resident A and Block 7 and Cardiology' \
+       --rankings rankings.csv \
+       --n-solutions 3 \
+       --results new_results.json
+
+.. code-block:: text
+
+   === Proposal 1/3: 2 variable flip(s) from old schedule (score: 11) ===
+   Solution written to new_results-1.json
+   Changes from old schedule: 1 (main: 1)
+
+   main:
+     Resident A, Block 7: Cardiology -> ICU
+
+   === Proposal 2/3: 4 variable flip(s) from old schedule (score: 9) ===
+   Solution written to new_results-2.json
+   ...
+
+   Found 2 of 3 requested proposals; no further distinct feasible solutions exist.
+
+A pass 1 that stops at a time limit with a ``FEASIBLE`` (not ``OPTIMAL``)
+solution makes that proposal's flip count an upper bound rather than the
+minimum, which weakens the strict lexicographic ordering guarantee (the
+usual pass-1 warning is printed when this happens).
 
 Change metric
 ^^^^^^^^^^^^^

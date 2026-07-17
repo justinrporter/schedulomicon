@@ -15,6 +15,7 @@ Schedulomicon is a constraint-based scheduling optimizer for medical resident ro
   - Flagless invocation (`schedulomicon --config ...`) is a deprecated alias for `solve`
 - Swap mode (minimal-change rescheduling against a prior solution): `schedulomicon swap --config config.yml --minimize-changes-from old.json --freeze 'Block 1 or Block 2' --require 'sum == 0: Resident A and Block 7 and Cardiology' --results new.json`
   - `--freeze` (repeatable) pins the selected region to be *identical* to the old solution — for mid-year rescheduling where past blocks must not move
+  - `--n-solutions 3` produces three distinct proposals in strict lexicographic order (fewest flips, then best score), written to `new-1.json`, `new-2.json`, `new-3.json`
 - Run all tests: `pyenv exec pytest schedulomicon/test_*.py`
 - Run a single test: `pyenv exec pytest schedulomicon/test_solve.py::test_small_puzzle`
 

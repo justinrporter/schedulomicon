@@ -387,6 +387,99 @@ class TestBuildFreezeConstraint:
         assert cp_solver.StatusName(cp_solver.Solve(model)) == 'INFEASIBLE'
 
 
+class TestExcludeSolutionConstraint:
+
+    K1 = ('R1', 'Bl1', 'Ro1')
+    K2 = ('R1', 'Bl1', 'Ro2')
+
+    def _status(self, excluded, grid_keys, assignment):
+        """Apply the cut to a fresh model, pin `assignment`, and solve."""
+        model = cp_model.CpModel()
+        grids = {
+            grid_name: {'variables': {
+                key: model.NewBoolVar(str((grid_name,) + key))
+                for key in keys
+            }}
+            for grid_name, keys in grid_keys.items()
+        }
+
+        cst = swap.ExcludeSolutionConstraint(excluded)
+        cst.apply(model, block_assigned=grids['main']['variables'],
+                  residents=[], blocks=[], rotations=[], grids=grids)
+
+        for grid_name, values in assignment.items():
+            for key, value in values.items():
+                model.Add(grids[grid_name]['variables'][key] == value)
+
+        cp_solver = cp_model.CpSolver()
+        return cp_solver.StatusName(cp_solver.Solve(model))
+
+    def test_excludes_exactly_the_given_solution(self):
+        grid_keys = {'main': [self.K1, self.K2]}
+        excluded = {'main': {self.K1: 1, self.K2: 0}}
+
+        assert self._status(
+            excluded, grid_keys,
+            {'main': {self.K1: 1, self.K2: 0}}) == 'INFEASIBLE'
+
+        for other in ({self.K1: 0, self.K2: 0},
+                      {self.K1: 0, self.K2: 1},
+                      {self.K1: 1, self.K2: 1}):
+            assert self._status(
+                excluded, grid_keys, {'main': other}) == 'OPTIMAL'
+
+    def test_cogrid_on_only_difference_is_allowed(self):
+        grid_keys = {'main': [self.K1], 'backup': [('R1', 'Bl1')]}
+        excluded = {'main': {self.K1: 1}, 'backup': {}}
+
+        # same main assignment, but backup turned ON: a difference an
+        # on-vars-only clause would not see
+        assert self._status(
+            excluded, grid_keys,
+            {'main': {self.K1: 1},
+             'backup': {('R1', 'Bl1'): 1}}) == 'OPTIMAL'
+
+        assert self._status(
+            excluded, grid_keys,
+            {'main': {self.K1: 1},
+             'backup': {('R1', 'Bl1'): 0}}) == 'INFEASIBLE'
+
+    def test_sparse_equivalent_to_dense(self):
+        grid_keys = {'main': [self.K1, self.K2]}
+        sparse = {'main': {self.K1: 1}}
+        dense = {'main': {self.K1: 1, self.K2: 0}}
+
+        for a in (0, 1):
+            for b in (0, 1):
+                assignment = {'main': {self.K1: a, self.K2: b}}
+                assert (self._status(sparse, grid_keys, assignment) ==
+                        self._status(dense, grid_keys, assignment))
+
+        assert self._status(
+            sparse, grid_keys,
+            {'main': {self.K1: 1, self.K2: 0}}) == 'INFEASIBLE'
+
+    def test_stale_keys_ignored(self):
+        grid_keys = {'main': [self.K1, self.K2]}
+        excluded = {'main': {self.K1: 1, ('R9', 'Bl9', 'Ro9'): 1}}
+
+        assert self._status(
+            excluded, grid_keys,
+            {'main': {self.K1: 1, self.K2: 0}}) == 'INFEASIBLE'
+        assert self._status(
+            excluded, grid_keys,
+            {'main': {self.K1: 1, self.K2: 1}}) == 'OPTIMAL'
+
+    def test_solution_covering_no_model_grid_raises(self):
+        model = cp_model.CpModel()
+        grids = {'main': {'variables': {self.K1: model.NewBoolVar('v')}}}
+
+        cst = swap.ExcludeSolutionConstraint({'ghost': {('x',): 1}})
+        with pytest.raises(ValueError):
+            cst.apply(model, block_assigned=grids['main']['variables'],
+                      residents=[], blocks=[], rotations=[], grids=grids)
+
+
 class TestFormatDiffReport:
 
     def test_full_report_across_grids(self):
@@ -566,6 +659,118 @@ class TestSwapSolve:
 
         _, kwargs1 = mock_solve.call_args_list[0]
         assert kwargs1['hint'] == my_hint
+
+
+@patch('schedulomicon.solve.solve')
+class TestSwapSolveMulti:
+
+    OLD = {'main': {('R1', 'Bl1', 'Ro1'): 1}}
+    S1 = {'main': {('R1', 'Bl1', 'Ro1'): 0, ('R1', 'Bl1', 'Ro2'): 1}}
+    S2 = {'main': {('R1', 'Bl1', 'Ro1'): 1, ('R1', 'Bl1', 'Ro2'): 0}}
+
+    def _multi(self, score_functions, n_solutions, cst_list=None, hint=None):
+        return swap.swap_solve_multi(
+            residents=['R1'], blocks=['Bl1'], rotations=['Ro1', 'Ro2'],
+            groups_array={},
+            cst_list=cst_list if cst_list is not None else [],
+            soln_printer=MagicMock(),
+            cogrids={},
+            score_functions=score_functions,
+            old_solution=self.OLD,
+            n_solutions=n_solutions,
+            hint=hint,
+        )
+
+    def test_cuts_accumulate_without_mutating_callers_list(self, mock_solve):
+        mock_solve.side_effect = [
+            _pass_result('OPTIMAL', objective=0.0, solutions=[self.S1]),
+            _pass_result('OPTIMAL', objective=1.0, solutions=[self.S2]),
+        ]
+        cst_list = []
+
+        proposals, last_result = self._multi([], 2, cst_list=cst_list)
+
+        assert last_result is None
+        assert len(proposals) == 2
+        assert mock_solve.call_count == 2
+
+        args1, _ = mock_solve.call_args_list[0]
+        assert not any(isinstance(c, swap.ExcludeSolutionConstraint)
+                       for c in args1[4])
+
+        args2, _ = mock_solve.call_args_list[1]
+        cuts = [c for c in args2[4]
+                if isinstance(c, swap.ExcludeSolutionConstraint)]
+        assert len(cuts) == 1
+        assert cuts[0].solution == self.S1
+
+        assert cst_list == [], "caller's cst_list must not be mutated"
+
+    def test_cut_in_both_passes_and_stable_pass1_hint(self, mock_solve):
+        user_score_functions = [('main', lambda v: 0)]
+        mock_solve.side_effect = [
+            _pass_result('OPTIMAL', objective=0.0, solutions=[self.S1]),
+            _pass_result('OPTIMAL', objective=7.0, solutions=[self.S1]),
+            _pass_result('OPTIMAL', objective=1.0, solutions=[self.S2]),
+            _pass_result('OPTIMAL', objective=5.0, solutions=[self.S2]),
+        ]
+
+        proposals, last_result = self._multi(user_score_functions, 2)
+
+        assert last_result is None
+        assert mock_solve.call_count == 4
+
+        # iteration 2: the cut on S1 is in both pass-1 and pass-2 cst_lists
+        for call_idx in (2, 3):
+            args, _ = mock_solve.call_args_list[call_idx]
+            cuts = [c for c in args[4]
+                    if isinstance(c, swap.ExcludeSolutionConstraint)]
+            assert len(cuts) == 1, f"call {call_idx}"
+            assert cuts[0].solution == self.S1
+
+        # pass 1 is hinted with the old solution in every iteration
+        for call_idx in (0, 2):
+            _, kwargs = mock_solve.call_args_list[call_idx]
+            assert kwargs['hint'] == self.OLD
+
+        assert [p.score for p in proposals] == [7, 5]
+
+    def test_early_stop_when_tier_exhausted(self, mock_solve):
+        mock_solve.side_effect = [
+            _pass_result('OPTIMAL', objective=0.0, solutions=[self.S1]),
+            _pass_result('INFEASIBLE'),
+        ]
+
+        proposals, last_result = self._multi([], 3)
+
+        assert mock_solve.call_count == 2  # no third solve attempted
+        assert len(proposals) == 1
+        assert proposals[0].solution == self.S1
+        assert last_result[0] == 'INFEASIBLE'
+        assert last_result[5] is None  # d_star
+
+    def test_first_solve_infeasible(self, mock_solve):
+        mock_solve.side_effect = [_pass_result('INFEASIBLE')]
+
+        proposals, last_result = self._multi([], 2)
+
+        assert proposals == []
+        assert last_result[0] == 'INFEASIBLE'
+
+    def test_proposal_record_fields(self, mock_solve):
+        mock_solve.side_effect = [
+            _pass_result('OPTIMAL', objective=0.0, solutions=[self.S1]),
+        ]
+
+        proposals, last_result = self._multi([], 1)
+
+        assert last_result is None
+        (prop,) = proposals
+        assert prop.solution == self.S1
+        assert prop.d == 1          # o_star 0 + n_valid_old_on 1
+        assert prop.score is None   # no user score functions
+        assert prop.status == 'OPTIMAL'
+        assert prop.runtime == 1.0
 
 
 def _write_yaml_config(tmp_path, config):
@@ -796,3 +1001,135 @@ class TestSwapEndToEnd:
         new = io.read_solution(new_file)
         assert new['main'].get((res, blk, rot), 0) == 0
         assert 'vacation' in new
+
+
+class TestSwapMultiEndToEnd:
+    """Full CP-SAT integration tests for --n-solutions on the swap
+    subcommand: 1 resident, 1 block, 3 rotations, old solution = A."""
+
+    CONFIG = {
+        'residents': {'R1': {}},
+        'rotations': {'A': {}, 'B': {}, 'C': {}},
+        'blocks': {'Bl1': {}},
+    }
+
+    def _setup(self, tmp_path):
+        config_path = _write_yaml_config(tmp_path, self.CONFIG)
+        old_file = str(tmp_path / 'old.json')
+        io.write_solution(old_file, {'main': {('R1', 'Bl1', 'A'): 1}})
+        return config_path, old_file
+
+    def _rankings(self, tmp_path):
+        # scores are minimized: C (1) beats B (5)
+        rankings_file = tmp_path / 'rankings.csv'
+        rankings_file.write_text(',A,B,C\nR1,0,5,1\n')
+        return str(rankings_file)
+
+    def test_lex_order_and_numbered_files(self, tmp_path, capsys):
+        config_path, old_file = self._setup(tmp_path)
+        new_file = str(tmp_path / 'new.json')
+
+        assert solver.main([
+            'swap', '--config', config_path,
+            '--minimize-changes-from', old_file,
+            '--require', 'sum == 0: A',
+            '--rankings', self._rankings(tmp_path),
+            '--n-solutions', '2',
+            '--results', new_file,
+        ]) == 1
+
+        assert not os.path.exists(new_file)
+        first = io.read_solution(str(tmp_path / 'new-1.json'))
+        second = io.read_solution(str(tmp_path / 'new-2.json'))
+        assert first['main'] == {('R1', 'Bl1', 'C'): 1}
+        assert second['main'] == {('R1', 'Bl1', 'B'): 1}
+
+        out = capsys.readouterr().out
+        assert ('Proposal 1/2: 2 variable flip(s) from old schedule '
+                '(score: 1)') in out
+        assert ('Proposal 2/2: 2 variable flip(s) from old schedule '
+                '(score: 5)') in out
+
+    def test_early_stop_reports_found_count(self, tmp_path, capsys):
+        config_path, old_file = self._setup(tmp_path)
+        new_file = str(tmp_path / 'new.json')
+
+        assert solver.main([
+            'swap', '--config', config_path,
+            '--minimize-changes-from', old_file,
+            '--require', 'sum == 0: A',
+            '--rankings', self._rankings(tmp_path),
+            '--n-solutions', '5',
+            '--results', new_file,
+        ]) == 1
+
+        assert os.path.exists(str(tmp_path / 'new-1.json'))
+        assert os.path.exists(str(tmp_path / 'new-2.json'))
+        assert not os.path.exists(str(tmp_path / 'new-3.json'))
+
+        out = capsys.readouterr().out
+        assert ('Found 2 of 5 requested proposals; no further distinct '
+                'feasible solutions exist.') in out
+
+    def test_zero_change_first_proposal_and_nondecreasing_d(
+            self, tmp_path, capsys):
+        config_path, old_file = self._setup(tmp_path)
+        new_file = str(tmp_path / 'new.json')
+
+        assert solver.main([
+            'swap', '--config', config_path,
+            '--minimize-changes-from', old_file,
+            '--n-solutions', '2',
+            '--results', new_file,
+        ]) == 1
+
+        assert io.read_solution(str(tmp_path / 'new-1.json'))['main'] == \
+            {('R1', 'Bl1', 'A'): 1}
+
+        out = capsys.readouterr().out
+        assert 'Proposal 1/2: 0 variable flip(s) from old schedule' in out
+        assert 'No changes.' in out
+        assert 'Proposal 2/2: 2 variable flip(s) from old schedule' in out
+
+    def test_multi_without_rankings_enumerates_by_d(self, tmp_path, capsys):
+        config_path, old_file = self._setup(tmp_path)
+        new_file = str(tmp_path / 'new.json')
+
+        assert solver.main([
+            'swap', '--config', config_path,
+            '--minimize-changes-from', old_file,
+            '--require', 'sum == 0: A',
+            '--n-solutions', '2',
+            '--results', new_file,
+        ]) == 1
+
+        solutions = [
+            io.read_solution(str(tmp_path / f'new-{i}.json'))['main']
+            for i in (1, 2)
+        ]
+        assert {next(iter(s)) for s in solutions} == \
+            {('R1', 'Bl1', 'B'), ('R1', 'Bl1', 'C')}
+
+        out = capsys.readouterr().out
+        assert '(score:' not in out
+
+    def test_freeze_all_early_stops_after_old_solution(
+            self, tmp_path, capsys):
+        config_path, old_file = self._setup(tmp_path)
+        new_file = str(tmp_path / 'new.json')
+
+        assert solver.main([
+            'swap', '--config', config_path,
+            '--minimize-changes-from', old_file,
+            '--freeze', 'Bl1',
+            '--n-solutions', '2',
+            '--results', new_file,
+        ]) == 1
+
+        assert io.read_solution(str(tmp_path / 'new-1.json'))['main'] == \
+            {('R1', 'Bl1', 'A'): 1}
+        assert not os.path.exists(str(tmp_path / 'new-2.json'))
+
+        out = capsys.readouterr().out
+        assert ('Found 1 of 2 requested proposals; no further distinct '
+                'feasible solutions exist.') in out
