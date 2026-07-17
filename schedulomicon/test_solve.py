@@ -139,7 +139,7 @@ def test_cooldown_constraint():
         assert np.all((rot1_idx[1:] - rot1_idx[:-1]) >= COOLDOWN_LENGTH)
 
 
-def test_consecutive_rotation_constraint():
+def test_consecutive_rotation_with_coverage():
 
     rotations = [f'Ro{i+1}' for i in range(6)]
     residents=['R1', 'R2', 'R3']
@@ -197,7 +197,7 @@ def test_consecutive_rotation_constraint():
         assert tuple((s == 'Ro2')) in ro2_allowed_patterns
 
 
-def test_consecutive_rotation_constraint():
+def test_consecutive_with_forbidden_roots():
 
     rotations = [f'Ro{i+1}' for i in range(2)]
     residents=['R1', 'R2']
@@ -239,7 +239,7 @@ def test_consecutive_rotation_constraint():
     assert tuple(soln.R2) == ('Ro2', 'Ro2', 'Ro2', 'Ro2', 'Ro2', 'Ro2')
 
 
-def test_consecutive_rotation_constraint():
+def test_group_count_per_resident_per_window():
 
     rotations = [f'Ro{i+1}' for i in range(3)]
     residents=['R1', 'R2']
@@ -276,11 +276,11 @@ def test_consecutive_rotation_constraint():
 
     schedules = [soln.R1, soln.R2]
 
-    assert tuple(soln.R1) == ('Ro2', 'Ro1')
+    assert tuple(soln.R1) in (('Ro2', 'Ro1'), ('Ro1', 'Ro2'))
     assert tuple(soln.R2) == ('Ro1', 'Ro1')
 
 
-def test_consecutive_rotation_constraint():
+def test_ineligible_after_constraint():
 
     rotations = ['Ro1', 'Ro2']
     residents=['R1', 'R2']

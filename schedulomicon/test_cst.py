@@ -111,7 +111,7 @@ def test_coverage_cst_yaml_parsing():
     assert cst.allowed_vals == [2]
 
 
-def test_consecutive_cst_yaml_parsing():
+def test_consecutive_cst_yaml_simple():
     config = {
         'rotations': {
             'Gen Surg': {'consecutive_count': 2},
@@ -125,7 +125,7 @@ def test_consecutive_cst_yaml_parsing():
 
 
 
-def test_consecutive_cst_yaml_parsing():
+def test_consecutive_cst_yaml_with_roots():
     config = {
         'blocks': {'Bl1': {}, 'Bl2': {}, 'Bl3': {}},
         'rotations': {

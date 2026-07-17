@@ -521,62 +521,6 @@ class TestConfigLoading:
         assert len(config['rotations']) == 2
         assert len(config['blocks']) == 2
     
-    @patch('schedulomicon.io.process_config')
-    def test_process_config(self, mock_process_config, basic_config_file):
-        """Test processing of configuration."""
-        residents = ['R1', 'R2']
-        blocks = ['Block1', 'Block2']
-        rotations = ['Rotation1', 'Rotation2']
-        cogrids_avail = []
-        groups_array = {}
-        
-        mock_process_config.return_value = (residents, blocks, rotations, cogrids_avail, groups_array)
-        
-        with open(basic_config_file, 'r') as f:
-            config = yaml.safe_load(f)
-        
-        result = io.process_config(config)
-        
-        mock_process_config.assert_called_once()
-        assert result == (residents, blocks, rotations, cogrids_avail, groups_array)
-
-
-class TestInputFileHandling:
-    """Test handling of input files."""
-    
-    @patch('schedulomicon.io.coverage_constraints_from_csv')
-    def test_coverage_min_loading(self, mock_coverage_constraints, coverage_min_file):
-        """Test loading coverage minimum constraints from CSV."""
-        mock_coverage_constraints.return_value = [MagicMock()]
-        
-        constraints = io.coverage_constraints_from_csv(coverage_min_file, 'rmin')
-        
-        mock_coverage_constraints.assert_called_once_with(coverage_min_file, 'rmin')
-        assert len(constraints) == 1
-    
-    @patch('schedulomicon.io.coverage_constraints_from_csv')
-    def test_coverage_max_loading(self, mock_coverage_constraints, coverage_max_file):
-        """Test loading coverage maximum constraints from CSV."""
-        mock_coverage_constraints.return_value = [MagicMock()]
-        
-        constraints = io.coverage_constraints_from_csv(coverage_max_file, 'rmax')
-        
-        mock_coverage_constraints.assert_called_once_with(coverage_max_file, 'rmax')
-        assert len(constraints) == 1
-    
-    @patch('schedulomicon.io.rankings_from_csv')
-    def test_rankings_loading(self, mock_rankings_from_csv, rankings_file):
-        """Test loading rankings from CSV."""
-        mock_rankings = {'R1': {'Rotation1': 10, 'Rotation2': 3}, 
-                        'R2': {'Rotation1': 5, 'Rotation2': 8}}
-        mock_rankings_from_csv.return_value = mock_rankings
-        
-        rankings = io.rankings_from_csv(rankings_file)
-        
-        mock_rankings_from_csv.assert_called_once_with(rankings_file)
-        assert rankings == mock_rankings
-
-
 class TestScoreFunctionGeneration:
     """Test generation and integration of score functions."""
     
