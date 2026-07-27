@@ -226,6 +226,56 @@ def test_load_problem_basic(problem_config_path):
     assert problem.hint is None
 
 
+@pytest.mark.parametrize(
+    'config_text, duplicate_key',
+    [
+        (
+            """residents:
+  R1: {}
+rotations:
+  Rotation1: {groups: [team]}
+blocks:
+  Block1: {}
+group_constraints:
+  - kind: group_coverage_constraint
+    group: team
+    min: 1
+    max: 1
+group_constraints:
+  - kind: group_coverage_constraint
+    group: team
+    min: 0
+    max: 1
+""",
+            'group_constraints',
+        ),
+        (
+            """residents:
+  R1:
+    sum == 1:
+      - Rotation1
+    sum == 1:
+      - Rotation1
+rotations:
+  Rotation1: {}
+blocks:
+  Block1: {}
+""",
+            'sum == 1',
+        ),
+    ],
+)
+def test_load_problem_rejects_duplicate_yaml_keys(
+        tmp_path, config_text, duplicate_key):
+    config_path = tmp_path / 'duplicate-key.yml'
+    config_path.write_text(config_text)
+
+    with pytest.raises(yaml.constructor.ConstructorError) as exc_info:
+        io.load_problem(str(config_path))
+
+    assert f"found duplicate key ({duplicate_key})" in str(exc_info.value)
+
+
 def test_load_problem_require_appends_field_sum_constraint(problem_config_path):
     problem = io.load_problem(
         problem_config_path,

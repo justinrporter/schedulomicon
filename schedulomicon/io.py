@@ -8,6 +8,7 @@ import pickle
 import json
 import re
 from collections import OrderedDict, namedtuple
+from collections.abc import Hashable
 
 import numpy as np
 import pandas as pd
@@ -29,6 +30,30 @@ GRID_KEY_FIELDS = {
     'backup': ['resident', 'block'],
     'vacation': ['resident', 'week', 'rotation'],
 }
+
+
+class _UniqueKeySafeLoader(yaml.SafeLoader):
+    """Safe YAML loader that rejects duplicate keys in any mapping."""
+
+    def construct_mapping(self, node, deep=False):
+        if isinstance(node, yaml.MappingNode):
+            seen = set()
+            for key_node, _ in node.value:
+                if key_node.tag == 'tag:yaml.org,2002:merge':
+                    continue
+
+                key = self.construct_object(key_node, deep=deep)
+                if not isinstance(key, Hashable):
+                    raise yaml.constructor.ConstructorError(
+                        "while constructing a mapping", node.start_mark,
+                        "found unhashable key", key_node.start_mark)
+                if key in seen:
+                    raise yaml.constructor.ConstructorError(
+                        "while constructing a mapping", node.start_mark,
+                        f"found duplicate key ({key})", key_node.start_mark)
+                seen.add(key)
+
+        return super().construct_mapping(node, deep=deep)
 
 
 def _key_fields_for_grid(grid_name, arity):
@@ -230,7 +255,7 @@ def load_problem(config_path, coverage_min=None, coverage_max=None,
     """
 
     with open(config_path, 'r') as f:
-        config = yaml.safe_load(f)
+        config = yaml.load(f, Loader=_UniqueKeySafeLoader)
 
     residents, blocks, rotations, cogrids_avail, groups_array = process_config(config)
 
