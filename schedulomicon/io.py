@@ -380,6 +380,25 @@ def process_config(config):
             groups[config_type].extend(_normalize_groups(params.get('groups')))
         groups[config_type] = list(set(groups[config_type]))
 
+    selector_sources = [
+        ('resident group', groups['residents']),
+        ('block group', groups['blocks']),
+        ('rotation group', groups['rotations']),
+        ('resident name', residents),
+        ('block name', blocks),
+        ('rotation name', rotations),
+    ]
+    seen_selectors = {}
+    for source, selectors in selector_sources:
+        for selector in selectors:
+            if selector in seen_selectors:
+                raise exceptions.YAMLConfigurationMalformedError(
+                    f"Selector {selector!r} is defined as both a "
+                    f"{seen_selectors[selector]} and a {source}. Resident, "
+                    "block, and rotation names and groups must be unique."
+                )
+            seen_selectors[selector] = source
+
     groups_array = {}
     for group_type in groups:
         for group in groups[group_type]:

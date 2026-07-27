@@ -67,6 +67,11 @@ Direct names also work as selectors.
 
 Use groups when the same idea appears more than once.
 
+Group labels and direct names share one selector namespace. Reusing a group
+label for multiple entities of the same type defines one group, but group
+types and direct names must not reuse each other's identifiers. Configurations
+with these collisions are rejected.
+
 
 Composing Selections
 --------------------

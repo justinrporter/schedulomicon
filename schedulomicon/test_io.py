@@ -1,3 +1,4 @@
+import itertools
 import json
 import os
 import pickle
@@ -224,6 +225,66 @@ def test_load_problem_basic(problem_config_path):
     assert 'R1' in problem.groups_array
     assert isinstance(problem.cst_list, list)
     assert problem.hint is None
+
+
+SELECTOR_SOURCES = [
+    ('resident group', 'residents', 'Resident', 'group'),
+    ('block group', 'blocks', 'Block', 'group'),
+    ('rotation group', 'rotations', 'Rotation', 'group'),
+    ('resident name', 'residents', 'Resident', 'name'),
+    ('block name', 'blocks', 'Block', 'name'),
+    ('rotation name', 'rotations', 'Rotation', 'name'),
+]
+
+
+def config_with_selector_sources(*selected_sources):
+    config = {
+        'residents': {'Resident': {}},
+        'blocks': {'Block': {}},
+        'rotations': {'Rotation': {}},
+    }
+
+    for source, config_type, item, source_type in SELECTOR_SOURCES:
+        if source not in selected_sources:
+            continue
+        if source_type == 'group':
+            config[config_type][item]['groups'] = ['shared']
+        else:
+            config[config_type]['shared'] = config[config_type].pop(item)
+
+    return config
+
+
+@pytest.mark.parametrize(
+    'first_source, second_source',
+    itertools.combinations([source[0] for source in SELECTOR_SOURCES], 2),
+)
+def test_process_config_rejects_selector_namespace_collisions(
+        first_source, second_source):
+    config = config_with_selector_sources(first_source, second_source)
+
+    with pytest.raises(exceptions.YAMLConfigurationMalformedError) as exc_info:
+        io.process_config(config)
+
+    message = str(exc_info.value)
+    assert "'shared'" in message
+    assert first_source in message
+    assert second_source in message
+
+
+def test_process_config_allows_reusing_group_within_scope():
+    config = {
+        'residents': {
+            'Resident A': {'groups': ['shared', 'shared']},
+            'Resident B': {'groups': ['shared']},
+        },
+        'blocks': {'Block': {}},
+        'rotations': {'Rotation': {}},
+    }
+
+    _, _, _, _, groups_array = io.process_config(config)
+
+    assert groups_array['shared'].all()
 
 
 @pytest.mark.parametrize(
